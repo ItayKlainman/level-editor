@@ -83,7 +83,7 @@ namespace Hoppa.LevelEditor.Core.Tests
             var (migrated, wasMigrated) = registry.MigrateToLatest(doc);
 
             Assert.IsTrue(wasMigrated);
-            Assert.AreEqual("test.v2", migrated["schemaVersion"].Value<string>());
+            Assert.AreEqual("test.v2", (string)migrated["schemaVersion"]);
         }
 
         // ── helpers ──────────────────────────────────────────────────────────

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "levelId": "YT_001",
+  "displayName": "Tutorial — Pink & Blue",
+  "metadata": {
+    "author": "#TEMP",
+    "createdAt": "2026-04-24",
+    "modifiedAt": "2026-04-24",
+    "tags": [ "tutorial", "2-color" ]
+  },
+  "grid": {
+    "width": 5,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.box", "colorId": "blue" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.box", "colorId": "pink" }, { "type": "yt.box", "colorId": "pink" }, { "type": "yt.box", "colorId": "blue" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      { "spools": [ { "colorId": "pink" }, { "colorId": "pink" }, { "colorId": "pink" } ] },
+      { "spools": [ { "colorId": "pink" }, { "colorId": "pink" }, { "colorId": "pink" } ] },
+      { "spools": [ { "colorId": "blue" }, { "colorId": "blue" }, { "colorId": "blue" } ] },
+      { "spools": [ { "colorId": "blue" }, { "colorId": "blue" }, { "colorId": "blue" } ] }
+    ]
+  }
+}

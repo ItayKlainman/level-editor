@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "levelId": "YT_025",
+  "displayName": "Crossroads — All Features",
+  "metadata": {
+    "author": "#TEMP",
+    "createdAt": "2026-04-24",
+    "modifiedAt": "2026-04-24",
+    "tags": [ "intermediate", "6-color", "tunnel", "arrowbox", "hidden" ]
+  },
+  "grid": {
+    "width": 5,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.box", "colorId": "yellow", "hidden": true }, { "type": "yt.arrowbox", "colorId": "purple", "direction": "Right" }, { "type": "yt.box", "colorId": "purple" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.box", "colorId": "green", "hidden": true }, { "type": "yt.box", "colorId": "green" }, { "type": "yt.box", "colorId": "yellow" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.tunnel", "direction": "Up", "queue": [ "blue" ] }, { "type": "yt.box", "colorId": "teal" }, { "type": "yt.box", "colorId": "teal" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.box", "colorId": "pink" }, { "type": "yt.box", "colorId": "pink" }, { "type": "yt.box", "colorId": "blue" }, { "type": "yt.wall" },
+      { "type": "yt.wall" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.empty" }, { "type": "yt.wall" }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      {
+        "spools": [
+          { "colorId": "pink" }, { "colorId": "pink" }, { "colorId": "pink", "hidden": true },
+          { "colorId": "green" }, { "colorId": "green" }, { "colorId": "green" },
+          { "colorId": "teal" }, { "colorId": "teal" }, { "colorId": "teal" }
+        ]
+      },
+      {
+        "spools": [
+          { "colorId": "pink" }, { "colorId": "pink" }, { "colorId": "pink" },
+          { "colorId": "green" }, { "colorId": "green" }, { "colorId": "green", "hidden": true },
+          { "colorId": "teal" }, { "colorId": "teal" }, { "colorId": "teal" }
+        ]
+      },
+      {
+        "spools": [
+          { "colorId": "blue" }, { "colorId": "blue" }, { "colorId": "blue", "hidden": true },
+          { "colorId": "yellow" }, { "colorId": "yellow" }, { "colorId": "yellow" },
+          { "colorId": "purple" }, { "colorId": "purple" }, { "colorId": "purple" }
+        ]
+      },
+      {
+        "spools": [
+          { "colorId": "blue" }, { "colorId": "blue" }, { "colorId": "blue" },
+          { "colorId": "yellow" }, { "colorId": "yellow" }, { "colorId": "yellow", "hidden": true },
+          { "colorId": "purple" }, { "colorId": "purple" }, { "colorId": "purple", "hidden": true }
+        ]
+      }
+    ]
+  }
+}

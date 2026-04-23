@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 705a0ca41a11b1a4eaf43d6aee9a89d1, type: 3}
+  m_Name: YarnTwistProfile
+  m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
+  _schemaId: yarn-twist.v1
+  _colorPalette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}
+  _gridWidth: 5
+  _gridHeight: 7
+  _cellTypes:
+  - {fileID: 11400000, guid: af51c0bb90390d94789ebf1e6cbf8c07, type: 2}
+  - {fileID: 11400000, guid: 320c21f93056d68468bd2c9c076d4bf8, type: 2}
+  - {fileID: 11400000, guid: ecf8072de6b78854c88cc04b52c26253, type: 2}
+  - {fileID: 11400000, guid: d7f7aafc6c2f0d143af315dfa8ff6a8e, type: 2}
+  - {fileID: 11400000, guid: e3bb8340332b74d4d95f859d25b51d86, type: 2}
+  _rules:
+  - {fileID: 11400000, guid: 4cf71b0eae7869c4f8712bfcf0f05e62, type: 2}
+  - {fileID: 11400000, guid: 1041302f345509a45a5928538b5cb1cb, type: 2}
+  - {fileID: 11400000, guid: fa6f9a1e69b6c03458578883d47a9287, type: 2}
+  _exporters:
+  - {fileID: 11400000, guid: ac52ac3c785afb94bb72b64e5dd87fe1, type: 2}
+  _topSectionScript: {fileID: 11500000, guid: 20c7138a6394e904ebf3e850f791376d, type: 3}

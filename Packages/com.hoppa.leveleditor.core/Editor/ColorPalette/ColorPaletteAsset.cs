@@ -8,12 +8,12 @@ namespace Hoppa.LevelEditor.Core.Editor
     [CreateAssetMenu(menuName = "Hoppa/Level Editor/Color Palette", order = 1)]
     public sealed class ColorPaletteAsset : ScriptableObject, IColorPalette
     {
+        [Tooltip("List of colors available in this game. Each entry must have a unique Id.")]
         [SerializeField]
         private List<ColorEntry> _entries = new List<ColorEntry>();
 
         public IReadOnlyList<ColorEntry> Entries => _entries;
 
-        // IColorPalette
         public bool Contains(string colorId)
         {
             foreach (var entry in _entries)
@@ -23,10 +23,7 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         public IEnumerable<string> ColorIds
         {
-            get
-            {
-                foreach (var entry in _entries) yield return entry.Id;
-            }
+            get { foreach (var entry in _entries) yield return entry.Id; }
         }
 
         public bool TryGetColor(string colorId, out Color color)
@@ -47,9 +44,16 @@ namespace Hoppa.LevelEditor.Core.Editor
     [Serializable]
     public sealed class ColorEntry
     {
+        [Tooltip("Unique string ID referenced in level JSON.\nExample: 'red'")]
         public string Id;
+
+        [Tooltip("Human-readable name shown in inspector dropdowns.\nExample: 'Red'")]
         public string DisplayName;
+
+        [Tooltip("RGBA color used for rendering in the canvas and palette.")]
         public Color Color = Color.white;
+
+        [Tooltip("Optional swatch icon. Leave empty to auto-render the Color as a filled square.")]
         public Texture2D SwatchIcon;
     }
 }

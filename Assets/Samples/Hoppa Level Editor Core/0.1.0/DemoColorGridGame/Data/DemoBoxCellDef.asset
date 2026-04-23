@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ba5e1b4eef7954459ddeeb4fd9fc331, type: 3}
+  m_Name: DemoBoxCellDef
+  m_EditorClassIdentifier: Hoppa.LevelEditor.Demo.Editor::Hoppa.LevelEditor.Demo.Editor.DemoBoxCellDefinition
+  _typeId: demo_box
+  _displayName: Box
+  _paletteGroup: Tiles
+  _icon: {fileID: 0}
+  _palette: {fileID: 11400000, guid: bb9e8a3f74152b641b79faf025256113, type: 2}

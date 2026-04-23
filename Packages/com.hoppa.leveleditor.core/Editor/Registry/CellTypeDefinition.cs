@@ -17,9 +17,16 @@ namespace Hoppa.LevelEditor.Core.Editor
 
     public abstract class CellTypeDefinition : ScriptableObject, ICellTypeDefinition
     {
+        [Tooltip("Unique string ID used in JSON serialization. Must be stable once levels are saved.\nExample: 'demo_box'")]
         [SerializeField] private string _typeId;
+
+        [Tooltip("Human-readable name shown in the palette.\nExample: 'Box'")]
         [SerializeField] private string _displayName;
+
+        [Tooltip("Groups this type under a header in the palette. Leave empty for 'General'.\nExample: 'Tiles'")]
         [SerializeField] private string _paletteGroup;
+
+        [Tooltip("Optional icon shown in the palette. If null, a live cell preview is drawn instead.")]
         [SerializeField] private Texture2D _icon;
 
         public string TypeId => _typeId;

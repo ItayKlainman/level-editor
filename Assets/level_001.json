@@ -1,0 +1,228 @@
+{
+  "schemaVersion": "yarn-twist.v1.v1",
+  "levelId": "level_001",
+  "displayName": "Untitled",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-04-23T22:31:58.2199370Z",
+    "modifiedAt": "2026-04-23T22:31:58.2199370Z",
+    "tags": []
+  },
+  "grid": {
+    "width": 5,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.tunnel",
+        "CellTypeId": "yt.tunnel",
+        "direction": "Up",
+        "queue": []
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.tunnel",
+        "CellTypeId": "yt.tunnel",
+        "direction": "Up",
+        "queue": []
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.arrowbox",
+        "CellTypeId": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.tunnel",
+        "CellTypeId": "yt.tunnel",
+        "direction": "Up",
+        "queue": []
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.box",
+        "CellTypeId": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      {
+        "spools": [
+          {
+            "colorId": "purple",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "purple",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "blue",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "yellow",
+            "hidden": false
+          },
+          {
+            "colorId": "green",
+            "hidden": false
+          },
+          {
+            "colorId": "purple",
+            "hidden": false
+          }
+        ]
+      }
+    ]
+  }
+}

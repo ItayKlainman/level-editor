@@ -1,0 +1,16 @@
+﻿{
+    "name": "Hoppa.LevelEditor.Demo.Runtime",
+    "rootNamespace": "Hoppa.LevelEditor.Demo",
+    "references": [
+        "Hoppa.LevelEditor.Core.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

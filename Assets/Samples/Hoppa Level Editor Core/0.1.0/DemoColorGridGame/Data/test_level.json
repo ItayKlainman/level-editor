@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "demo.v1",
+  "levelId": "level_001",
+  "displayName": "Untitled",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-04-23T20:29:01.0331662Z",
+    "modifiedAt": "2026-04-23T20:29:01.0331662Z",
+    "tags": []
+  },
+  "grid": {
+    "width": 5,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_box",
+        "CellTypeId": "demo_box",
+        "ColorId": "red"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      },
+      {
+        "type": "demo_empty",
+        "CellTypeId": "demo_empty"
+      }
+    ]
+  }
+}

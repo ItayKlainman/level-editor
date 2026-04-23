@@ -1,0 +1,20 @@
+{
+    "name": "Hoppa.YarnTwist.Editor",
+    "rootNamespace": "Hoppa.YarnTwist.Editor",
+    "references": [
+        "Hoppa.LevelEditor.Core.Runtime",
+        "Hoppa.LevelEditor.Core.Editor",
+        "Hoppa.YarnTwist.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

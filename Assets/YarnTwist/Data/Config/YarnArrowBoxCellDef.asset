@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e879a3d0ad2ea8a48ab7affc4db27f53, type: 3}
+  m_Name: YarnArrowBoxCellDef
+  m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::Hoppa.YarnTwist.Editor.YarnArrowBoxCellDefinition
+  _typeId: yt.arrowbox
+  _displayName: Arrow Box
+  _paletteGroup: Yarn Twist
+  _icon: {fileID: 0}
+  _palette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}

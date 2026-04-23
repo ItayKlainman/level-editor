@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "com.hoppa.leveleditor.core",
   "version": "0.1.0",
   "displayName": "Hoppa Level Editor Core",
@@ -7,6 +7,13 @@
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1"
   },
+  "samples": [
+    {
+      "displayName": "DemoColorGridGame",
+      "description": "Minimal 2-color puzzle game demonstrating cell types, palette, and validation.",
+      "path": "Samples~/DemoColorGridGame"
+    }
+  ],
   "keywords": [
     "editor",
     "tool",

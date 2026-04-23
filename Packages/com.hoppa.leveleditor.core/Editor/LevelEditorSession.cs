@@ -1,0 +1,102 @@
+﻿using System;
+using System.Collections.Generic;
+using Hoppa.LevelEditor.Core;
+
+namespace Hoppa.LevelEditor.Core.Editor
+{
+    public sealed class LevelEditorSession : IDisposable
+    {
+        public GameProfile Profile { get; }
+        public LevelDocument Document { get; private set; }
+        public CellTypeRegistry CellTypes { get; }
+        public ValidationRuleRegistry ValidationRules { get; }
+        public ValidationReport LastValidation { get; private set; }
+
+        public ICellTypeDefinition ActiveCellType { get; set; }
+        public CellRef? SelectedCell { get; set; }
+        public bool IsDirty { get; private set; }
+        public string FilePath { get; set; }
+
+        public bool CanUndo => _undoStack.Count > 0;
+        public bool CanRedo => _redoStack.Count > 0;
+
+        private readonly Stack<string> _undoStack = new Stack<string>();
+        private readonly Stack<string> _redoStack = new Stack<string>();
+        private readonly JsonLevelSerializer _serializer = new JsonLevelSerializer();
+
+        public LevelEditorSession(GameProfile profile, LevelDocument document)
+        {
+            Profile = profile;
+            Document = document;
+            CellTypes = profile.BuildRegistry();
+            ValidationRules = profile.BuildValidationRegistry();
+        }
+
+        public void SetCell(int x, int y, ICellData cell)
+        {
+            Document.Grid.Set(x, y, cell);
+            IsDirty = true;
+        }
+
+        public void MarkClean() => IsDirty = false;
+
+        public void RunValidation()
+        {
+            var ctx = new ValidationContext(Document, Profile.ColorPalette);
+            LastValidation = ValidationRules.RunAll(ctx);
+        }
+
+        // Call before any mutation to record the pre-mutation state.
+        public void PushUndoSnapshot()
+        {
+            _undoStack.Push(_serializer.Save(Document, CellTypes));
+            _redoStack.Clear();
+        }
+
+        public bool Undo()
+        {
+            if (!CanUndo) return false;
+            _redoStack.Push(_serializer.Save(Document, CellTypes));
+            Document = _serializer.Load(_undoStack.Pop(), CellTypes);
+            IsDirty = true;
+            RunValidation();
+            return true;
+        }
+
+        public bool Redo()
+        {
+            if (!CanRedo) return false;
+            _undoStack.Push(_serializer.Save(Document, CellTypes));
+            Document = _serializer.Load(_redoStack.Pop(), CellTypes);
+            IsDirty = true;
+            RunValidation();
+            return true;
+        }
+
+        public void Dispose() { }
+
+        public static LevelEditorSession CreateEmpty(GameProfile profile)
+        {
+            var grid     = new GridData<ICellData>(profile.GridWidth, profile.GridHeight);
+            var emptyDef = profile.CellTypes.Count > 0 ? profile.CellTypes[0] : null;
+            if (emptyDef != null)
+                for (int i = 0; i < grid.Cells.Length; i++)
+                    grid.Cells[i] = emptyDef.CreateDefault();
+
+            var doc = new LevelDocument
+            {
+                SchemaVersion = profile.SchemaId + ".v1",
+                LevelId       = "level_001",
+                DisplayName   = "Untitled",
+                Metadata      = new LevelMetadata
+                {
+                    Author     = Environment.UserName,
+                    CreatedAt  = DateTime.UtcNow.ToString("o"),
+                    ModifiedAt = DateTime.UtcNow.ToString("o"),
+                },
+                Grid = grid,
+            };
+            return new LevelEditorSession(profile, doc);
+        }
+    }
+}
