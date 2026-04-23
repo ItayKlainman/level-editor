@@ -1,0 +1,35 @@
+﻿# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Unity cache & meta for excluded folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+
+# Rider / VS / VSCode
+.idea/
+.vs/
+*.csproj
+*.sln
+*.userprefs
+*.user
+*.pidb
+*.pdb
+*.mdb
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Keep package source; ignore generated Unity project files at root
+Assembly-CSharp*.csproj
+
+# Claude Code local config
+.claude/
