@@ -54,74 +54,12 @@
         "CellTypeId": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
         "type": "yt.empty",
         "CellTypeId": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
-      },
-      {
         "type": "yt.empty",
         "CellTypeId": "yt.empty"
-      },
-      {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
-      },
-      {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
-      },
-      {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
-      },
-      {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
-      },
-      {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
       },
       {
         "type": "yt.empty",
@@ -132,10 +70,32 @@
         "CellTypeId": "yt.empty"
       },
       {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
       },
       {
         "type": "yt.empty",
@@ -160,8 +120,34 @@
         "hidden": false
       },
       {
+        "type": "yt.box",
+        "CellTypeId": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
         "type": "yt.empty",
         "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.empty",
+        "CellTypeId": "yt.empty"
+      },
+      {
+        "type": "yt.box",
+        "CellTypeId": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "CellTypeId": "yt.box",
+        "colorId": "pink",
+        "hidden": false
       },
       {
         "type": "yt.empty",
@@ -182,7 +168,11 @@
       {
         "spools": [
           {
-            "colorId": "purple",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           },
           {
@@ -194,7 +184,15 @@
       {
         "spools": [
           {
-            "colorId": "purple",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           }
         ]
@@ -202,7 +200,15 @@
       {
         "spools": [
           {
-            "colorId": "blue",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           }
         ]
@@ -210,15 +216,15 @@
       {
         "spools": [
           {
-            "colorId": "yellow",
+            "colorId": "pink",
             "hidden": false
           },
           {
-            "colorId": "green",
+            "colorId": "pink",
             "hidden": false
           },
           {
-            "colorId": "purple",
+            "colorId": "pink",
             "hidden": false
           }
         ]
