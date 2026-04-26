@@ -10,11 +10,11 @@ namespace Hoppa.LevelEditor.Core.Editor
     // Only works when the JSON is saved inside the project's Assets folder.
     public abstract class ScriptableObjectExporter : LevelExporterAsset
     {
-        public string Name => "ScriptableObject";
+        public override string Name => "ScriptableObject";
 
         protected abstract LevelAsset CreateLevelAssetInstance();
 
-        public bool Export(LevelDocument document, CellTypeRegistry cellTypes, string jsonFilePath)
+        public override bool Export(LevelDocument document, CellTypeRegistry cellTypes, string jsonFilePath)
         {
             string dataPath   = Application.dataPath.Replace('\\', '/');
             string normalJson = jsonFilePath.Replace('\\', '/');

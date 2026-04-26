@@ -21,7 +21,7 @@ namespace Hoppa.YarnTwist.Editor
 
         public override string Name => "MasterLevelConfig";
 
-        internal void SetTestDependencies(string outputPath, StringIntMapping colorMapping,
+        public void SetTestDependencies(string outputPath, StringIntMapping colorMapping,
             StringIntMapping cellTypeMapping, string rewardScoreType, int rewardAmount)
         {
             _outputPath             = outputPath;
