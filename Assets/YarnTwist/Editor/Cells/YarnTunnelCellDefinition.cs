@@ -40,56 +40,80 @@ namespace Hoppa.YarnTwist.Editor
             }
         }
 
+        // All rendering uses absolute rects — no GUILayout — to prevent layout leaks.
         public override void DrawInspector(Rect rect, ref ICellData data)
         {
             if (data is not YarnTunnelCell tunnel) return;
 
-            var ids = _palette != null ? new List<string>(_palette.ColorIds) : new List<string>();
-            string[] idsArray = ids.Count > 0 ? ids.ToArray() : System.Array.Empty<string>();
+            var  ids = _palette != null ? new List<string>(_palette.ColorIds) : new List<string>();
+            float lh = EditorGUIUtility.singleLineHeight;
+            float x  = rect.x;
+            float y  = rect.y;
 
-            GUILayout.BeginArea(rect);
+            // Direction row
+            GUI.Label(new Rect(x, y, 60f, lh), "Direction", EditorStyles.miniLabel);
+            tunnel.OutputDirection = (YarnDirection)EditorGUI.EnumPopup(
+                new Rect(x + 62f, y, rect.width - 62f, lh), tunnel.OutputDirection);
+            y += lh + 4f;
 
-            // Direction
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Direction", GUILayout.Width(60f));
-            tunnel.OutputDirection = (YarnDirection)EditorGUILayout.EnumPopup(tunnel.OutputDirection);
-            EditorGUILayout.EndHorizontal();
+            // Queue label
+            GUI.Label(new Rect(x, y, rect.width, lh), "Queue", EditorStyles.miniLabel);
+            y += lh + 2f;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Queue", EditorStyles.miniLabel);
+            const float BtnW   = 18f;
+            const float BtnGap = 2f;
+            float swatchX      = x + BtnW * 2 + BtnGap * 2 + 2f;
+            float removeX      = rect.xMax - BtnW;
+            float entryH       = ColorSwatchDrawer.Size + 4f;
 
-            // Queue entries
-            int removeAt = -1;
-            int swapA    = -1;
-            int swapB    = -1;
+            int removeAt = -1, swapA = -1, swapB = -1;
 
             for (int i = 0; i < tunnel.Queue.Count; i++)
             {
-                EditorGUILayout.BeginHorizontal();
+                if (y + entryH > rect.yMax) break;
 
+                float by = y + 2f;
+
+                // Reorder buttons
                 GUI.enabled = i > 0;
-                if (GUILayout.Button("▲", GUILayout.Width(20f))) { swapA = i - 1; swapB = i; }
+                if (GUI.Button(new Rect(x, by, BtnW, lh), "▲", EditorStyles.miniButton))
+                { swapA = i - 1; swapB = i; }
                 GUI.enabled = i < tunnel.Queue.Count - 1;
-                if (GUILayout.Button("▼", GUILayout.Width(20f))) { swapA = i; swapB = i + 1; }
+                if (GUI.Button(new Rect(x + BtnW + BtnGap, by, BtnW, lh), "▼", EditorStyles.miniButton))
+                { swapA = i; swapB = i + 1; }
                 GUI.enabled = true;
 
-                if (idsArray.Length > 0)
-                {
-                    int idx    = Mathf.Max(0, ids.IndexOf(tunnel.Queue[i]));
-                    int newIdx = EditorGUILayout.Popup(idx, idsArray);
-                    tunnel.Queue[i] = ids[newIdx];
-                }
+                // Color swatch (click to cycle to next color)
+                var swRect = new Rect(swatchX, y, ColorSwatchDrawer.Size, ColorSwatchDrawer.Size);
+                if (_palette != null && _palette.TryGetColor(tunnel.Queue[i], out var ec))
+                    EditorGUI.DrawRect(swRect, ec);
                 else
+                    EditorGUI.DrawRect(swRect, Color.grey);
+
+                string tooltip = tunnel.Queue[i];
+                GUI.Label(swRect, new GUIContent(string.Empty, $"Click to cycle color\n{tooltip}"));
+                if (Event.current.type == EventType.MouseDown && swRect.Contains(Event.current.mousePosition)
+                    && ids.Count > 0)
                 {
-                    EditorGUILayout.LabelField(tunnel.Queue[i]);
+                    int ci = ids.IndexOf(tunnel.Queue[i]);
+                    tunnel.Queue[i] = ids[(ci + 1) % ids.Count];
+                    Event.current.Use();
+                    GUI.changed = true;
                 }
 
-                if (GUILayout.Button("×", GUILayout.Width(20f))) removeAt = i;
+                // Color label
+                float labelX = swatchX + ColorSwatchDrawer.Size + 4f;
+                GUI.Label(new Rect(labelX, by, removeX - labelX - 2f, lh),
+                    tunnel.Queue[i], EditorStyles.miniLabel);
 
-                EditorGUILayout.EndHorizontal();
+                // Remove
+                if (GUI.Button(new Rect(removeX, by, BtnW, lh), "×", EditorStyles.miniButton))
+                    removeAt = i;
+
+                y += entryH;
             }
 
-            // Apply deferred list mutations
+            // Deferred mutations
             if (removeAt >= 0) tunnel.Queue.RemoveAt(removeAt);
             if (swapA >= 0)
             {
@@ -98,11 +122,14 @@ namespace Hoppa.YarnTwist.Editor
                 tunnel.Queue[swapB] = tmp;
             }
 
-            if (idsArray.Length > 0 && GUILayout.Button("+ Add color", EditorStyles.miniButton))
-                tunnel.Queue.Add(ids[0]);
-
-            GUILayout.EndArea();
+            // Add button
+            if (y + lh <= rect.yMax && ids.Count > 0)
+            {
+                if (GUI.Button(new Rect(x, y, rect.width, lh), "+ Add color", EditorStyles.miniButton))
+                    tunnel.Queue.Add(ids[0]);
+            }
         }
     }
 }
+
 

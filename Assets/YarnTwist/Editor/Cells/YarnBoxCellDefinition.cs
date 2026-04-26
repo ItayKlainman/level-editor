@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using UnityEditor;
@@ -35,17 +34,14 @@ namespace Hoppa.YarnTwist.Editor
         public override void DrawInspector(Rect rect, ref ICellData data)
         {
             if (data is not YarnBoxCell box) return;
-            float half = rect.width * 0.5f;
 
-            if (_palette != null)
-            {
-                var ids = new List<string>(_palette.ColorIds);
-                int idx = Mathf.Max(0, ids.IndexOf(box.ColorId));
-                int newIdx = EditorGUI.Popup(new Rect(rect.x, rect.y, half - 2f, rect.height), idx, ids.ToArray());
-                if (newIdx != idx) box.ColorId = ids[newIdx];
-            }
+            float lh         = EditorGUIUtility.singleLineHeight + 2f;
+            float swatchAreaH = rect.height - lh - 2f;
+            var   swatchRect  = new Rect(rect.x, rect.y, rect.width, swatchAreaH);
+            box.ColorId = ColorSwatchDrawer.Draw(swatchRect, _palette, box.ColorId);
 
-            box.Hidden = EditorGUI.ToggleLeft(new Rect(rect.x + half, rect.y, half, rect.height), "Hidden", box.Hidden);
+            box.Hidden = EditorGUI.ToggleLeft(
+                new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), "Hidden", box.Hidden);
         }
     }
 }

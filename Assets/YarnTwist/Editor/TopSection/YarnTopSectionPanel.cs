@@ -9,15 +9,21 @@ namespace Hoppa.YarnTwist.Editor
     public sealed class YarnTopSectionPanel : TopSectionPanel
     {
         private const int   Columns = 4;
-        private const float SpoolH  = 24f;
+        private const float SpoolH  = 26f;  // height per spool row (swatch + toggle)
         private const float HeaderH = 22f;
+        private const float ColLblH = 18f;
+        private const float BtnH    = 20f;
         private const float ColPad  = 4f;
 
         private static readonly Color HeaderBg = new Color(0.17f, 0.19f, 0.26f);
         private static readonly Color Accent   = new Color(0.30f, 0.65f, 1.00f);
-        private static readonly Color HiddenBg = new Color(0.35f, 0.28f, 0.45f);
+        private static readonly Color HiddenTint = new Color(0.35f, 0.28f, 0.45f, 0.65f);
 
-        public override float PreferredHeight => HeaderH + 18f + SpoolH * 9f + 24f;
+        // Updated in OnGUI so PreferredHeight matches actual spool count next frame.
+        private int _maxSpoolCount = 3;
+
+        public override float PreferredHeight =>
+            HeaderH + ColLblH + SpoolH * Mathf.Max(1, _maxSpoolCount) + BtnH + 8f;
 
         public override void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -29,6 +35,12 @@ namespace Hoppa.YarnTwist.Editor
             while (topData.Columns.Count < Columns)
                 topData.Columns.Add(new YarnSpoolColumn());
 
+            // Update cached spool count for next-frame height
+            _maxSpoolCount = 0;
+            foreach (var col in topData.Columns)
+                if (col?.Spools != null) _maxSpoolCount = Mathf.Max(_maxSpoolCount, col.Spools.Count);
+
+            // Header
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, HeaderH), HeaderBg);
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 2f), Accent);
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, 200f, HeaderH - 2f),
@@ -40,38 +52,42 @@ namespace Hoppa.YarnTwist.Editor
 
             for (int c = 0; c < Columns; c++)
             {
-                float cx = rect.x + c * (colW + ColPad);
-                float cy = rect.y + HeaderH + 2f;
-                var col = topData.Columns[c];
+                float cx  = rect.x + c * (colW + ColPad);
+                float cy  = rect.y + HeaderH + 2f;
+                var   col = topData.Columns[c];
 
-                GUI.Label(new Rect(cx, cy, colW, 16f), $"Col {c + 1}", EditorStyles.centeredGreyMiniLabel);
-                cy += 18f;
+                GUI.Label(new Rect(cx, cy, colW, ColLblH),
+                    $"Col {c + 1}", EditorStyles.centeredGreyMiniLabel);
+                cy += ColLblH;
 
+                // Spools drawn bottom-to-top (index 0 = bottom of column)
                 for (int s = col.Spools.Count - 1; s >= 0; s--)
                 {
-                    var spool = col.Spools[s];
-                    var row   = new Rect(cx + 2f, cy, colW - 4f, SpoolH - 2f);
+                    var spool    = col.Spools[s];
+                    float rowTop = cy;
                     cy += SpoolH;
 
-                    Color bg = HiddenBg;
-                    if (!spool.Hidden && palette != null) palette.TryGetColor(spool.ColorId, out bg);
-                    EditorGUI.DrawRect(new Rect(row.x, row.y + 3f, 16f, 16f), bg);
+                    // Reserve right edge for hidden toggle
+                    const float ToggleW = 18f;
+                    var swatchArea = new Rect(cx + 2f, rowTop + 3f, colW - ToggleW - 6f, ColorSwatchDrawer.Size);
 
                     if (palette != null)
                     {
-                        var colorIds = new List<string>(palette.ColorIds);
-                        int idx = Mathf.Max(0, colorIds.IndexOf(spool.ColorId));
-                        float popW = row.width - 20f - 22f;
-                        int newIdx = EditorGUI.Popup(new Rect(row.x + 18f, row.y + 2f, popW, SpoolH - 6f),
-                            idx, colorIds.ToArray());
-                        if (newIdx >= 0 && newIdx < colorIds.Count) spool.ColorId = colorIds[newIdx];
+                        string newId = ColorSwatchDrawer.Draw(swatchArea, palette, spool.ColorId);
+                        if (newId != spool.ColorId) spool.ColorId = newId;
                     }
 
-                    spool.Hidden = EditorGUI.Toggle(new Rect(row.xMax - 20f, row.y + 3f, 18f, 16f), spool.Hidden);
+                    // Hidden tint overlay on swatches
+                    if (spool.Hidden)
+                        EditorGUI.DrawRect(swatchArea, HiddenTint);
+
+                    spool.Hidden = EditorGUI.Toggle(
+                        new Rect(cx + colW - ToggleW, rowTop + 4f, ToggleW, ToggleW), spool.Hidden);
                 }
 
+                // +/− buttons
                 float btnY = cy + 2f;
-                if (GUI.Button(new Rect(cx + 2f, btnY, colW / 2f - 3f, 18f), "+", EditorStyles.miniButton))
+                if (GUI.Button(new Rect(cx + 2f, btnY, colW / 2f - 3f, BtnH), "+", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
                     string firstId = "pink";
@@ -79,7 +95,7 @@ namespace Hoppa.YarnTwist.Editor
                     col.Spools.Add(new YarnSpoolData { ColorId = firstId });
                 }
                 if (col.Spools.Count > 0 &&
-                    GUI.Button(new Rect(cx + colW / 2f + 1f, btnY, colW / 2f - 3f, 18f), "−", EditorStyles.miniButton))
+                    GUI.Button(new Rect(cx + colW / 2f + 1f, btnY, colW / 2f - 3f, BtnH), "−", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
                     col.Spools.RemoveAt(col.Spools.Count - 1);
