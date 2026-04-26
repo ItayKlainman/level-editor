@@ -8,7 +8,7 @@ namespace Hoppa.LevelEditor.Core.Editor
     // Abstract SO exporter. Subclass once per game to specify the concrete LevelAsset type.
     // The resulting .asset is created next to the .json file (same name, .asset extension).
     // Only works when the JSON is saved inside the project's Assets folder.
-    public abstract class ScriptableObjectExporter : ScriptableObject, ILevelExporter
+    public abstract class ScriptableObjectExporter : LevelExporterAsset
     {
         public string Name => "ScriptableObject";
 
