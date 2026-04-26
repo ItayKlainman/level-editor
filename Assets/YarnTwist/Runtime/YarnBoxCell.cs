@@ -5,7 +5,7 @@ namespace Hoppa.YarnTwist
 {
     public sealed class YarnBoxCell : IColoredCell
     {
-        [Newtonsoft.Json.JsonIgnore]
+        [JsonIgnore]
         public string CellTypeId => "yt.box";
 
         [JsonProperty("colorId")]

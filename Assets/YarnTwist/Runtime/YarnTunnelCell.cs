@@ -5,7 +5,7 @@ namespace Hoppa.YarnTwist
 {
     public sealed class YarnTunnelCell : Hoppa.LevelEditor.Core.ICellData
     {
-        [Newtonsoft.Json.JsonIgnore]
+        [JsonIgnore]
         public string CellTypeId => "yt.tunnel";
 
         [JsonProperty("direction")]
