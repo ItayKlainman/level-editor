@@ -8,6 +8,34 @@
 
 ## Active phase
 
+**Phase 5 — Data pipeline integration** — *COMPLETE — awaiting user smoke test*
+
+All code committed on `feat/phase5-data-pipeline`. The branch is ready to merge.
+
+### What was built (7 commits)
+- `LevelExporterAsset` abstract SO base — decouples exporters from `.asset` output pattern
+- `StringIntMapping` generic ScriptableObject — reusable string→int converter (10 NUnit tests)
+- `[JsonIgnore]` on `CellTypeId` in all 5 YarnTwist cell types — eliminates JSON field duplication
+- `YarnMasterLevelExporter` — transforms `LevelDocument` → game `level_config.json` schema on every Save (11 NUnit tests)
+- `YATLevelManager.cs` (game repo) — `ArrowBox=4`, `Tunnel=5` enum values; `Direction`, `Hidden`, `Queue` fields; `TunnelQueueEntry` class; `WinderConfig.Hidden` — all data-only with `//TODO:` stubs
+- `YarnColorMapping.asset` (10 entries), `YarnCellTypeMapping.asset` (5 entries), `YarnMasterLevelExporter.asset` wired to game's `level_config.json`
+- `YarnTwistProfile` schema ID fixed from `yarn-twist.v1` → `yarn-twist`; `YarnMasterLevelExporter` added to Exporters list
+
+### Smoke test checklist (user must verify)
+- [ ] Open Window → Level Editor, select `YarnTwistProfile`, create a new level
+- [ ] Paint some box cells (pink), add spools to top section, Save
+- [ ] Confirm `E:\Projects\Hoppa\YarnTwist\Assets\_YAT\Configs\Resources\Configs\level_config.json` is updated with correct integer keys, `BottomType`/`ColorType` values, and `LevelRewardConfigs` stub
+- [ ] Open Yarn Twist Unity project — confirm no console errors on import
+
+### Remaining open items
+- Confirm `YATColorType` int values with the game team and lock the color mapping SO
+- Grid offset `−3.5f` fix (when grid dimensions become variable)
+- ArrowBox + Tunnel full prefab implementation
+- Camera auto-fit wiring
+- Win/lose flow restoration
+
+---
+
 **Yarn Twist test data** — *COMPLETE — awaiting user review*
 
 All `Assets/YarnTwist/` files created as a team-presentation demo of the framework.
