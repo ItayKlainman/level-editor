@@ -13,6 +13,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public ValidationReport LastValidation { get; private set; }
 
         public ICellTypeDefinition ActiveCellType { get; set; }
+        public ICellData BrushTemplate { get; set; }
         public CellRef? SelectedCell { get; set; }
         public bool IsDirty { get; private set; }
         public string FilePath { get; set; }
@@ -72,6 +73,23 @@ namespace Hoppa.LevelEditor.Core.Editor
             IsDirty = true;
             RunValidation();
             return true;
+        }
+
+        // Produces a fresh clone of BrushTemplate by round-tripping through the serializer.
+        // Falls back to CreateDefault() if template is uninitialised.
+        public ICellData CloneBrushTemplate()
+        {
+            if (BrushTemplate == null || ActiveCellType == null)
+                return ActiveCellType?.CreateDefault();
+
+            var tempDoc = new LevelDocument
+            {
+                SchemaVersion = "tmp", LevelId = "tmp",
+                Grid = new GridData<ICellData>(1, 1)
+            };
+            tempDoc.Grid.Set(0, 0, BrushTemplate);
+            var loaded = _serializer.Load(_serializer.Save(tempDoc, CellTypes), CellTypes);
+            return loaded.Grid.Get(0, 0);
         }
 
         public void Dispose() { }

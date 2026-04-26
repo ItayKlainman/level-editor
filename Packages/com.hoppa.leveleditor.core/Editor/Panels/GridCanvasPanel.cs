@@ -160,7 +160,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             if (session.ActiveCellType == null) return;
             if (!session.Document.Grid.InBounds(cellRef.X, cellRef.Y)) return;
-            session.SetCell(cellRef.X, cellRef.Y, session.ActiveCellType.CreateDefault());
+            session.SetCell(cellRef.X, cellRef.Y, session.CloneBrushTemplate());
         }
 
         private static void EraseAt(LevelEditorSession session, CellRef cellRef)

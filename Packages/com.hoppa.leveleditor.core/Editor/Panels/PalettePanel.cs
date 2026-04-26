@@ -15,6 +15,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         private const float Padding = 6f;
         private const float HeaderH = 22f;
         private const float GroupGap = 10f;
+        private const float BrushH  = 96f;
+        private const float BrushHH = 22f;
 
         private static readonly Color SelectedBg     = new Color(0.22f, 0.50f, 0.92f, 0.28f);
         private static readonly Color SelectedAccent = new Color(0.35f, 0.68f, 1.00f, 1.00f);
@@ -23,6 +25,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color HeaderAccent   = new Color(0.35f, 0.68f, 1.00f, 0.90f);
         private static readonly Color SwatchBg       = new Color(0.13f, 0.14f, 0.16f, 1.00f);
         private static readonly Color Divider        = new Color(1.00f, 1.00f, 1.00f, 0.04f);
+        private static readonly Color BrushPanelBg  = new Color(0.14f, 0.16f, 0.20f, 1.00f);
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -32,6 +35,16 @@ namespace Hoppa.LevelEditor.Core.Editor
                 return;
             }
 
+            // Split: cell list (top) + brush config (bottom fixed height)
+            var listRect  = new Rect(rect.x, rect.y, rect.width, rect.height - BrushH);
+            var brushRect = new Rect(rect.x, rect.yMax - BrushH, rect.width, BrushH);
+
+            DrawCellList(listRect, session);
+            DrawBrushPanel(brushRect, session);
+        }
+
+        private void DrawCellList(Rect rect, LevelEditorSession session)
+        {
             var groups    = BuildGroups(session);
             float contentH = MeasureHeight(groups);
             var viewRect   = new Rect(0f, 0f, rect.width - 14f, contentH);
@@ -42,7 +55,6 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             foreach (var kv in groups)
             {
-                // Blue top accent + header background
                 EditorGUI.DrawRect(new Rect(0f, y, vw, 2f), HeaderAccent);
                 EditorGUI.DrawRect(new Rect(0f, y + 2f, vw, HeaderH), HeaderBg);
                 GUI.Label(new Rect(Padding, y + 4f, vw - Padding, HeaderH - 4f),
@@ -61,12 +73,10 @@ namespace Hoppa.LevelEditor.Core.Editor
                         EditorGUI.DrawRect(new Rect(0f, y, 3f, RowH), SelectedAccent);
                     }
 
-                    // Row separator
                     EditorGUI.DrawRect(new Rect(Padding, y + RowH - 1f, vw - Padding * 2f, 1f), Divider);
 
-                    // Swatch
-                    float swatchX = (isActive ? 7f : 4f) + Padding;
-                    float swatchY = y + (RowH - SwatchS) * 0.5f;
+                    float swatchX  = (isActive ? 7f : 4f) + Padding;
+                    float swatchY  = y + (RowH - SwatchS) * 0.5f;
                     var swatchRect = new Rect(swatchX, swatchY, SwatchS, SwatchS);
                     EditorGUI.DrawRect(swatchRect, SwatchBg);
                     if (def.Icon != null)
@@ -74,7 +84,6 @@ namespace Hoppa.LevelEditor.Core.Editor
                     else
                         def.DrawCell(swatchRect, def.CreateDefault());
 
-                    // Display name
                     float labelX = swatchX + SwatchS + 8f;
                     float labelW = rowRect.xMax - labelX - Padding;
                     GUI.Label(new Rect(labelX, y, labelW, RowH),
@@ -86,6 +95,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                         && rowRect.Contains(Event.current.mousePosition))
                     {
                         session.ActiveCellType = def;
+                        session.BrushTemplate  = def.CreateDefault();
                         Event.current.Use();
                         GUI.changed = true;
                     }
@@ -97,6 +107,42 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
 
             GUI.EndScrollView();
+        }
+
+        private static void DrawBrushPanel(Rect rect, LevelEditorSession session)
+        {
+            // Background + divider at top
+            EditorGUI.DrawRect(rect, BrushPanelBg);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), HeaderAccent);
+
+            // Header
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y + 1f, rect.width, BrushHH), HeaderBg);
+            GUI.Label(new Rect(rect.x + 8f, rect.y + 4f, rect.width - 16f, BrushHH - 4f),
+                "BRUSH", EditorStyles.miniLabel);
+
+            var def = session.ActiveCellType;
+            if (def == null)
+            {
+                GUI.Label(new Rect(rect.x, rect.y + BrushHH + 1f, rect.width, rect.height - BrushHH - 1f),
+                    "—", EditorStyles.centeredGreyMiniLabel);
+                return;
+            }
+
+            // Ensure brush template is valid for the active cell type
+            if (session.BrushTemplate == null || session.BrushTemplate.CellTypeId != def.TypeId)
+                session.BrushTemplate = def.CreateDefault();
+
+            var inspRect = new Rect(
+                rect.x + 4f,
+                rect.y + BrushHH + 4f,
+                rect.width - 8f,
+                rect.height - BrushHH - 8f);
+
+            var brushCell = session.BrushTemplate;
+            EditorGUI.BeginChangeCheck();
+            def.DrawInspector(inspRect, ref brushCell);
+            if (EditorGUI.EndChangeCheck())
+                session.BrushTemplate = brushCell;
         }
 
         private static float MeasureHeight(Dictionary<string, List<ICellTypeDefinition>> groups)
