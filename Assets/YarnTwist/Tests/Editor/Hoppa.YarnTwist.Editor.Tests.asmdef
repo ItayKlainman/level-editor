@@ -1,0 +1,14 @@
+{
+  "name": "Hoppa.YarnTwist.Editor.Tests",
+  "rootNamespace": "Hoppa.YarnTwist.Editor.Tests",
+  "references": [
+    "Hoppa.LevelEditor.Core.Runtime",
+    "Hoppa.LevelEditor.Core.Editor",
+    "Hoppa.YarnTwist.Runtime",
+    "Hoppa.YarnTwist.Editor",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}
