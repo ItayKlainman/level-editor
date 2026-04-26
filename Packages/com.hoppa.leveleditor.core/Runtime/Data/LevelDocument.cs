@@ -46,5 +46,8 @@ namespace Hoppa.LevelEditor.Core
 
         [JsonProperty("tags")]
         public List<string> Tags { get; set; } = new List<string>();
+
+        [JsonProperty("notes")]
+        public string Notes { get; set; } = string.Empty;
     }
 }

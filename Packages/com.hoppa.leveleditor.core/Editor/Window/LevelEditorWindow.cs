@@ -13,8 +13,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         private readonly PalettePanel    _palette    = new PalettePanel();
         private readonly GridCanvasPanel _canvas     = new GridCanvasPanel();
         private readonly ToolbarPanel    _toolbar    = new ToolbarPanel();
-        private readonly SummaryPanel    _summary    = new SummaryPanel();
-        private readonly ValidationPanel _validation = new ValidationPanel();
+        private readonly SummaryPanel        _summary    = new SummaryPanel();
+        private readonly ValidationPanel    _validation = new ValidationPanel();
+        private readonly CellInspectorPanel _inspector  = new CellInspectorPanel();
         private TopSectionPanel _topSection = new EmptyTopSectionPanel();
 
         private LevelEditorSession _session;
@@ -104,15 +105,22 @@ namespace Hoppa.LevelEditor.Core.Editor
                 _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
             _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH), _session);
 
-            // ── Right: validation (60%) + summary (40%) ───────────────
-            float rightX   = w - RightW + 1f;
-            float validH   = Mathf.Floor(innerH * 0.60f);
-            float summaryH = innerH - validH;
-            EditorGUI.DrawRect(new Rect(rightX, bodyY + validH, RightW, 1f), Divider);
+            // ── Right: validation (50%) + inspector (fixed) + summary ───
+            float rightX    = w - RightW + 1f;
+            const float InspectorH = 130f;
+            float validH    = Mathf.Floor(innerH * 0.50f);
+            float summaryH  = innerH - validH - InspectorH;
 
             var clicked = _validation.OnGUI(new Rect(rightX, bodyY, RightW, validH), _session.LastValidation);
             if (clicked.HasValue) _session.SelectedCell = clicked;
-            _summary.OnGUI(new Rect(rightX, bodyY + validH + 1f, RightW, summaryH - 1f), _session);
+
+            float inspY = bodyY + validH;
+            EditorGUI.DrawRect(new Rect(rightX, inspY, RightW, 1f), Divider);
+            _inspector.OnGUI(new Rect(rightX, inspY + 1f, RightW, InspectorH - 1f), _session);
+
+            float summaryY = inspY + InspectorH;
+            EditorGUI.DrawRect(new Rect(rightX, summaryY, RightW, 1f), Divider);
+            _summary.OnGUI(new Rect(rightX, summaryY + 1f, RightW, summaryH - 1f), _session);
 
             if (GUI.changed) Repaint();
         }

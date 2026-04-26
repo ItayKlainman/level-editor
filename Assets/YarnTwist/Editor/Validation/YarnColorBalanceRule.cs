@@ -41,6 +41,17 @@ namespace Hoppa.YarnTwist.Editor
             var colors = new HashSet<string>(balls.Keys);
             colors.UnionWith(capacity.Keys);
 
+            // Info row per color (always shown as a balance table)
+            foreach (var colorId in colors)
+            {
+                balls.TryGetValue(colorId, out var b);
+                capacity.TryGetValue(colorId, out var cap);
+                string mark = b == cap ? "✓" : "✗";
+                yield return new ValidationEntry(Id, ValidationSeverity.Info,
+                    $"{colorId}: {b} balls / {cap} cap  {mark}");
+            }
+
+            // Error row only for imbalanced colors
             foreach (var colorId in colors)
             {
                 balls.TryGetValue(colorId, out var b);

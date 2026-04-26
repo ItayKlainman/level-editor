@@ -38,7 +38,8 @@ namespace Hoppa.LevelEditor.Core.Editor
             IsDirty = true;
         }
 
-        public void MarkClean() => IsDirty = false;
+        public void MarkClean()  => IsDirty = false;
+        public void MarkDirty()  => IsDirty = true;
 
         public void RunValidation()
         {

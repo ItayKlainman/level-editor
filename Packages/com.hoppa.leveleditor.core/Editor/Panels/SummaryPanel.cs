@@ -8,6 +8,7 @@ namespace Hoppa.LevelEditor.Core.Editor
     public sealed class SummaryPanel : IEditorPanel
     {
         private const float HeaderH = 26f;
+        private const float NotesH  = 48f;
 
         private static readonly Color HeaderBg  = new Color(0.17f, 0.21f, 0.33f);
         private static readonly Color Accent     = new Color(0.30f, 0.65f, 1.00f);
@@ -47,7 +48,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             EditorGUI.DrawRect(new Rect(x, y, lw, 1f), new Color(1f, 1f, 1f, 0.07f));
             y += 5f;
 
-            // Cell counts
+            // Cell counts (using DisplayName if available)
             var counts = new Dictionary<string, int>();
             for (int cy = 0; cy < grid.Height; cy++)
             for (int cx2 = 0; cx2 < grid.Width; cx2++)
@@ -58,13 +59,41 @@ namespace Hoppa.LevelEditor.Core.Editor
                 counts[cell.CellTypeId] = n + 1;
             }
 
+            // Reserve bottom for Notes; stop drawing counts before we run out of room
+            float countsMax = rect.yMax - NotesH - lh - 8f;
             foreach (var kv in counts)
             {
-                if (y + lh > rect.yMax) break;
-                GUI.Label(new Rect(x, y, lw - 30f, lh), kv.Key, EditorStyles.miniLabel);
+                if (y + lh > countsMax) break;
+                string label = kv.Key;
+                if (session.CellTypes.TryGetDefinition(kv.Key, out var def) &&
+                    !string.IsNullOrEmpty(def.DisplayName))
+                    label = def.DisplayName;
+                GUI.Label(new Rect(x, y, lw - 30f, lh), label, EditorStyles.miniLabel);
                 GUI.Label(new Rect(rect.xMax - 30f, y, 26f, lh), kv.Value.ToString(),
                     new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleRight });
                 y += lh;
+            }
+
+            // Notes textarea
+            float notesY = rect.yMax - NotesH - lh - 4f;
+            if (notesY > y) // separator before notes
+            {
+                EditorGUI.DrawRect(new Rect(x, notesY - 4f, lw, 1f), new Color(1f, 1f, 1f, 0.07f));
+            }
+
+            var meta = doc.Metadata ?? (doc.Metadata = new LevelMetadata());
+
+            GUI.contentColor = LabelColor;
+            GUI.Label(new Rect(x, notesY, lw, lh), "Notes", EditorStyles.miniLabel);
+            GUI.contentColor = oldColor;
+
+            var notesRect = new Rect(x, notesY + lh, lw, NotesH);
+            EditorGUI.BeginChangeCheck();
+            string notes = EditorGUI.TextArea(notesRect, meta.Notes ?? string.Empty, EditorStyles.miniTextField);
+            if (EditorGUI.EndChangeCheck())
+            {
+                meta.Notes = notes;
+                session.MarkDirty();
             }
         }
 
