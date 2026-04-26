@@ -199,10 +199,10 @@ namespace Hoppa.YarnTwist.Editor.Tests
         private JObject ReadOutput() =>
             JObject.Parse(File.ReadAllText(_tempFile));
 
-        private JToken BottomConfigAt(int idx) =>
-            ReadOutput()["LevelConfigs"]["1"]["BottomConfigs"][idx];
+        private JToken BottomConfigAt(int idx, string levelKey = "1") =>
+            ReadOutput()["LevelConfigs"][levelKey]["BottomConfigs"][idx];
 
-        private JArray TopConfigs() =>
-            (JArray)ReadOutput()["LevelConfigs"]["1"]["TopConfigs"];
+        private JArray TopConfigs(string levelKey = "1") =>
+            (JArray)ReadOutput()["LevelConfigs"][levelKey]["TopConfigs"];
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -66,8 +67,9 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     root = JObject.Parse(File.ReadAllText(_outputPath));
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse '{_outputPath}'; starting fresh. ({ex.Message})");
                     root = null;
                 }
             }
@@ -157,13 +159,16 @@ namespace Hoppa.YarnTwist.Editor
                     {
                         entry["ColorType"] = 0;
                         var queue = new JArray();
-                        foreach (var colorId in tunnelCell.Queue)
+                        if (tunnelCell.Queue != null)
                         {
-                            queue.Add(new JObject
+                            foreach (var colorId in tunnelCell.Queue)
                             {
-                                ["ColorType"] = _colorMapping.Get(colorId, 0),
-                                ["Hidden"]    = false
-                            });
+                                queue.Add(new JObject
+                                {
+                                    ["ColorType"] = _colorMapping.Get(colorId, 0),
+                                    ["Hidden"]    = false
+                                });
+                            }
                         }
                         entry["Queue"] = queue;
                     }
@@ -198,6 +203,9 @@ namespace Hoppa.YarnTwist.Editor
             }
             if (topData == null)
                 topData = new YarnTopSectionData { Columns = new System.Collections.Generic.List<YarnSpoolColumn>() };
+
+            if (topData.Columns.Count > 4)
+                Debug.LogWarning($"[YarnMasterLevelExporter] TopSection has {topData.Columns.Count} columns; only first 4 will be exported.");
 
             for (int i = 0; i < 4; i++)
             {
