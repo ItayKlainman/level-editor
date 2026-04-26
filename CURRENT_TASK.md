@@ -1,4 +1,4 @@
-﻿# Current Task
+# Current Task
 
 > Live state of in-flight work. Update after every meaningful chunk so a fresh
 > session can resume cold. Companion to `PLANNING.md` (spec) and
@@ -8,86 +8,63 @@
 
 ## Active phase
 
-**Phase 5 — Data pipeline integration** — *COMPLETE — awaiting user smoke test*
+**No active phase — all planned work is complete and pushed.**
 
-All code committed on `feat/phase5-data-pipeline`. The branch is ready to merge.
-
-### What was built (7 commits)
-- `LevelExporterAsset` abstract SO base — decouples exporters from `.asset` output pattern
-- `StringIntMapping` generic ScriptableObject — reusable string→int converter (10 NUnit tests)
-- `[JsonIgnore]` on `CellTypeId` in all 5 YarnTwist cell types — eliminates JSON field duplication
-- `YarnMasterLevelExporter` — transforms `LevelDocument` → game `level_config.json` schema on every Save (11 NUnit tests)
-- `YATLevelManager.cs` (game repo) — `ArrowBox=4`, `Tunnel=5` enum values; `Direction`, `Hidden`, `Queue` fields; `TunnelQueueEntry` class; `WinderConfig.Hidden` — all data-only with `//TODO:` stubs
-- `YarnColorMapping.asset` (10 entries), `YarnCellTypeMapping.asset` (5 entries), `YarnMasterLevelExporter.asset` wired to game's `level_config.json`
-- `YarnTwistProfile` schema ID fixed from `yarn-twist.v1` → `yarn-twist`; `YarnMasterLevelExporter` added to Exporters list
-
-### Smoke test checklist (user must verify)
-- [ ] Open Window → Level Editor, select `YarnTwistProfile`, create a new level
-- [ ] Paint some box cells (pink), add spools to top section, Save
-- [ ] Confirm `E:\Projects\Hoppa\YarnTwist\Assets\_YAT\Configs\Resources\Configs\level_config.json` is updated with correct integer keys, `BottomType`/`ColorType` values, and `LevelRewardConfigs` stub
-- [ ] Open Yarn Twist Unity project — confirm no console errors on import
-
-### Remaining open items
-- Confirm `YATColorType` int values with the game team and lock the color mapping SO
-- Grid offset `−3.5f` fix (when grid dimensions become variable)
-- ArrowBox + Tunnel full prefab implementation
-- Camera auto-fit wiring
-- Win/lose flow restoration
+Branch `feat/phase5-data-pipeline` is pushed to GitHub and ready for review/merge.
+Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-data-pipeline
 
 ---
 
-**Yarn Twist test data** — *COMPLETE — awaiting user review*
+## Last session work (2026-04-26)
 
-All `Assets/YarnTwist/` files created as a team-presentation demo of the framework.
+### Jira UI gaps implemented
 
-### What was built
-- **Runtime types** (7 files): `YarnDirection`, `YarnEmptyCell`, `YarnWallCell`, `YarnBoxCell`, `YarnTunnelCell`, `YarnArrowBoxCell`, `YarnTopSectionData`
-- **Editor cell definitions** (5 files): Empty, Wall, Box, Tunnel, ArrowBox — all with `DrawCell` + `DrawInspector`
-- **TopSection panel**: `YarnTopSectionPanel` — 4-column spool editor with color picker, hidden toggle, +/− buttons
-- **Validation rules** (3 files): `YarnColorBalanceRule`, `YarnArrowBoxTargetRule`, `YarnTunnelOutputRule`
-- **Exporter**: `YarnLevelAsset` + `YarnSortExporter`
-- **Level data** (2 files): `YT_001.json` (tutorial, 2-color, balanced) and `YT_025.json` (intermediate, 6-color, all features, balanced)
-- Assembly definitions: `Hoppa.YarnTwist.Runtime` + `Hoppa.YarnTwist.Editor`
+**Gap 1 — Cell Inspector panel (MEDIUM)**
+- `LevelEditorSession.MarkDirty()` exposed (was private-setter only)
+- `CellInspectorPanel` (new): renders `DrawInspector` for the selected grid cell; sits between Validation (50%) and Summary in the right column (130px fixed)
+- Right column layout: Validation (50%) → Cell Inspector (130px) → Summary (remaining)
 
-### Framework gaps found during Yarn Twist work
-1. **`LevelEditorSession.IsDirty` private setter** — `YarnTopSectionPanel` cannot mark the session dirty after TopSection mutations. Workaround: call `PushUndoSnapshot()` before mutations. Real fix: expose `MarkDirty()` on session, or make setter internal.
-2. **`ColorBalanceRule` only reads grid cells** — Generic rule has no awareness of TopSection. Yarn Twist needs a custom `YarnColorBalanceRule` that reads both `ctx.Grid.Cells` and `ctx.Document.TopSection`. Consider adding a `ValidationContext.GameData` accessor or documenting that balance rules are always game-specific.
+**Gap 2 — Per-color validation breakdown (MEDIUM)**
+- `YarnColorBalanceRule` now emits `ValidationSeverity.Info` entries per color (always shown as a balance table); Error entries still fire for imbalanced colors
+- `ValidationPanel` already rendered Info with blue rows — no panel change needed
 
-### Still needed (manual Inspector setup)
-- Create `YarnTwistPalette.asset` (ColorPaletteAsset) with 6 colors: pink, blue, teal, green, yellow, purple
-- Create `YarnTwistProfile.asset` (GameProfile) pointing at all 5 cell definitions + `YarnTopSectionPanel`
-- Create 5 `CellTypeDefinition.asset` instances (one per cell type) with palette wired
-- Create 3 validation rule `.asset` instances: ColorBalance, ArrowBoxTarget, TunnelOutput
-- Create `YarnSortExporter.asset`
-- All `#TEMP` prefix values (author fields, etc.) to be replaced before final demo
+**Gap 3 — Notes field + improved Summary (MEDIUM)**
+- `LevelDocument.LevelMetadata.Notes` (string, serialized as `"notes"`)
+- `SummaryPanel` shows `DisplayName` from registry instead of raw TypeId for cell counts; Notes textarea pinned to bottom (editable, calls `MarkDirty`)
+
+### Brush template system
+- `LevelEditorSession.BrushTemplate` — pre-configured cell template for next paint stroke
+- `LevelEditorSession.CloneBrushTemplate()` — round-trips template through `JsonLevelSerializer` to produce a fresh instance per painted cell
+- `PalettePanel` split into cell list (top, scrollable) + BRUSH section (96px bottom); clicking a cell type resets `BrushTemplate`; `DrawInspector` runs on the brush so color/direction/queue are configurable before painting
+- `GridCanvasPanel.PlaceAt` uses `CloneBrushTemplate()` instead of `CreateDefault()`
+
+### Color swatch pickers
+- `ColorSwatchDrawer` (new, core Editor): reusable wrapping swatch grid with selected/hover borders and tooltip
+- `YarnBoxCellDefinition.DrawInspector`: swatches + Hidden toggle
+- `YarnArrowBoxCellDefinition.DrawInspector`: swatches + direction EnumPopup
+- `YarnTunnelCellDefinition.DrawInspector`: rewritten with absolute rects (removes `GUILayout.BeginArea` that caused right-panel text overflow); queue entries show click-to-cycle color swatch
+- `YarnTopSectionPanel`: spool rows show swatch strip + hidden toggle; `PreferredHeight` is now dynamic (was hardcoded for 9 spools)
 
 ---
 
-**Phase 4.5 — UI/UX polish** — *COMPLETE — awaiting user approval to start Phase 5*
+## Open items / known gaps
 
-### Phase 4.5 changes
-- [x] **3-column layout** — Palette (left 160px) | Canvas+TopSection (centre) | Validation+Summary (right 230px)
-- [x] **Status bar** — bottom strip showing: `● Unsaved`, cursor `(x, y)`, `schema: {version}`
-- [x] **GridCanvasPanel** — exposed `HoverCell` property (read by status bar)
-- [x] **PalettePanel** — redesigned as list rows: swatch preview + full display name + blue accent on active item
-- [x] **ToolbarPanel** — tooltips on every button, level name label shown after Test Play
-- [x] **CellTypeDefinition** — `[Tooltip]` with examples on all 4 `[SerializeField]` fields
-- [x] **GameProfile** — `[Tooltip]` with examples on all 8 `[SerializeField]` fields
-- [x] **ColorPaletteAsset / ColorEntry** — `[Tooltip]` with examples on all public fields
+### Manual steps still needed
+- [ ] Open `YarnTwistProfile.asset` in Inspector → set `_schemaId` to `yarn-twist` (currently `yarn-twist.v1` causes `yarn-twist.v1.v1` in Summary)
+- [ ] Assign `YarnTwistPalette` to `_palette` field on `YarnTunnelCellDef.asset` (same as Box/ArrowBox) so queue entry swatches show colors
+- [ ] Smoke test: open Level Editor → YarnTwistProfile → paint boxes + spools → Save → verify `level_config.json` updated in YarnTwist project
 
-### Layout structure (matches PLANNING.md §3 mock)
-```
-┌─ Toolbar (28px) ──────────────────────────────────────────────────┐
-│  New  Open  Save  Save As  |  Undo  Redo  |  ▶ Test     LevelName │
-├────────────┬─────────────────────────────┬────────────────────────┤
-│  Palette   │  Top Section (if any)        │  Validation (60%)      │
-│  160px     │  ─────────────────────────── │                        │
-│  list rows │  Grid Canvas                 │  Summary (40%)         │
-│  w/ swatch │                             │                        │
-├────────────┴─────────────────────────────┴────────────────────────┤
-│  Status: ● Unsaved  (x, y)  schema: demo.v1               (20px)  │
-└───────────────────────────────────────────────────────────────────┘
-```
+### Low-priority Jira gaps (not implemented)
+- Arrow box / tunnel target cell highlight (highlight destination cell when selected)
+- Top View (Preview) mini-panel in right column
+- Copy Level ID button in toolbar/summary
+
+### Remaining open questions
+- [ ] Confirm `YATColorType` int values with game team and lock `YarnColorMapping.asset`
+- [ ] Grid offset `−3.5f` fix (when grid dimensions become variable)
+- [ ] ArrowBox + Tunnel full prefab implementation in game
+- [ ] Camera auto-fit wiring
+- [ ] Win/lose flow restoration
 
 ---
 
@@ -101,34 +78,25 @@ All `Assets/YarnTwist/` files created as a team-presentation demo of the framewo
 | Phase 2 — Validation engine | ✅ Complete |
 | Phase 3 — EditorWindow + grid canvas | ✅ Complete |
 | Phase 4 — Top-section abstraction + export | ✅ Complete |
-| **Phase 4.5 — UI/UX polish** | **✅ Complete** |
-| Phase 5 — Yarn Sort Layer 2 (separate game repo) | Not started |
+| Phase 4.5 — UI/UX polish | ✅ Complete |
+| Phase 5 — Data pipeline integration | ✅ Complete |
+| Jira UI gaps (Medium) | ✅ Complete |
+| Brush template + color swatches | ✅ Complete |
 | Phase 6 — Second-game onboarding | Deferred |
 
-## Phase 5 scope (from PLANNING.md §5)
-- Separate game repo that depends on `com.hoppa.leveleditor.core`
-- Yarn Sort cell types (`YarnCell`, `EmptyCell`, `TunnelCell`, `ArrowBoxCell`)
-- `YarnSortTopSectionPanel` (spool columns above grid)
-- `YarnLevelAsset` + `YarnSortExporter`
-- Sort-ID prefix (`YRN` vs `YS`) — deferred decision
-- Validation rules for Yarn Sort constraints
-- GameProfile for Yarn Sort registered in game repo
+---
 
 ## Key design notes (carry forward)
-- Write/Edit tools work directly for all files — gateguard hook removed 2026-04-24
-- GridData is bottomUp: y=0 = bottom row in data, drawn at bottom of canvas
-- `ValidationPanel.OnGUI` takes `ValidationReport` (not session) — existing API, keep as-is
-- `DemoBoxCellDefinition._palette` is assigned via `DemoBoxCellDef.asset` in Inspector
-- First cell type in GameProfile.CellTypes must be the "empty" type (used for erase + fill)
-- `LevelEditorSession.CreateEmpty` fills all cells with CellTypes[0].CreateDefault()
-- `AutoActivateCellType()` in LevelEditorWindow auto-selects CellTypes[1] (first non-empty)
-- `PushUndoSnapshot()` must be called BEFORE mutations (not after)
-- Undo/redo stack is cleared on new paint after an undo (standard behavior)
-- `ScriptableObjectExporter.Export()` only works when .json path is inside Assets/ folder
-- `LevelAsset.ApplyJson` is internal — only callable from Editor assembly
-- `GameProfile.CreateTopSection()` uses MonoScript.GetClass() + Activator.CreateInstance
-- `GridCanvasPanel.HoverCell` is public — read by LevelEditorWindow status bar
 
-## Known open questions
-- [ ] Yarn Sort ID prefix (`YRN` vs `YS`) — deferred to Phase 5
-- [ ] CoderGamester MCP entry in settings.json — can be removed or left (it doesn't connect)
+- `GridData` is bottomUp: y=0 = bottom row in data, drawn at bottom of canvas
+- First cell type in `GameProfile.CellTypes` must be the "empty" type (erase + fill)
+- `PushUndoSnapshot()` must be called BEFORE mutations (not after)
+- `CloneBrushTemplate()` is the correct way to get a fresh painted cell — never store `BrushTemplate` reference directly in the grid
+- `DrawInspector` must use absolute `GUI.*` / `EditorGUI.*` calls — never `GUILayout.BeginArea` (causes render leaks outside panel bounds)
+- `ColorSwatchDrawer.Draw()` is the reusable swatch picker for any `ColorPaletteAsset`
+- `YarnColorBalanceRule` emits Info entries (color table) + Error entries (imbalances) — both appear in `ValidationPanel`
+- `ScriptableObjectExporter.Export()` only works when .json path is inside `Assets/`
+- `LevelAsset.ApplyJson` is internal — only callable from Editor assembly
+- `GameProfile.CreateTopSection()` uses `MonoScript.GetClass()` + `Activator.CreateInstance`
+- `GridCanvasPanel.HoverCell` is public — read by `LevelEditorWindow` status bar
+- `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels (replaces `PushUndoSnapshot()` for non-grid mutations like Notes edits)
