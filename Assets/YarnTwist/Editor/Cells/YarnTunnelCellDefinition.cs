@@ -17,6 +17,7 @@ namespace Hoppa.YarnTwist.Editor
         private static readonly Color BadgeColor    = new Color(0.90f, 0.60f, 0.10f);
 
         private Vector2 _queueScroll;
+        private bool    _pendingSave;
 
         public override float InspectorPreferredHeight => 150f;
 
@@ -51,6 +52,16 @@ namespace Hoppa.YarnTwist.Editor
         public override void DrawInspector(Rect rect, ref ICellData data)
         {
             if (data is not YarnTunnelCell tunnel) return;
+
+            // Flush pending save triggered by ColorPickerPopup callback (fires in a different OnGUI frame)
+            if (_pendingSave)
+            {
+                GUI.changed  = true;
+                _pendingSave = false;
+            }
+
+            // Capture window-local mouse position before the scroll view transforms it
+            var windowMouse = Event.current.mousePosition;
 
             var   ids = _palette != null ? new List<string>(_palette.ColorIds) : new List<string>();
             float lh  = EditorGUIUtility.singleLineHeight;
@@ -106,15 +117,20 @@ namespace Hoppa.YarnTwist.Editor
                 else
                     EditorGUI.DrawRect(swRect, Color.grey);
 
-                string tooltip = tunnel.Queue[i];
-                GUI.Label(swRect, new GUIContent(string.Empty, $"Click to cycle color\n{tooltip}"));
-                if (Event.current.type == EventType.MouseDown && swRect.Contains(Event.current.mousePosition)
-                    && ids.Count > 0)
+                GUI.Label(swRect, new GUIContent(string.Empty, $"Right-click to change color\n{tunnel.Queue[i]}"));
+                if (Event.current.type == EventType.MouseDown && Event.current.button == 1
+                    && swRect.Contains(Event.current.mousePosition) && _palette != null)
                 {
-                    int ci = ids.IndexOf(tunnel.Queue[i]);
-                    tunnel.Queue[i] = ids[(ci + 1) % ids.Count];
+                    var capturedTunnel = tunnel;
+                    var capturedI      = i;
+                    PopupWindow.Show(
+                        new Rect(windowMouse.x, windowMouse.y, 1f, 1f),
+                        new ColorPickerPopup(_palette, tunnel.Queue[i], id =>
+                        {
+                            capturedTunnel.Queue[capturedI] = id;
+                            _pendingSave = true;
+                        }));
                     Event.current.Use();
-                    GUI.changed = true;
                 }
 
                 float labelX = swatchX + ColorSwatchDrawer.Size + 4f;

@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "yarn-twist.v1",
+  "levelId": "level_001",
+  "displayName": "Untitled",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-04-27T10:31:27.2215549Z",
+    "modifiedAt": "2026-04-27T10:31:27.2215549Z",
+    "tags": [],
+    "notes": "hi! "
+  },
+  "grid": {
+    "width": 7,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      }
+    ]
+  }
+}

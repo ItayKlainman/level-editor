@@ -133,10 +133,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         public static LevelEditorSession CreateEmpty(GameProfile profile)
         {
             var grid     = new GridData<ICellData>(profile.GridWidth, profile.GridHeight);
-            var emptyDef = profile.CellTypes.Count > 0 ? profile.CellTypes[0] : null;
-            if (emptyDef != null)
+            int fillIdx  = profile.CellTypes.Count > 1 ? 1 : 0;
+            var fillDef  = profile.CellTypes.Count > 0 ? profile.CellTypes[fillIdx] : null;
+            if (fillDef != null)
                 for (int i = 0; i < grid.Cells.Length; i++)
-                    grid.Cells[i] = emptyDef.CreateDefault();
+                    grid.Cells[i] = fillDef.CreateDefault();
 
             var doc = new LevelDocument
             {

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Hoppa.LevelEditor.Core.Editor;
 using Newtonsoft.Json.Linq;
@@ -17,13 +18,13 @@ namespace Hoppa.YarnTwist.Editor
 
         private static readonly Color HeaderBg = new Color(0.17f, 0.19f, 0.26f);
         private static readonly Color Accent   = new Color(0.30f, 0.65f, 1.00f);
-        private static readonly Color HiddenTint = new Color(0.35f, 0.28f, 0.45f, 0.65f);
+        private static readonly Color HiddenTint = new Color(0.35f, 0.28f, 0.45f, 0.28f);
 
         // Updated in OnGUI so PreferredHeight matches actual spool count next frame.
         private int _maxSpoolCount = 3;
 
         public override float PreferredHeight =>
-            HeaderH + ColLblH + SpoolH * Mathf.Max(1, _maxSpoolCount) + BtnH + 8f;
+            HeaderH + ColLblH + SpoolH * Mathf.Max(1, _maxSpoolCount) + BtnH * 2 + 14f;
 
         public override void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -70,8 +71,13 @@ namespace Hoppa.YarnTwist.Editor
                     const float ToggleW = 18f;
                     float sz = ColorSwatchDrawer.Size;  // 20px
 
-                    // ── Single color swatch (click to cycle) ──────────────
-                    var swatchRect = new Rect(cx + 2f, rowTop + 3f, sz, sz);
+                    // ── Hidden toggle (left side) ─────────────────────────
+                    spool.Hidden = EditorGUI.Toggle(
+                        new Rect(cx + 2f, rowTop + 3f, ToggleW, ToggleW), spool.Hidden);
+
+                    // ── Single color swatch (right-click to pick) ────────
+                    float swatchX  = cx + 2f + ToggleW + 2f;
+                    var swatchRect = new Rect(swatchX, rowTop + 3f, sz, sz);
                     bool isHovered = swatchRect.Contains(Event.current.mousePosition);
 
                     // Hover outline — drawn first so swatch sits on top
@@ -87,32 +93,38 @@ namespace Hoppa.YarnTwist.Editor
                     if (spool.Hidden)
                         EditorGUI.DrawRect(swatchRect, HiddenTint);
 
-                    GUI.Label(swatchRect, new GUIContent(string.Empty, $"Click to cycle color\n{spool.ColorId}"));
+                    GUI.Label(swatchRect, new GUIContent(string.Empty, $"Right-click to change color\n{spool.ColorId}"));
 
-                    if (Event.current.type == EventType.MouseDown && isHovered && palette != null)
+                    if (Event.current.type == EventType.MouseDown && Event.current.button == 1
+                        && isHovered && palette != null)
                     {
-                        var ids = new List<string>(palette.ColorIds);
-                        if (ids.Count > 0)
-                        {
-                            int ci = ids.IndexOf(spool.ColorId);
-                            spool.ColorId = ids[(ci + 1) % ids.Count];
-                            Event.current.Use();
-                        }
+                        var capturedSpool   = spool;
+                        var capturedTopData = topData;
+                        var capturedSession = session;
+                        var mp = Event.current.mousePosition;
+                        PopupWindow.Show(
+                            new Rect(mp.x, mp.y, 1f, 1f),
+                            new ColorPickerPopup(palette, spool.ColorId, id =>
+                            {
+                                capturedSession.PushUndoSnapshot();
+                                capturedSpool.ColorId = id;
+                                capturedSession.Document.TopSection = JObject.FromObject(capturedTopData);
+                                capturedSession.MarkDirty();
+                            }));
+                        Event.current.Use();
                     }
 
                     // ── Color label ───────────────────────────────────────
-                    float labelX = cx + 2f + sz + 4f;
-                    float labelW = colW - ToggleW - sz - 10f;
+                    float labelX = swatchX + sz + 4f;
+                    float labelW = colW - ToggleW - sz - 12f;
                     GUI.Label(new Rect(labelX, rowTop + 4f, labelW, sz), spool.ColorId, EditorStyles.miniLabel);
-
-                    // ── Hidden toggle ─────────────────────────────────────
-                    spool.Hidden = EditorGUI.Toggle(
-                        new Rect(cx + colW - ToggleW, rowTop + 4f, ToggleW, ToggleW), spool.Hidden);
                 }
 
-                // +/− buttons
-                float btnY = cy + 2f;
-                if (GUI.Button(new Rect(cx + 2f, btnY, colW / 2f - 3f, BtnH), "+", EditorStyles.miniButton))
+                // +/− buttons — stacked vertically, fixed narrow width centered in column
+                const float AddBtnW = 36f;
+                float btnCx = cx + (colW - AddBtnW) * 0.5f;
+                float btnY  = cy + 2f;
+                if (GUI.Button(new Rect(btnCx, btnY, AddBtnW, BtnH), "+", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
                     string firstId = "pink";
@@ -120,7 +132,7 @@ namespace Hoppa.YarnTwist.Editor
                     col.Spools.Add(new YarnSpoolData { ColorId = firstId });
                 }
                 if (col.Spools.Count > 0 &&
-                    GUI.Button(new Rect(cx + colW / 2f + 1f, btnY, colW / 2f - 3f, BtnH), "−", EditorStyles.miniButton))
+                    GUI.Button(new Rect(btnCx, btnY + BtnH + 2f, AddBtnW, BtnH), "−", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
                     col.Spools.RemoveAt(col.Spools.Count - 1);

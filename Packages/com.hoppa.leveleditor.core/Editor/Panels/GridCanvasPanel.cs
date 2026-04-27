@@ -161,8 +161,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                     if (_hoverCell.HasValue)
                     {
                         session.PushUndoSnapshot();
-                        var screenPos = GUIUtility.GUIToScreenPoint(e.mousePosition);
-                        PopupWindow.Show(new Rect(screenPos.x, screenPos.y, 2f, 2f),
+                        PopupWindow.Show(new Rect(e.mousePosition.x, e.mousePosition.y, 1f, 1f),
                             new GridCellPopup(session, _hoverCell.Value));
                     }
                     GUI.changed = true;
