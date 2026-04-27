@@ -63,24 +63,49 @@ namespace Hoppa.YarnTwist.Editor
                 // Spools drawn bottom-to-top (index 0 = bottom of column)
                 for (int s = col.Spools.Count - 1; s >= 0; s--)
                 {
-                    var spool    = col.Spools[s];
-                    float rowTop = cy;
+                    var   spool    = col.Spools[s];
+                    float rowTop   = cy;
                     cy += SpoolH;
 
-                    // Reserve right edge for hidden toggle
                     const float ToggleW = 18f;
-                    var swatchArea = new Rect(cx + 2f, rowTop + 3f, colW - ToggleW - 6f, ColorSwatchDrawer.Size);
+                    float sz = ColorSwatchDrawer.Size;  // 20px
 
-                    if (palette != null)
+                    // ── Single color swatch (click to cycle) ──────────────
+                    var swatchRect = new Rect(cx + 2f, rowTop + 3f, sz, sz);
+                    bool isHovered = swatchRect.Contains(Event.current.mousePosition);
+
+                    // Hover outline — drawn first so swatch sits on top
+                    if (isHovered)
+                        EditorGUI.DrawRect(
+                            new Rect(swatchRect.x - 1f, swatchRect.y - 1f, sz + 2f, sz + 2f),
+                            new Color(1f, 1f, 1f, 0.40f));
+
+                    Color swatchColor = Color.grey;
+                    if (palette != null) palette.TryGetColor(spool.ColorId, out swatchColor);
+                    EditorGUI.DrawRect(swatchRect, swatchColor);
+
+                    if (spool.Hidden)
+                        EditorGUI.DrawRect(swatchRect, HiddenTint);
+
+                    GUI.Label(swatchRect, new GUIContent(string.Empty, $"Click to cycle color\n{spool.ColorId}"));
+
+                    if (Event.current.type == EventType.MouseDown && isHovered && palette != null)
                     {
-                        string newId = ColorSwatchDrawer.Draw(swatchArea, palette, spool.ColorId);
-                        if (newId != spool.ColorId) spool.ColorId = newId;
+                        var ids = new List<string>(palette.ColorIds);
+                        if (ids.Count > 0)
+                        {
+                            int ci = ids.IndexOf(spool.ColorId);
+                            spool.ColorId = ids[(ci + 1) % ids.Count];
+                            Event.current.Use();
+                        }
                     }
 
-                    // Hidden tint overlay on swatches
-                    if (spool.Hidden)
-                        EditorGUI.DrawRect(swatchArea, HiddenTint);
+                    // ── Color label ───────────────────────────────────────
+                    float labelX = cx + 2f + sz + 4f;
+                    float labelW = colW - ToggleW - sz - 10f;
+                    GUI.Label(new Rect(labelX, rowTop + 4f, labelW, sz), spool.ColorId, EditorStyles.miniLabel);
 
+                    // ── Hidden toggle ─────────────────────────────────────
                     spool.Hidden = EditorGUI.Toggle(
                         new Rect(cx + colW - ToggleW, rowTop + 4f, ToggleW, ToggleW), spool.Hidden);
                 }

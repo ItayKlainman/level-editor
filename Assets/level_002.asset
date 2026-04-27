@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cfd9accad17a6d4a9dcd7824234d795, type: 3}
+  m_Name: level_002
+  m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::Hoppa.YarnTwist.Editor.YarnLevelAsset
+  _levelJson: "{\r\n  \"schemaVersion\": \"yarn-twist.v1\",\r\n  \"levelId\": \"level_001\",\r\n 
+    \"displayName\": \"Untitled\",\r\n  \"metadata\": {\r\n    \"author\": \"itay0\",\r\n   
+    \"createdAt\": \"2026-04-26T17:17:53.8789681Z\",\r\n    \"modifiedAt\": \"2026-04-26T17:17:53.8789681Z\",\r\n   
+    \"tags\": [],\r\n    \"notes\": \"\"\r\n  },\r\n  \"grid\": {\r\n    \"width\":
+    5,\r\n    \"height\": 7,\r\n    \"rowOrder\": \"bottomUp\",\r\n    \"cells\":
+    [\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.box\",\r\n        \"colorId\": \"pink\",\r\n       
+    \"hidden\": false\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n       
+    \"type\": \"yt.empty\"\r\n      },\r\n      {\r\n        \"type\": \"yt.empty\"\r\n     
+    }\r\n    ]\r\n  },\r\n  \"topSection\": {\r\n    \"columns\": [\r\n      {\r\n       
+    \"spools\": [\r\n          {\r\n            \"colorId\": \"pink\",\r\n           
+    \"hidden\": false\r\n          },\r\n          {\r\n            \"colorId\":
+    \"pink\",\r\n            \"hidden\": false\r\n          },\r\n          {\r\n           
+    \"colorId\": \"pink\",\r\n            \"hidden\": false\r\n          }\r\n       
+    ]\r\n      },\r\n      {\r\n        \"spools\": [\r\n          {\r\n           
+    \"colorId\": \"blue\",\r\n            \"hidden\": false\r\n          }\r\n       
+    ]\r\n      },\r\n      {\r\n        \"spools\": []\r\n      },\r\n      {\r\n       
+    \"spools\": []\r\n      }\r\n    ]\r\n  }\r\n}"

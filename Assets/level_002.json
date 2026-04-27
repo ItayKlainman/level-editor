@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "yarn-twist.v1.v1",
+  "schemaVersion": "yarn-twist.v1",
   "levelId": "level_001",
   "displayName": "Untitled",
   "metadata": {
     "author": "itay0",
-    "createdAt": "2026-04-23T22:31:58.2199370Z",
-    "modifiedAt": "2026-04-23T22:31:58.2199370Z",
+    "createdAt": "2026-04-26T17:17:53.8789681Z",
+    "modifiedAt": "2026-04-26T17:17:53.8789681Z",
     "tags": [],
     "notes": ""
   },
@@ -110,22 +110,16 @@
         "hidden": false
       },
       {
-        "type": "yt.box",
-        "colorId": "pink",
-        "hidden": false
-      },
-      {
-        "type": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
         "type": "yt.empty"
       },
       {
-        "type": "yt.box",
-        "colorId": "teal",
-        "hidden": false
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
       }
     ]
   },
@@ -150,50 +144,16 @@
       {
         "spools": [
           {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
+            "colorId": "blue",
             "hidden": false
           }
         ]
       },
       {
-        "spools": [
-          {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
-            "hidden": false
-          }
-        ]
+        "spools": []
       },
       {
-        "spools": [
-          {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
-            "hidden": false
-          },
-          {
-            "colorId": "pink",
-            "hidden": false
-          }
-        ]
+        "spools": []
       }
     ]
   }

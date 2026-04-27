@@ -1,4 +1,4 @@
-﻿using Hoppa.LevelEditor.Core;
+using Hoppa.LevelEditor.Core;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,20 +12,23 @@ namespace Hoppa.LevelEditor.Core.Editor
         private const float Margin   = 32f;
 
         private Vector2  _scroll;
-        private bool     _isPainting;
-        private bool     _isErasing;
+        private bool     _isDragging;
         private CellRef? _hoverCell;
+        private CellRef? _moveSource;
         private float    _gridOffsetX;
         private float    _gridOffsetY;
 
         public CellRef? HoverCell => _hoverCell;
 
-        private static readonly Color OuterBg     = new Color(0.10f, 0.11f, 0.13f);
-        private static readonly Color GridShadow  = new Color(0.00f, 0.00f, 0.00f, 0.55f);
-        private static readonly Color GridBorder  = new Color(0.12f, 0.13f, 0.16f);
-        private static readonly Color CellBg      = new Color(0.24f, 0.26f, 0.30f);
-        private static readonly Color HoverColor  = new Color(1.00f, 1.00f, 1.00f, 0.13f);
-        private static readonly Color SelectColor = new Color(0.30f, 0.65f, 1.00f, 0.38f);
+        private static readonly Color OuterBg        = new Color(0.10f, 0.11f, 0.13f);
+        private static readonly Color GridShadow      = new Color(0.00f, 0.00f, 0.00f, 0.55f);
+        private static readonly Color GridBorder      = new Color(0.12f, 0.13f, 0.16f);
+        private static readonly Color CellBg          = new Color(0.24f, 0.26f, 0.30f);
+        private static readonly Color HoverColor      = new Color(1.00f, 1.00f, 1.00f, 0.13f);
+        private static readonly Color SelectOutline   = new Color(1.00f, 1.00f, 1.00f, 0.90f);
+        private static readonly Color MoveSourceColor = new Color(0.30f, 1.00f, 0.40f, 0.90f);
+        private static readonly Color MoveTargetColor = new Color(0.30f, 1.00f, 0.40f, 0.30f);
+        private static readonly Color CopiedOutline   = new Color(1.00f, 0.85f, 0.20f, 0.85f);
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -52,11 +55,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             _gridOffsetX = Mathf.Floor((viewW - totalW) * 0.5f);
             _gridOffsetY = Mathf.Floor((viewH - totalH) * 0.5f);
 
-            // Drop shadow
             EditorGUI.DrawRect(
                 new Rect(_gridOffsetX - 5f, _gridOffsetY - 5f, totalW + 10f, totalH + 10f),
                 GridShadow);
-            // Grid lines background
             EditorGUI.DrawRect(
                 new Rect(_gridOffsetX, _gridOffsetY, totalW, totalH),
                 GridBorder);
@@ -85,9 +86,31 @@ namespace Hoppa.LevelEditor.Core.Editor
 
                 if (_hoverCell == cellRef)
                     EditorGUI.DrawRect(cellRect, HoverColor);
+
+                // Move source: green fill + outline
+                if (session.ActiveTool == GridEditTool.Move && _moveSource == cellRef)
+                    DrawCellOutline(cellRect, MoveSourceColor, 2f);
+
+                // Move target highlight (hover when source is picked)
+                if (session.ActiveTool == GridEditTool.Move && _moveSource.HasValue
+                    && _moveSource.Value != cellRef && _hoverCell == cellRef)
+                    EditorGUI.DrawRect(cellRect, MoveTargetColor);
+
+                if (session.ActiveTool == GridEditTool.Select
+                    && session.CopiedCellRef.HasValue && session.CopiedCellRef.Value == cellRef)
+                    DrawCellOutline(cellRect, CopiedOutline, 2f);
+
                 if (session.SelectedCell == cellRef)
-                    EditorGUI.DrawRect(cellRect, SelectColor);
+                    DrawCellOutline(cellRect, SelectOutline, 2f);
             }
+        }
+
+        private static void DrawCellOutline(Rect r, Color c, float t = 1f)
+        {
+            EditorGUI.DrawRect(new Rect(r.x,        r.y,        r.width, t),  c);
+            EditorGUI.DrawRect(new Rect(r.x,        r.yMax - t, r.width, t),  c);
+            EditorGUI.DrawRect(new Rect(r.x,        r.y,        t, r.height), c);
+            EditorGUI.DrawRect(new Rect(r.xMax - t, r.y,        t, r.height), c);
         }
 
         private static void DrawFallback(Rect rect, ICellData cell)
@@ -103,6 +126,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _hoverCell = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY);
 
             bool ctrl = e.control || e.command;
+            var  inBounds = new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height);
 
             switch (e.type)
             {
@@ -116,27 +140,91 @@ namespace Hoppa.LevelEditor.Core.Editor
                     e.Use();
                     break;
 
-                case EventType.MouseDown when new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height).Contains(e.mousePosition):
-                    session.PushUndoSnapshot();
-                    _isPainting = e.button == 0;
-                    _isErasing  = e.button == 1;
-                    ApplyBrush(session, _hoverCell);
-                    session.SelectedCell = _hoverCell;
+                case EventType.KeyDown when ctrl && e.keyCode == KeyCode.C
+                    && session.ActiveTool == GridEditTool.Select
+                    && session.SelectedCell.HasValue:
+                    session.CopySelectedCell();
                     GUI.changed = true;
                     e.Use();
                     break;
 
-                case EventType.MouseDrag when (_isPainting || _isErasing):
-                    ApplyBrush(session, _hoverCell);
+                case EventType.KeyDown when ctrl && e.keyCode == KeyCode.V
+                    && session.ActiveTool == GridEditTool.Select
+                    && session.CopiedCell != null
+                    && session.SelectedCell.HasValue:
+                    if (session.PasteCopiedCell()) GUI.changed = true;
+                    e.Use();
+                    break;
+
+                case EventType.MouseDown when inBounds.Contains(e.mousePosition) && e.button == 1:
+                    // Right-click: show context popup for the hovered cell
+                    if (_hoverCell.HasValue)
+                    {
+                        session.PushUndoSnapshot();
+                        var screenPos = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                        PopupWindow.Show(new Rect(screenPos.x, screenPos.y, 2f, 2f),
+                            new GridCellPopup(session, _hoverCell.Value));
+                    }
+                    GUI.changed = true;
+                    e.Use();
+                    break;
+
+                case EventType.MouseDown when inBounds.Contains(e.mousePosition) && e.button == 0:
+                    session.SelectedCell = _hoverCell;
+                    switch (session.ActiveTool)
+                    {
+                        case GridEditTool.Paint:
+                            session.PushUndoSnapshot();
+                            _isDragging = true;
+                            PlaceAt(session, _hoverCell);
+                            break;
+                        case GridEditTool.Select:
+                            _isDragging = true;
+                            break;
+                        case GridEditTool.Delete:
+                            session.PushUndoSnapshot();
+                            _isDragging = true;
+                            if (_hoverCell.HasValue) EraseAt(session, _hoverCell.Value);
+                            break;
+                        case GridEditTool.Move:
+                            HandleMoveTool(session, _hoverCell);
+                            break;
+                    }
+                    GUI.changed = true;
+                    e.Use();
+                    break;
+
+                case EventType.MouseDrag when _isDragging:
+                    switch (session.ActiveTool)
+                    {
+                        case GridEditTool.Paint:
+                            PlaceAt(session, _hoverCell);
+                            break;
+                        case GridEditTool.Delete:
+                            if (_hoverCell.HasValue) EraseAt(session, _hoverCell.Value);
+                            break;
+                        case GridEditTool.Select:
+                            session.SelectedCell = _hoverCell;
+                            break;
+                    }
                     GUI.changed = true;
                     e.Use();
                     break;
 
                 case EventType.MouseUp:
-                    _isPainting = false;
-                    _isErasing  = false;
+                    _isDragging = false;
                     session.RunValidation();
                     e.Use();
+                    break;
+
+                case EventType.KeyDown when e.keyCode == KeyCode.Escape:
+                    // Cancel move source selection
+                    if (session.ActiveTool == GridEditTool.Move && _moveSource.HasValue)
+                    {
+                        _moveSource = null;
+                        GUI.changed = true;
+                        e.Use();
+                    }
                     break;
 
                 case EventType.KeyDown when e.keyCode == KeyCode.Delete && session.SelectedCell.HasValue:
@@ -149,18 +237,36 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
         }
 
-        private void ApplyBrush(LevelEditorSession session, CellRef? cellRef)
+        private void HandleMoveTool(LevelEditorSession session, CellRef? cell)
         {
-            if (!cellRef.HasValue) return;
-            if (_isPainting) PlaceAt(session, cellRef.Value);
-            if (_isErasing)  EraseAt(session, cellRef.Value);
+            if (!cell.HasValue) return;
+            if (_moveSource == null)
+            {
+                _moveSource = cell;
+                return;
+            }
+            if (_moveSource.Value == cell.Value)
+            {
+                _moveSource = null;
+                return;
+            }
+            // Swap the two cells
+            session.PushUndoSnapshot();
+            var a = session.Document.Grid.Get(_moveSource.Value.X, _moveSource.Value.Y);
+            var b = session.Document.Grid.Get(cell.Value.X, cell.Value.Y);
+            session.Document.Grid.Set(_moveSource.Value.X, _moveSource.Value.Y, b);
+            session.Document.Grid.Set(cell.Value.X, cell.Value.Y, a);
+            session.MarkDirty();
+            session.RunValidation();
+            _moveSource = null;
         }
 
-        private static void PlaceAt(LevelEditorSession session, CellRef cellRef)
+        private static void PlaceAt(LevelEditorSession session, CellRef? cellRef)
         {
             if (session.ActiveCellType == null) return;
-            if (!session.Document.Grid.InBounds(cellRef.X, cellRef.Y)) return;
-            session.SetCell(cellRef.X, cellRef.Y, session.CloneBrushTemplate());
+            if (!cellRef.HasValue) return;
+            if (!session.Document.Grid.InBounds(cellRef.Value.X, cellRef.Value.Y)) return;
+            session.SetCell(cellRef.Value.X, cellRef.Value.Y, session.CloneBrushTemplate());
         }
 
         private static void EraseAt(LevelEditorSession session, CellRef cellRef)

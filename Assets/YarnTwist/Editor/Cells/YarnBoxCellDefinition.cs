@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using UnityEditor;
@@ -6,11 +7,13 @@ using UnityEngine;
 namespace Hoppa.YarnTwist.Editor
 {
     [CreateAssetMenu(menuName = "Hoppa/Yarn Twist/Cells/Box")]
-    public sealed class YarnBoxCellDefinition : CellTypeDefinition
+    public sealed class YarnBoxCellDefinition : CellTypeDefinition, ICellContextActions
     {
         [SerializeField] private ColorPaletteAsset _palette;
 
         private static readonly Color HiddenColor = new Color(0.40f, 0.32f, 0.52f);
+
+        public override float InspectorPreferredHeight => 60f;
 
         public override ICellData CreateDefault() => new YarnBoxCell();
 
@@ -42,6 +45,26 @@ namespace Hoppa.YarnTwist.Editor
 
             box.Hidden = EditorGUI.ToggleLeft(
                 new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), "Hidden", box.Hidden);
+        }
+
+        public IEnumerable<CellContextAction> GetContextActions(ICellData cell, CellTypeRegistry registry)
+        {
+            if (!registry.TryGetDefinition("yt.arrowbox", out _)) yield break;
+
+            var colorId = (cell as YarnBoxCell)?.ColorId ?? "pink";
+            // Mutable holder — captures across OnGUI calls via closure
+            var dir = new[] { YarnDirection.Right };
+
+            yield return new CellContextAction(
+                label: "→ Convert to Arrow Box",
+                create: () => new YarnArrowBoxCell { ColorId = colorId, Direction = dir[0] },
+                optionsHeight: 22f,
+                drawOptions: rect =>
+                {
+                    GUI.Label(new Rect(rect.x, rect.y, 64f, 18f), "Direction", EditorStyles.miniLabel);
+                    dir[0] = (YarnDirection)EditorGUI.EnumPopup(
+                        new Rect(rect.x + 66f, rect.y, rect.width - 66f, 18f), dir[0]);
+                });
         }
     }
 }

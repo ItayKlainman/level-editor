@@ -107,7 +107,7 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             // ── Right: validation (50%) + inspector (fixed) + summary ───
             float rightX    = w - RightW + 1f;
-            const float InspectorH = 130f;
+            const float InspectorH = 220f;
             float validH    = Mathf.Floor(innerH * 0.50f);
             float summaryH  = innerH - validH - InspectorH;
 
@@ -293,7 +293,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             if (_session == null || _profile.CellTypes.Count == 0) return;
             int idx = _profile.CellTypes.Count > 1 ? 1 : 0;
-            _session.ActiveCellType = _profile.CellTypes[idx];
+            var def = _profile.CellTypes[idx];
+            _session.ActiveCellType = def;
+            _session.BrushTemplate  = def.CreateDefault();
         }
 
         private bool TryAutoPickProfile()

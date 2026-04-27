@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using UnityEditor;
@@ -6,9 +7,11 @@ using UnityEngine;
 namespace Hoppa.YarnTwist.Editor
 {
     [CreateAssetMenu(menuName = "Hoppa/Yarn Twist/Cells/Arrow Box")]
-    public sealed class YarnArrowBoxCellDefinition : CellTypeDefinition
+    public sealed class YarnArrowBoxCellDefinition : CellTypeDefinition, ICellContextActions
     {
         [SerializeField] private ColorPaletteAsset _palette;
+
+        public override float InspectorPreferredHeight => 56f;
 
         public override ICellData CreateDefault() => new YarnArrowBoxCell();
 
@@ -40,6 +43,15 @@ namespace Hoppa.YarnTwist.Editor
 
             arrow.Direction = (YarnDirection)EditorGUI.EnumPopup(
                 new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), arrow.Direction);
+        }
+
+        public IEnumerable<CellContextAction> GetContextActions(ICellData cell, CellTypeRegistry registry)
+        {
+            if (!registry.TryGetDefinition("yt.box", out _)) yield break;
+            var colorId = (cell as YarnArrowBoxCell)?.ColorId ?? "pink";
+            yield return new CellContextAction(
+                label:  "→ Convert to Box",
+                create: () => new YarnBoxCell { ColorId = colorId });
         }
     }
 }

@@ -16,3 +16,4 @@ MonoBehaviour:
   _displayName: Tunnel
   _paletteGroup: Yarn Twist
   _icon: {fileID: 0}
+  _palette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}

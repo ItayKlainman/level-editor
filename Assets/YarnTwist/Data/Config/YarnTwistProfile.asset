@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
   _schemaId: yarn-twist
   _colorPalette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}
-  _gridWidth: 5
+  _gridWidth: 7
   _gridHeight: 7
   _cellTypes:
   - {fileID: 11400000, guid: af51c0bb90390d94789ebf1e6cbf8c07, type: 2}

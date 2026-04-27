@@ -15,6 +15,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public ICellTypeDefinition ActiveCellType { get; set; }
         public ICellData BrushTemplate { get; set; }
         public CellRef? SelectedCell { get; set; }
+        public GridEditTool ActiveTool { get; set; } = GridEditTool.Paint;
+        public ICellData CopiedCell { get; private set; }
+        public CellRef? CopiedCellRef { get; private set; }
         public bool IsDirty { get; private set; }
         public string FilePath { get; set; }
 
@@ -73,6 +76,39 @@ namespace Hoppa.LevelEditor.Core.Editor
             IsDirty = true;
             RunValidation();
             return true;
+        }
+
+        // Copies the currently selected cell into the clipboard.
+        public void CopySelectedCell()
+        {
+            if (!SelectedCell.HasValue) return;
+            var cell = Document.Grid.Get(SelectedCell.Value.X, SelectedCell.Value.Y);
+            CopiedCell    = cell != null ? CloneCell(cell) : null;
+            CopiedCellRef = cell != null ? SelectedCell : (CellRef?)null;
+        }
+
+        // Pastes the clipboard cell onto the currently selected position. Returns true on success.
+        public bool PasteCopiedCell()
+        {
+            if (CopiedCell == null || !SelectedCell.HasValue) return false;
+            PushUndoSnapshot();
+            SetCell(SelectedCell.Value.X, SelectedCell.Value.Y, CloneCell(CopiedCell));
+            RunValidation();
+            return true;
+        }
+
+        // Deep-clones a single cell by round-tripping through the serializer.
+        public ICellData CloneCell(ICellData cell)
+        {
+            if (cell == null) return null;
+            var tempDoc = new LevelDocument
+            {
+                SchemaVersion = "tmp", LevelId = "tmp",
+                Grid = new GridData<ICellData>(1, 1)
+            };
+            tempDoc.Grid.Set(0, 0, cell);
+            var loaded = _serializer.Load(_serializer.Save(tempDoc, CellTypes), CellTypes);
+            return loaded.Grid.Get(0, 0);
         }
 
         // Produces a fresh clone of BrushTemplate by round-tripping through the serializer.
