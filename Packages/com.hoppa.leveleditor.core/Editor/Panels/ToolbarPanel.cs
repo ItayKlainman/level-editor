@@ -10,6 +10,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public event Action OnOpen;
         public event Action OnSave;
         public event Action OnSaveAs;
+        public event Action OnExport;
         public event Action OnUndo;
         public event Action OnRedo;
         public event Action OnTestPlay;
@@ -20,13 +21,14 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color DirtyColor    = new Color(1.0f, 0.65f, 0.10f);
         private static readonly Color SepColor      = new Color(1.0f, 1.0f, 1.0f, 0.08f);
 
-        private static readonly GUIContent LabelNew      = new GUIContent("New",     "Create a new empty level");
-        private static readonly GUIContent LabelOpen     = new GUIContent("Open",    "Open an existing level (.json)");
-        private static readonly GUIContent LabelSave     = new GUIContent("Save",    "Save the level to disk  (Ctrl+S)");
-        private static readonly GUIContent LabelSaveAs   = new GUIContent("Save As", "Save to a new file");
-        private static readonly GUIContent LabelUndo     = new GUIContent("Undo",    "Undo last paint stroke  (Ctrl+Z)");
-        private static readonly GUIContent LabelRedo     = new GUIContent("Redo",    "Redo last undone stroke  (Ctrl+Y)");
-        private static readonly GUIContent LabelTestPlay = new GUIContent("▶ Test",  "Save and enter Play Mode");
+        private static readonly GUIContent LabelNew      = new GUIContent("New",      "Create a new empty level");
+        private static readonly GUIContent LabelOpen     = new GUIContent("Open",     "Open an existing level (.json)");
+        private static readonly GUIContent LabelSave     = new GUIContent("Save",     "Save the level to disk  (Ctrl+S)");
+        private static readonly GUIContent LabelSaveAs   = new GUIContent("Save As",  "Save to a new file");
+        private static readonly GUIContent LabelExport   = new GUIContent("Export ▸", "Run all exporters in the Game Profile — sends levels to the target game project");
+        private static readonly GUIContent LabelUndo     = new GUIContent("Undo",     "Undo last paint stroke  (Ctrl+Z)");
+        private static readonly GUIContent LabelRedo     = new GUIContent("Redo",     "Redo last undone stroke  (Ctrl+Y)");
+        private static readonly GUIContent LabelTestPlay = new GUIContent("▶ Test",   "Save and enter Play Mode");
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -43,6 +45,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 if (GUI.Button(new Rect(x, y, 44f, BtnH), LabelSave))   OnSave?.Invoke();   x += 44f + Gap;
                 if (GUI.Button(new Rect(x, y, 58f, BtnH), LabelSaveAs)) OnSaveAs?.Invoke(); x += 58f + Gap;
+                if (GUI.Button(new Rect(x, y, 64f, BtnH), LabelExport)) OnExport?.Invoke(); x += 64f + Gap;
             }
 
             // Separator

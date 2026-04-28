@@ -41,6 +41,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnOpen     += HandleOpen;
             _toolbar.OnSave     += HandleSave;
             _toolbar.OnSaveAs   += HandleSaveAs;
+            _toolbar.OnExport   += HandleExport;
             _toolbar.OnUndo     += HandleUndo;
             _toolbar.OnRedo     += HandleRedo;
             _toolbar.OnTestPlay += HandleTestPlay;
@@ -52,6 +53,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnOpen     -= HandleOpen;
             _toolbar.OnSave     -= HandleSave;
             _toolbar.OnSaveAs   -= HandleSaveAs;
+            _toolbar.OnExport   -= HandleExport;
             _toolbar.OnUndo     -= HandleUndo;
             _toolbar.OnRedo     -= HandleRedo;
             _toolbar.OnTestPlay -= HandleTestPlay;
@@ -223,6 +225,55 @@ namespace Hoppa.LevelEditor.Core.Editor
                 : Path.GetFileName(_session.FilePath);
             string path = EditorUtility.SaveFilePanel("Save Level As", Application.dataPath, defaultName, "json");
             if (!string.IsNullOrEmpty(path)) SaveToPath(path);
+        }
+
+        private void HandleExport()
+        {
+            if (_session == null) return;
+
+            var exporters = _profile.Exporters;
+            if (exporters.Count == 0)
+            {
+                EditorUtility.DisplayDialog("No Exporters",
+                    "No exporters are configured in this Game Profile.\n\nAdd a LevelExporterAsset to the profile's Exporters list.", "OK");
+                return;
+            }
+
+            if (_session.IsDirty)
+            {
+                int choice = EditorUtility.DisplayDialogComplex(
+                    "Unsaved Changes",
+                    "The level has unsaved changes. Save before exporting?",
+                    "Save & Export", "Export Anyway", "Cancel");
+                if (choice == 2) return;
+                if (choice == 0) HandleSave();
+                if (_session == null) return;
+            }
+
+            int successCount = 0;
+            var errors = new System.Text.StringBuilder();
+            foreach (var exporter in exporters)
+            {
+                if (exporter == null) continue;
+                try
+                {
+                    bool ok = exporter.Export(_session.Document, _session.CellTypes, _session.FilePath ?? string.Empty);
+                    if (ok) successCount++;
+                    else    errors.AppendLine($"• {exporter.Name}: returned false");
+                }
+                catch (System.Exception ex)
+                {
+                    errors.AppendLine($"• {exporter.Name}: {ex.Message}");
+                }
+            }
+
+            if (errors.Length > 0)
+                EditorUtility.DisplayDialog("Export Failed", errors.ToString().TrimEnd(), "OK");
+            else
+                EditorUtility.DisplayDialog("Export Complete",
+                    $"{successCount} exporter(s) completed successfully.", "OK");
+
+            AssetDatabase.Refresh();
         }
 
         private void HandleUndo() { if (_session?.Undo() == true) Repaint(); }

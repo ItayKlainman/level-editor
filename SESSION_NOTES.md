@@ -26,7 +26,7 @@
 - `ColorPaletteAsset`, `ColorEntry`
 
 **Editor assembly** (`Hoppa.LevelEditor.Core.Editor`):
-- `LevelEditorWindow` — 3-column IMGUI window (Toolbar | Canvas+TopSection | Validation+Inspector+Summary)
+- `LevelEditorWindow` — 3-column IMGUI window (Toolbar | Canvas+TopSection | Validation+Inspector+Summary); toolbar has New/Open/Save/SaveAs/Export▸/Undo/Redo/Test
 - `LevelEditorSession` — session state: `Document`, `CellTypes`, `ActiveCellType`, `BrushTemplate`, `SelectedCell`, `IsDirty`, undo/redo stack, `CloneBrushTemplate()`
 - `GameProfile` — ScriptableObject wiring cell types, validation rules, exporters, top section script
 - `CellTypeDefinition` / `ICellTypeDefinition` — abstract SO base; game subclasses implement `DrawCell` + `DrawInspector`
@@ -48,7 +48,7 @@
 - Cell definitions: `YarnEmptyCellDefinition`, `YarnWallCellDefinition`, `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`, `YarnTunnelCellDefinition` (all use color swatches in `DrawInspector`)
 - `YarnTopSectionPanel` — 4-column spool editor with color swatches + hidden toggle, dynamic height
 - Validation rules: `YarnColorBalanceRule` (emits Info table + Error for imbalances), `YarnArrowBoxTargetRule`, `YarnTunnelOutputRule`
-- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save
+- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button
 - `StringIntMapping` assets: `YarnColorMapping.asset` (10 colors), `YarnCellTypeMapping.asset` (5 types)
 
 **Data assets** (`Assets/YarnTwist/Data/Config/`):

@@ -8,10 +8,16 @@
 
 ## Active phase
 
-**No active phase — all planned work is complete and pushed.**
+**Post-phase polish — Export button + integration docs (2026-04-28)**
 
 Branch `feat/phase5-data-pipeline` is pushed to GitHub and ready for review/merge.
 Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-data-pipeline
+
+### Added this session
+- `ToolbarPanel`: new `OnExport` event + "Export ▸" button (64px, in the Save group, disabled when no session)
+- `LevelEditorWindow`: `HandleExport()` — runs all `_profile.Exporters` on demand; prompts to Save first if dirty; shows per-exporter success/error dialog; calls `AssetDatabase.Refresh()` after
+- `GameProfile`: updated `_exporters` tooltip to document the Export button and the swap-in pattern
+- `docs/integration/new-game-exporter.md`: step-by-step guide for integrating any future game
 
 ---
 
