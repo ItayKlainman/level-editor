@@ -1,0 +1,270 @@
+{
+  "schemaVersion": "yarn-twist.v1",
+  "levelId": "level_001",
+  "displayName": "Untitled",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-04-30T08:12:45.3876010Z",
+    "modifiedAt": "2026-04-30T08:12:45.3896005Z",
+    "tags": [],
+    "notes": ""
+  },
+  "grid": {
+    "width": 7,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "teal",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "blue",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "teal",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "blue",
+        "hidden": false
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.wall"
+      },
+      {
+        "type": "yt.wall"
+      }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      {
+        "spools": [
+          {
+            "colorId": "blue",
+            "hidden": false
+          },
+          {
+            "colorId": "teal",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "teal",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "blue",
+            "hidden": false
+          },
+          {
+            "colorId": "teal",
+            "hidden": false
+          },
+          {
+            "colorId": "blue",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "blue",
+            "hidden": false
+          },
+          {
+            "colorId": "blue",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "teal",
+            "hidden": false
+          },
+          {
+            "colorId": "blue",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "teal",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "teal",
+            "hidden": false
+          }
+        ]
+      }
+    ]
+  }
+}
