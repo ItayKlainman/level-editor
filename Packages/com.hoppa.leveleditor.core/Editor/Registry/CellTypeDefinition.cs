@@ -34,6 +34,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public string PaletteGroup => _paletteGroup;
         public Texture2D Icon => _icon;
 
+        // Height the cell popup inspector should allocate for DrawInspector. Override when content needs more room.
+        public virtual float InspectorPreferredHeight => 80f;
+
         public abstract ICellData CreateDefault();
         public abstract void DrawCell(Rect cellRect, ICellData data);
         public abstract void DrawInspector(Rect rect, ref ICellData data);

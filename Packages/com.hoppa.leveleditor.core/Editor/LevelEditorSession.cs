@@ -13,7 +13,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         public ValidationReport LastValidation { get; private set; }
 
         public ICellTypeDefinition ActiveCellType { get; set; }
+        public ICellData BrushTemplate { get; set; }
         public CellRef? SelectedCell { get; set; }
+        public GridEditTool ActiveTool { get; set; } = GridEditTool.Paint;
+        public ICellData CopiedCell { get; private set; }
+        public CellRef? CopiedCellRef { get; private set; }
         public bool IsDirty { get; private set; }
         public string FilePath { get; set; }
 
@@ -38,7 +42,8 @@ namespace Hoppa.LevelEditor.Core.Editor
             IsDirty = true;
         }
 
-        public void MarkClean() => IsDirty = false;
+        public void MarkClean()  => IsDirty = false;
+        public void MarkDirty()  => IsDirty = true;
 
         public void RunValidation()
         {
@@ -73,15 +78,66 @@ namespace Hoppa.LevelEditor.Core.Editor
             return true;
         }
 
+        // Copies the currently selected cell into the clipboard.
+        public void CopySelectedCell()
+        {
+            if (!SelectedCell.HasValue) return;
+            var cell = Document.Grid.Get(SelectedCell.Value.X, SelectedCell.Value.Y);
+            CopiedCell    = cell != null ? CloneCell(cell) : null;
+            CopiedCellRef = cell != null ? SelectedCell : (CellRef?)null;
+        }
+
+        // Pastes the clipboard cell onto the currently selected position. Returns true on success.
+        public bool PasteCopiedCell()
+        {
+            if (CopiedCell == null || !SelectedCell.HasValue) return false;
+            PushUndoSnapshot();
+            SetCell(SelectedCell.Value.X, SelectedCell.Value.Y, CloneCell(CopiedCell));
+            RunValidation();
+            return true;
+        }
+
+        // Deep-clones a single cell by round-tripping through the serializer.
+        public ICellData CloneCell(ICellData cell)
+        {
+            if (cell == null) return null;
+            var tempDoc = new LevelDocument
+            {
+                SchemaVersion = "tmp", LevelId = "tmp",
+                Grid = new GridData<ICellData>(1, 1)
+            };
+            tempDoc.Grid.Set(0, 0, cell);
+            var loaded = _serializer.Load(_serializer.Save(tempDoc, CellTypes), CellTypes);
+            return loaded.Grid.Get(0, 0);
+        }
+
+        // Produces a fresh clone of BrushTemplate by round-tripping through the serializer.
+        // Falls back to CreateDefault() if template is uninitialised.
+        public ICellData CloneBrushTemplate()
+        {
+            if (BrushTemplate == null || ActiveCellType == null)
+                return ActiveCellType?.CreateDefault();
+
+            var tempDoc = new LevelDocument
+            {
+                SchemaVersion = "tmp", LevelId = "tmp",
+                Grid = new GridData<ICellData>(1, 1)
+            };
+            tempDoc.Grid.Set(0, 0, BrushTemplate);
+            var loaded = _serializer.Load(_serializer.Save(tempDoc, CellTypes), CellTypes);
+            return loaded.Grid.Get(0, 0);
+        }
+
         public void Dispose() { }
 
         public static LevelEditorSession CreateEmpty(GameProfile profile)
         {
             var grid     = new GridData<ICellData>(profile.GridWidth, profile.GridHeight);
-            var emptyDef = profile.CellTypes.Count > 0 ? profile.CellTypes[0] : null;
-            if (emptyDef != null)
+            int fillIdx  = profile.CellTypes.Count > 1 ? 1 : 0;
+            var fillDef  = profile.CellTypes.Count > 0 ? profile.CellTypes[fillIdx] : null;
+            if (fillDef != null)
                 for (int i = 0; i < grid.Cells.Length; i++)
-                    grid.Cells[i] = emptyDef.CreateDefault();
+                    grid.Cells[i] = fillDef.CreateDefault();
 
             var doc = new LevelDocument
             {

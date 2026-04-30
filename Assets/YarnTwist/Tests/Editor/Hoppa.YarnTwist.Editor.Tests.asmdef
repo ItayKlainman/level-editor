@@ -1,0 +1,28 @@
+{
+    "name": "Hoppa.YarnTwist.Editor.Tests",
+    "rootNamespace": "Hoppa.YarnTwist.Editor.Tests",
+    "references": [
+        "Hoppa.LevelEditor.Core.Runtime",
+        "Hoppa.LevelEditor.Core.Editor",
+        "Hoppa.YarnTwist.Runtime",
+        "Hoppa.YarnTwist.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 416ced100adfbf64dad6b4809a1fda5c, type: 3}
+  m_Name: YarnMasterLevelExporter
+  m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::Hoppa.YarnTwist.Editor.YarnMasterLevelExporter
+  _outputPath: E:/Projects/Hoppa/YarnTwist/Assets/_YAT/Configs/Resources/Configs/level_config.json
+  _colorMapping: {fileID: 11400000, guid: ae0bdb7b9892eba4a8993fccfe6104fa, type: 2}
+  _cellTypeMapping: {fileID: 11400000, guid: 79c3dd06a92eb8d43a9761feeded3543, type: 2}
+  _defaultRewardScoreType: Coin
+  _defaultRewardAmount: 10

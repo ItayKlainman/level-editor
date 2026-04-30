@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37fc685356dd60348ba8952e164fa793, type: 3}
+  m_Name: YarnCellTypeMapping
+  m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.StringIntMapping
+  _entries:
+  - Key: yt.wall
+    Value: 1
+  - Key: yt.empty
+    Value: 2
+  - Key: yt.box
+    Value: 3
+  - Key: yt.arrowbox
+    Value: 4
+  - Key: yt.tunnel
+    Value: 5

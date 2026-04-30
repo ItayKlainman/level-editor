@@ -6,7 +6,8 @@
     "author": "itay0",
     "createdAt": "2026-04-23T22:31:58.2199370Z",
     "modifiedAt": "2026-04-23T22:31:58.2199370Z",
-    "tags": []
+    "tags": [],
+    "notes": ""
   },
   "grid": {
     "width": 5,
@@ -14,166 +15,117 @@
     "rowOrder": "bottomUp",
     "cells": [
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.arrowbox",
-        "CellTypeId": "yt.arrowbox",
-        "colorId": "pink",
-        "direction": "Right"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.tunnel",
-        "CellTypeId": "yt.tunnel",
-        "direction": "Up",
-        "queue": []
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
         "type": "yt.box",
-        "CellTypeId": "yt.box",
         "colorId": "pink",
         "hidden": false
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.arrowbox",
+        "colorId": "pink",
+        "direction": "Right"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.empty"
       },
       {
-        "type": "yt.empty",
-        "CellTypeId": "yt.empty"
+        "type": "yt.box",
+        "colorId": "teal",
+        "hidden": false
       }
     ]
   },
@@ -182,7 +134,11 @@
       {
         "spools": [
           {
-            "colorId": "purple",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           },
           {
@@ -194,7 +150,15 @@
       {
         "spools": [
           {
-            "colorId": "purple",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           }
         ]
@@ -202,7 +166,15 @@
       {
         "spools": [
           {
-            "colorId": "blue",
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
             "hidden": false
           }
         ]
@@ -210,15 +182,15 @@
       {
         "spools": [
           {
-            "colorId": "yellow",
+            "colorId": "pink",
             "hidden": false
           },
           {
-            "colorId": "green",
+            "colorId": "pink",
             "hidden": false
           },
           {
-            "colorId": "purple",
+            "colorId": "pink",
             "hidden": false
           }
         ]

@@ -27,8 +27,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Validation rules run on every level. Results appear in the Validation panel.\nExample: PaletteColorsExistRule")]
         [SerializeField] private List<ValidationRuleBase> _rules = new List<ValidationRuleBase>();
 
-        [Tooltip("Extra exporters that run on Save (after the built-in JSON export). Used to produce .asset files.\nExample: DemoScriptableObjectExporter")]
-        [SerializeField] private List<ScriptableObjectExporter> _exporters = new List<ScriptableObjectExporter>();
+        [Tooltip("Exporters that run on Save and on the explicit 'Export ▸' toolbar button.\nTo integrate a new game: create a LevelExporterAsset subclass for that game, create an asset, and assign it here.\nExample: YarnMasterLevelExporter")]
+        [SerializeField] private List<LevelExporterAsset> _exporters = new List<LevelExporterAsset>();
 
         [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region above the grid.\nExample: SpoolColumnsTopSectionPanel — leave empty for no top section.")]
         [SerializeField] private MonoScript _topSectionScript;
@@ -39,7 +39,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public int GridHeight => _gridHeight;
         public IReadOnlyList<CellTypeDefinition> CellTypes => _cellTypes;
         public IReadOnlyList<ValidationRuleBase> Rules => _rules;
-        public IReadOnlyList<ScriptableObjectExporter> Exporters => _exporters;
+        public IReadOnlyList<LevelExporterAsset> Exporters => _exporters;
 
         public CellTypeRegistry BuildRegistry()
         {

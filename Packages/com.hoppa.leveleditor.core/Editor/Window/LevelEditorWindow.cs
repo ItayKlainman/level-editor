@@ -13,16 +13,17 @@ namespace Hoppa.LevelEditor.Core.Editor
         private readonly PalettePanel    _palette    = new PalettePanel();
         private readonly GridCanvasPanel _canvas     = new GridCanvasPanel();
         private readonly ToolbarPanel    _toolbar    = new ToolbarPanel();
-        private readonly SummaryPanel    _summary    = new SummaryPanel();
-        private readonly ValidationPanel _validation = new ValidationPanel();
+        private readonly SummaryPanel        _summary    = new SummaryPanel();
+        private readonly ValidationPanel    _validation = new ValidationPanel();
+        // private readonly CellInspectorPanel _inspector  = new CellInspectorPanel();
         private TopSectionPanel _topSection = new EmptyTopSectionPanel();
 
         private LevelEditorSession _session;
         private GameProfile        _profile;
 
         private const float ToolbarH   = 28f;
-        private const float PaletteW   = 168f;
-        private const float RightW     = 230f;
+        private const float PaletteW   = 195f;
+        private const float RightW     = 260f;
         private const float StatusBarH = 20f;
 
         // ── Cohesive dark blue-grey palette ───────────────────────────
@@ -40,6 +41,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnOpen     += HandleOpen;
             _toolbar.OnSave     += HandleSave;
             _toolbar.OnSaveAs   += HandleSaveAs;
+            _toolbar.OnExport   += HandleExport;
             _toolbar.OnUndo     += HandleUndo;
             _toolbar.OnRedo     += HandleRedo;
             _toolbar.OnTestPlay += HandleTestPlay;
@@ -51,6 +53,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnOpen     -= HandleOpen;
             _toolbar.OnSave     -= HandleSave;
             _toolbar.OnSaveAs   -= HandleSaveAs;
+            _toolbar.OnExport   -= HandleExport;
             _toolbar.OnUndo     -= HandleUndo;
             _toolbar.OnRedo     -= HandleRedo;
             _toolbar.OnTestPlay -= HandleTestPlay;
@@ -104,15 +107,17 @@ namespace Hoppa.LevelEditor.Core.Editor
                 _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
             _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH), _session);
 
-            // ── Right: validation (60%) + summary (40%) ───────────────
+            // ── Right: validation (50%) + summary (50%) ──────────────────
             float rightX   = w - RightW + 1f;
-            float validH   = Mathf.Floor(innerH * 0.60f);
+            float validH   = Mathf.Floor(innerH * 0.50f);
             float summaryH = innerH - validH;
-            EditorGUI.DrawRect(new Rect(rightX, bodyY + validH, RightW, 1f), Divider);
 
             var clicked = _validation.OnGUI(new Rect(rightX, bodyY, RightW, validH), _session.LastValidation);
             if (clicked.HasValue) _session.SelectedCell = clicked;
-            _summary.OnGUI(new Rect(rightX, bodyY + validH + 1f, RightW, summaryH - 1f), _session);
+
+            float summaryY = bodyY + validH;
+            EditorGUI.DrawRect(new Rect(rightX, summaryY, RightW, 1f), Divider);
+            _summary.OnGUI(new Rect(rightX, summaryY + 1f, RightW, summaryH - 1f), _session);
 
             if (GUI.changed) Repaint();
         }
@@ -222,6 +227,55 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (!string.IsNullOrEmpty(path)) SaveToPath(path);
         }
 
+        private void HandleExport()
+        {
+            if (_session == null) return;
+
+            var exporters = _profile.Exporters;
+            if (exporters.Count == 0)
+            {
+                EditorUtility.DisplayDialog("No Exporters",
+                    "No exporters are configured in this Game Profile.\n\nAdd a LevelExporterAsset to the profile's Exporters list.", "OK");
+                return;
+            }
+
+            if (_session.IsDirty)
+            {
+                int choice = EditorUtility.DisplayDialogComplex(
+                    "Unsaved Changes",
+                    "The level has unsaved changes. Save before exporting?",
+                    "Save & Export", "Export Anyway", "Cancel");
+                if (choice == 2) return;
+                if (choice == 0) HandleSave();
+                if (_session == null) return;
+            }
+
+            int successCount = 0;
+            var errors = new System.Text.StringBuilder();
+            foreach (var exporter in exporters)
+            {
+                if (exporter == null) continue;
+                try
+                {
+                    bool ok = exporter.Export(_session.Document, _session.CellTypes, _session.FilePath ?? string.Empty);
+                    if (ok) successCount++;
+                    else    errors.AppendLine($"• {exporter.Name}: returned false");
+                }
+                catch (System.Exception ex)
+                {
+                    errors.AppendLine($"• {exporter.Name}: {ex.Message}");
+                }
+            }
+
+            if (errors.Length > 0)
+                EditorUtility.DisplayDialog("Export Failed", errors.ToString().TrimEnd(), "OK");
+            else
+                EditorUtility.DisplayDialog("Export Complete",
+                    $"{successCount} exporter(s) completed successfully.", "OK");
+
+            AssetDatabase.Refresh();
+        }
+
         private void HandleUndo() { if (_session?.Undo() == true) Repaint(); }
         private void HandleRedo() { if (_session?.Redo() == true) Repaint(); }
 
@@ -285,7 +339,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             if (_session == null || _profile.CellTypes.Count == 0) return;
             int idx = _profile.CellTypes.Count > 1 ? 1 : 0;
-            _session.ActiveCellType = _profile.CellTypes[idx];
+            var def = _profile.CellTypes[idx];
+            _session.ActiveCellType = def;
+            _session.BrushTemplate  = def.CreateDefault();
         }
 
         private bool TryAutoPickProfile()

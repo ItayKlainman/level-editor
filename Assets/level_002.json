@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "yarn-twist.v1",
+  "levelId": "level_001",
+  "displayName": "Untitled",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-04-26T17:17:53.8789681Z",
+    "modifiedAt": "2026-04-26T17:17:53.8789681Z",
+    "tags": [],
+    "notes": ""
+  },
+  "grid": {
+    "width": 5,
+    "height": 7,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.box",
+        "colorId": "pink",
+        "hidden": false
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      },
+      {
+        "type": "yt.empty"
+      }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      {
+        "spools": [
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          },
+          {
+            "colorId": "pink",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "blue",
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": []
+      },
+      {
+        "spools": []
+      }
+    ]
+  }
+}

@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 705a0ca41a11b1a4eaf43d6aee9a89d1, type: 3}
   m_Name: YarnTwistProfile
   m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
-  _schemaId: yarn-twist.v1
+  _schemaId: yarn-twist
   _colorPalette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}
-  _gridWidth: 5
+  _gridWidth: 7
   _gridHeight: 7
   _cellTypes:
   - {fileID: 11400000, guid: af51c0bb90390d94789ebf1e6cbf8c07, type: 2}
@@ -28,4 +28,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: fa6f9a1e69b6c03458578883d47a9287, type: 2}
   _exporters:
   - {fileID: 11400000, guid: ac52ac3c785afb94bb72b64e5dd87fe1, type: 2}
+  - {fileID: 11400000, guid: bf213284f034d504fb46bdce9e92580b, type: 2}
   _topSectionScript: {fileID: 11500000, guid: 20c7138a6394e904ebf3e850f791376d, type: 3}

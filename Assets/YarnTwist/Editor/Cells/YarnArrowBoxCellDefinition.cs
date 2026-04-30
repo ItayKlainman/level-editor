@@ -7,9 +7,11 @@ using UnityEngine;
 namespace Hoppa.YarnTwist.Editor
 {
     [CreateAssetMenu(menuName = "Hoppa/Yarn Twist/Cells/Arrow Box")]
-    public sealed class YarnArrowBoxCellDefinition : CellTypeDefinition
+    public sealed class YarnArrowBoxCellDefinition : CellTypeDefinition, ICellContextActions
     {
         [SerializeField] private ColorPaletteAsset _palette;
+
+        public override float InspectorPreferredHeight => 56f;
 
         public override ICellData CreateDefault() => new YarnArrowBoxCell();
 
@@ -33,18 +35,23 @@ namespace Hoppa.YarnTwist.Editor
         public override void DrawInspector(Rect rect, ref ICellData data)
         {
             if (data is not YarnArrowBoxCell arrow) return;
-            float half = rect.width * 0.5f;
 
-            if (_palette != null)
-            {
-                var ids = new List<string>(_palette.ColorIds);
-                int idx = Mathf.Max(0, ids.IndexOf(arrow.ColorId));
-                int newIdx = EditorGUI.Popup(new Rect(rect.x, rect.y, half - 2f, rect.height), idx, ids.ToArray());
-                if (newIdx != idx) arrow.ColorId = ids[newIdx];
-            }
+            float lh         = EditorGUIUtility.singleLineHeight + 2f;
+            float swatchAreaH = rect.height - lh - 2f;
+            var   swatchRect  = new Rect(rect.x, rect.y, rect.width, swatchAreaH);
+            arrow.ColorId = ColorSwatchDrawer.Draw(swatchRect, _palette, arrow.ColorId);
 
             arrow.Direction = (YarnDirection)EditorGUI.EnumPopup(
-                new Rect(rect.x + half, rect.y, half, rect.height), arrow.Direction);
+                new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), arrow.Direction);
+        }
+
+        public IEnumerable<CellContextAction> GetContextActions(ICellData cell, CellTypeRegistry registry)
+        {
+            if (!registry.TryGetDefinition("yt.box", out _)) yield break;
+            var colorId = (cell as YarnArrowBoxCell)?.ColorId ?? "pink";
+            yield return new CellContextAction(
+                label:  "→ Convert to Box",
+                create: () => new YarnBoxCell { ColorId = colorId });
         }
     }
 }
