@@ -56,9 +56,11 @@ Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-
 ## Open items / known gaps
 
 ### Manual steps still needed
-- [ ] Open `YarnTwistProfile.asset` in Inspector → set `_schemaId` to `yarn-twist` (currently `yarn-twist.v1` causes `yarn-twist.v1.v1` in Summary)
-- [ ] Assign `YarnTwistPalette` to `_palette` field on `YarnTunnelCellDef.asset` (same as Box/ArrowBox) so queue entry swatches show colors
+- [x] `_schemaId` is already `yarn-twist` in asset — was stale note
+- [x] `YarnTwistPalette` already assigned on `YarnTunnelCellDef.asset` — was stale note
 - [ ] Smoke test: open Level Editor → YarnTwistProfile → paint boxes + spools → Save → verify `level_config.json` updated in YarnTwist project
+- [ ] Merge `feat/phase5-data-pipeline` → `master` and push
+- [ ] Tag release: `git tag v0.1.0 && git push origin v0.1.0`
 
 ### Low-priority Jira gaps (not implemented)
 - Arrow box / tunnel target cell highlight (highlight destination cell when selected)
