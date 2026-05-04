@@ -20,7 +20,16 @@ namespace Hoppa.YarnTwist.Editor
         [SerializeField] private int    _defaultRewardAmount    = 10;
 
         public override string Name => "MasterLevelConfig";
-        public string OutputPath => _outputPath;
+        public string OutputPath => ResolveOutputPath();
+
+        private string ResolveOutputPath()
+        {
+            if (string.IsNullOrEmpty(_outputPath)) return _outputPath;
+            if (Path.IsPathRooted(_outputPath))    return _outputPath;
+            // Relative path: resolve from project root (parent of Application.dataPath)
+            return Path.GetFullPath(Path.Combine(Application.dataPath, "..", _outputPath))
+                       .Replace('\\', '/');
+        }
 
         public void SetTestDependencies(string outputPath, StringIntMapping colorMapping,
             StringIntMapping cellTypeMapping, string rewardScoreType, int rewardAmount)
@@ -34,8 +43,10 @@ namespace Hoppa.YarnTwist.Editor
 
         public override bool Export(LevelDocument document, CellTypeRegistry cellTypes, string jsonFilePath)
         {
+            string resolvedOutput = ResolveOutputPath();
+
             // Validate dependencies
-            if (string.IsNullOrEmpty(_outputPath))
+            if (string.IsNullOrEmpty(resolvedOutput))
             {
                 Debug.LogWarning("[YarnMasterLevelExporter] Output path is not set.");
                 return false;
@@ -68,15 +79,15 @@ namespace Hoppa.YarnTwist.Editor
 
             // Read existing file or start fresh
             JObject root = null;
-            if (File.Exists(_outputPath))
+            if (File.Exists(resolvedOutput))
             {
                 try
                 {
-                    root = JObject.Parse(File.ReadAllText(_outputPath));
+                    root = JObject.Parse(File.ReadAllText(resolvedOutput));
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse '{_outputPath}'; starting fresh. ({ex.Message})");
+                    Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse '{resolvedOutput}'; starting fresh. ({ex.Message})");
                     root = null;
                 }
             }
@@ -126,11 +137,11 @@ namespace Hoppa.YarnTwist.Editor
             }
 
             // Write output
-            string dir = Path.GetDirectoryName(_outputPath);
+            string dir = Path.GetDirectoryName(resolvedOutput);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
-            File.WriteAllText(_outputPath, root.ToString(Formatting.Indented));
+            File.WriteAllText(resolvedOutput, root.ToString(Formatting.Indented));
             return true;
         }
 
