@@ -116,7 +116,7 @@ namespace Hoppa.YarnTwist.Editor
         {
             _list = new ReorderableList(_entries, typeof(LevelEntry),
                 draggable: true, displayHeader: true,
-                displayAddButton: false, displayRemoveButton: false);
+                displayAddButton: false, displayRemoveButton: true);
 
             _list.drawHeaderCallback = headerRect =>
                 EditorGUI.LabelField(headerRect, "Levels  (drag ☰ to reorder)");
@@ -130,17 +130,37 @@ namespace Hoppa.YarnTwist.Editor
                     new Rect(elementRect.x, y, elementRect.width, lh),
                     $"Level {entry.OriginalKey}");
             };
+
+            _list.onRemoveCallback = list =>
+            {
+                var entry = _entries[list.index];
+                bool confirmed = EditorUtility.DisplayDialog(
+                    "Remove Level",
+                    $"Permanently remove Level {entry.OriginalKey} from the master JSON?\n\nThis cannot be undone.",
+                    "Remove", "Cancel");
+                if (!confirmed) return;
+                _entries.RemoveAt(list.index);
+                WriteToFile();
+                BuildList();
+            };
         }
 
         private void ApplyOrder()
         {
             if (_exporter == null || _entries == null || _entries.Count == 0) return;
+            if (!WriteToFile()) return;
+            EditorUtility.DisplayDialog("Order Applied",
+                $"{_entries.Count} level(s) renumbered successfully.", "OK");
+            Reload();
+        }
 
+        private bool WriteToFile()
+        {
             string path = _exporter.OutputPath;
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
                 EditorUtility.DisplayDialog("Error", $"Master JSON not found at:\n{path}", "OK");
-                return;
+                return false;
             }
 
             JObject root;
@@ -148,7 +168,7 @@ namespace Hoppa.YarnTwist.Editor
             catch (Exception ex)
             {
                 EditorUtility.DisplayDialog("Error", $"Could not parse master JSON:\n{ex.Message}", "OK");
-                return;
+                return false;
             }
 
             var newLevelConfigs  = new JObject();
@@ -167,11 +187,7 @@ namespace Hoppa.YarnTwist.Editor
 
             File.WriteAllText(path, root.ToString(Formatting.Indented));
             AssetDatabase.Refresh();
-
-            EditorUtility.DisplayDialog("Order Applied",
-                $"{_entries.Count} level(s) renumbered successfully.", "OK");
-
-            Reload();
+            return true;
         }
     }
 }
