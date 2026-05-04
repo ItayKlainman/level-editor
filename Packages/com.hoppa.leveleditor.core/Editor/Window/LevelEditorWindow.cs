@@ -22,6 +22,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         private GameProfile        _profile;
         private bool               _inOrderMode;
 
+        private const string LastDirPrefKey = "Hoppa.LevelEditor.LastSaveDir";
+
         private const float ToolbarH   = 28f;
         private const float PaletteW   = 195f;
         private const float RightW     = 260f;
@@ -223,8 +225,13 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             if (_profile == null && !TryAutoPickProfile()) return;
             if (!ConfirmDiscard()) return;
-            string path = EditorUtility.OpenFilePanel("Open Level", Application.dataPath, "json");
-            if (!string.IsNullOrEmpty(path)) LoadFromPath(path);
+            string startDir = EditorPrefs.GetString(LastDirPrefKey, Application.dataPath);
+            string path = EditorUtility.OpenFilePanel("Open Level", startDir, "json");
+            if (!string.IsNullOrEmpty(path))
+            {
+                EditorPrefs.SetString(LastDirPrefKey, Path.GetDirectoryName(path));
+                LoadFromPath(path);
+            }
         }
 
         private void HandleSave()
@@ -240,8 +247,15 @@ namespace Hoppa.LevelEditor.Core.Editor
             string defaultName = string.IsNullOrEmpty(_session.FilePath)
                 ? _session.Document.LevelId + ".json"
                 : Path.GetFileName(_session.FilePath);
-            string path = EditorUtility.SaveFilePanel("Save Level As", Application.dataPath, defaultName, "json");
-            if (!string.IsNullOrEmpty(path)) SaveToPath(path);
+            string startDir = string.IsNullOrEmpty(_session.FilePath)
+                ? EditorPrefs.GetString(LastDirPrefKey, Application.dataPath)
+                : Path.GetDirectoryName(_session.FilePath);
+            string path = EditorUtility.SaveFilePanel("Save Level As", startDir, defaultName, "json");
+            if (!string.IsNullOrEmpty(path))
+            {
+                EditorPrefs.SetString(LastDirPrefKey, Path.GetDirectoryName(path));
+                SaveToPath(path);
+            }
         }
 
         private void HandleExport()
