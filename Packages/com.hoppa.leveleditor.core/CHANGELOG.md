@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-05-04
+
+### Fixed
+
+- `LevelEditorWindow`: Export now shows a clear "Save Required" dialog instead of the cryptic "returned false" error when the level has not been saved to a file yet. Covers both the "Export Anyway" path and the "Save & Export → cancel Save As" path.
+
 ## [0.3.0] - 2026-05-04
 
 ### Added

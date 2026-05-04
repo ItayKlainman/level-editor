@@ -281,6 +281,15 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (_session == null) return;
             }
 
+            if (string.IsNullOrEmpty(_session.FilePath))
+            {
+                EditorUtility.DisplayDialog("Save Required",
+                    "Save the level to a file before exporting.\n\n" +
+                    "Use Save As and give it a numbered filename (e.g. level_005.json). " +
+                    "The number is used to determine the level's slot in the output.", "OK");
+                return;
+            }
+
             int successCount = 0;
             var errors = new System.Text.StringBuilder();
             foreach (var exporter in exporters)
