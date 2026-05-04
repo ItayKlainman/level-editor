@@ -103,6 +103,7 @@ namespace Hoppa.YarnTwist.Editor
             var levelConfigsObj = (JObject)root["LevelConfigs"];
             levelConfigsObj[levelKey] = new JObject
             {
+                ["levelId"]       = fileNameNoExt,
                 ["BottomConfigs"] = bottomConfigs,
                 ["TopConfigs"]    = topConfigs
             };

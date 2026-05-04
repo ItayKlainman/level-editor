@@ -20,6 +20,7 @@ namespace Hoppa.YarnTwist.Editor
         private sealed class LevelEntry
         {
             public int    OriginalKey;
+            public string Label;
             public JToken LevelConfig;
             public JToken RewardConfig;
         }
@@ -100,9 +101,12 @@ namespace Hoppa.YarnTwist.Editor
             foreach (var kvp in levelConfigs)
             {
                 if (!int.TryParse(kvp.Key, out int key)) continue;
+                string label = kvp.Value?["levelId"]?.ToString();
+                if (string.IsNullOrEmpty(label)) label = $"Level {key}";
                 _entries.Add(new LevelEntry
                 {
                     OriginalKey  = key,
+                    Label        = label,
                     LevelConfig  = kvp.Value,
                     RewardConfig = rewardConfigs[kvp.Key]
                 });
@@ -128,7 +132,7 @@ namespace Hoppa.YarnTwist.Editor
                 float y  = elementRect.y + (elementRect.height - lh) * 0.5f;
                 EditorGUI.LabelField(
                     new Rect(elementRect.x, y, elementRect.width, lh),
-                    $"Level {entry.OriginalKey}");
+                    entry.Label);
             };
 
             _list.onRemoveCallback = list =>
