@@ -20,6 +20,7 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private LevelEditorSession _session;
         private GameProfile        _profile;
+        private bool               _inOrderMode;
 
         private const float ToolbarH   = 28f;
         private const float PaletteW   = 195f;
@@ -37,26 +38,28 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void OnEnable()
         {
-            _toolbar.OnNew      += HandleNew;
-            _toolbar.OnOpen     += HandleOpen;
-            _toolbar.OnSave     += HandleSave;
-            _toolbar.OnSaveAs   += HandleSaveAs;
-            _toolbar.OnExport   += HandleExport;
-            _toolbar.OnUndo     += HandleUndo;
-            _toolbar.OnRedo     += HandleRedo;
-            _toolbar.OnTestPlay += HandleTestPlay;
+            _toolbar.OnNew         += HandleNew;
+            _toolbar.OnOpen        += HandleOpen;
+            _toolbar.OnSave        += HandleSave;
+            _toolbar.OnSaveAs      += HandleSaveAs;
+            _toolbar.OnExport      += HandleExport;
+            _toolbar.OnUndo        += HandleUndo;
+            _toolbar.OnRedo        += HandleRedo;
+            _toolbar.OnTestPlay    += HandleTestPlay;
+            _toolbar.OnOrderToggle += HandleOrderToggle;
         }
 
         private void OnDisable()
         {
-            _toolbar.OnNew      -= HandleNew;
-            _toolbar.OnOpen     -= HandleOpen;
-            _toolbar.OnSave     -= HandleSave;
-            _toolbar.OnSaveAs   -= HandleSaveAs;
-            _toolbar.OnExport   -= HandleExport;
-            _toolbar.OnUndo     -= HandleUndo;
-            _toolbar.OnRedo     -= HandleRedo;
-            _toolbar.OnTestPlay -= HandleTestPlay;
+            _toolbar.OnNew         -= HandleNew;
+            _toolbar.OnOpen        -= HandleOpen;
+            _toolbar.OnSave        -= HandleSave;
+            _toolbar.OnSaveAs      -= HandleSaveAs;
+            _toolbar.OnExport      -= HandleExport;
+            _toolbar.OnUndo        -= HandleUndo;
+            _toolbar.OnRedo        -= HandleRedo;
+            _toolbar.OnTestPlay    -= HandleTestPlay;
+            _toolbar.OnOrderToggle -= HandleOrderToggle;
             _session?.Dispose();
             _session    = null;
             _topSection = new EmptyTopSectionPanel();
@@ -70,6 +73,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             // ── Toolbar ───────────────────────────────────────────────
             EditorGUI.DrawRect(new Rect(0f, 0f, w, ToolbarH), ToolbarBg);
             EditorGUI.DrawRect(new Rect(0f, ToolbarH - 1f, w, 1f), Divider);
+            _toolbar.OrderMode = _inOrderMode;
             _toolbar.OnGUI(new Rect(0f, 0f, w, ToolbarH), _session);
 
             // ── Status bar ────────────────────────────────────────────
@@ -80,6 +84,19 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             float bodyY  = ToolbarH;
             float innerH = h - ToolbarH - StatusBarH;
+
+            if (_inOrderMode)
+            {
+                EditorGUI.DrawRect(new Rect(0f, bodyY, w, innerH), CanvasBg);
+                if (_profile?.OrderPanel != null)
+                    _profile.OrderPanel.OnGUI(new Rect(0f, bodyY, w, innerH), _session);
+                else
+                    DrawCenteredMessage(new Rect(0f, bodyY, w, innerH),
+                        _profile == null
+                            ? "Select a Game Profile first."
+                            : "No Order Panel configured in this Game Profile.\n\nAssign an EditorPanelAsset to the profile's Order Panel field.");
+                return;
+            }
 
             if (_session == null)
             {
@@ -276,8 +293,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             AssetDatabase.Refresh();
         }
 
-        private void HandleUndo() { if (_session?.Undo() == true) Repaint(); }
-        private void HandleRedo() { if (_session?.Redo() == true) Repaint(); }
+        private void HandleUndo()        { if (_session?.Undo() == true) Repaint(); }
+        private void HandleRedo()        { if (_session?.Redo() == true) Repaint(); }
+        private void HandleOrderToggle() { _inOrderMode = !_inOrderMode; Repaint(); }
 
         private void HandleTestPlay()
         {
@@ -363,6 +381,19 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (_session == null || !_session.IsDirty) return true;
             return EditorUtility.DisplayDialog("Unsaved Changes",
                 "You have unsaved changes. Discard them?", "Discard", "Cancel");
+        }
+
+        private static void DrawCenteredMessage(Rect rect, string message)
+        {
+            GUILayout.BeginArea(rect);
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(message, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400f));
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.FlexibleSpace();
+            GUILayout.EndArea();
         }
     }
 }

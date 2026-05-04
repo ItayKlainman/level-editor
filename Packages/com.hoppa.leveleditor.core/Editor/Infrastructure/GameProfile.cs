@@ -33,6 +33,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region above the grid.\nExample: SpoolColumnsTopSectionPanel — leave empty for no top section.")]
         [SerializeField] private MonoScript _topSectionScript;
 
+        [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
+        [SerializeField] private EditorPanelAsset _orderPanel;
+
         public string SchemaId => _schemaId;
         public ColorPaletteAsset ColorPalette => _colorPalette;
         public int GridWidth => _gridWidth;
@@ -40,6 +43,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public IReadOnlyList<CellTypeDefinition> CellTypes => _cellTypes;
         public IReadOnlyList<ValidationRuleBase> Rules => _rules;
         public IReadOnlyList<LevelExporterAsset> Exporters => _exporters;
+        public EditorPanelAsset OrderPanel => _orderPanel;
 
         public CellTypeRegistry BuildRegistry()
         {

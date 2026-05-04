@@ -20,6 +20,7 @@ namespace Hoppa.YarnTwist.Editor
         [SerializeField] private int    _defaultRewardAmount    = 10;
 
         public override string Name => "MasterLevelConfig";
+        public string OutputPath => _outputPath;
 
         public void SetTestDependencies(string outputPath, StringIntMapping colorMapping,
             StringIntMapping cellTypeMapping, string rewardScoreType, int rewardAmount)
@@ -50,11 +51,17 @@ namespace Hoppa.YarnTwist.Editor
                 return false;
             }
 
-            // Parse level key from LevelId (e.g. "level_001" -> 1)
-            var match = Regex.Match(document.LevelId ?? string.Empty, @"\d+$");
+            // Derive level key from the saved file name (e.g. "level_005.json" → "5")
+            if (string.IsNullOrEmpty(jsonFilePath))
+            {
+                Debug.LogWarning("[YarnMasterLevelExporter] No file path — save the level before exporting.");
+                return false;
+            }
+            var fileNameNoExt = Path.GetFileNameWithoutExtension(jsonFilePath);
+            var match = Regex.Match(fileNameNoExt, @"\d+$");
             if (!match.Success)
             {
-                Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse integer key from LevelId '{document.LevelId}'.");
+                Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse integer key from filename '{fileNameNoExt}'.");
                 return false;
             }
             string levelKey = int.Parse(match.Value).ToString();

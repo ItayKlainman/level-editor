@@ -14,6 +14,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public event Action OnUndo;
         public event Action OnRedo;
         public event Action OnTestPlay;
+        public event Action OnOrderToggle;
+
+        public bool OrderMode { get; set; }
 
         private const float BtnH = 20f;
         private const float Gap  = 4f;
@@ -29,6 +32,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly GUIContent LabelUndo     = new GUIContent("Undo",     "Undo last paint stroke  (Ctrl+Z)");
         private static readonly GUIContent LabelRedo     = new GUIContent("Redo",     "Redo last undone stroke  (Ctrl+Y)");
         private static readonly GUIContent LabelTestPlay = new GUIContent("▶ Test",   "Save and enter Play Mode");
+        private static readonly GUIContent LabelOrder    = new GUIContent("⇅ Order",  "Manage level order in the master config");
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -70,6 +74,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (GUI.Button(new Rect(x, y, 58f, BtnH), LabelTestPlay)) OnTestPlay?.Invoke();
                 x += 58f + Gap;
             }
+
+            // Separator
+            EditorGUI.DrawRect(new Rect(x, y, 1f, BtnH), SepColor); x += 1f + Gap;
+
+            bool newOrderMode = GUI.Toggle(new Rect(x, y, 64f, BtnH), OrderMode, LabelOrder, GUI.skin.button);
+            if (newOrderMode != OrderMode) OnOrderToggle?.Invoke();
+            x += 64f + Gap;
 
             // Level name
             if (session?.Document != null)

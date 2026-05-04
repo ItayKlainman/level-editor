@@ -13,6 +13,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
     public class YarnMasterLevelExporterTests
     {
         private string _tempFile;
+        private string _levelFile;
         private StringIntMapping _colorMap;
         private StringIntMapping _cellMap;
         private YarnMasterLevelExporter _exporter;
@@ -20,7 +21,8 @@ namespace Hoppa.YarnTwist.Editor.Tests
         [SetUp]
         public void SetUp()
         {
-            _tempFile = Path.Combine(Path.GetTempPath(), "level_config_test.json");
+            _tempFile  = Path.Combine(Path.GetTempPath(), "level_config_test.json");
+            _levelFile = Path.Combine(Path.GetTempPath(), "level_001.json");
             if (File.Exists(_tempFile)) File.Delete(_tempFile);
 
             _colorMap = ScriptableObject.CreateInstance<StringIntMapping>();
@@ -46,28 +48,46 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         [Test]
-        public void Export_ParsesLevelId_001_ToKey1()
+        public void Export_ParsesFileName_001_ToKey1()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var config = ReadOutput();
             Assert.IsTrue(config["LevelConfigs"].ToObject<JObject>().ContainsKey("1"));
         }
 
         [Test]
-        public void Export_ParsesLevelId_025_ToKey25()
+        public void Export_ParsesFileName_025_ToKey25()
         {
+            string levelFile025 = Path.Combine(Path.GetTempPath(), "level_025.json");
             var doc = MakeDoc("level_025", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), levelFile025);
             var config = ReadOutput();
             Assert.IsTrue(config["LevelConfigs"].ToObject<JObject>().ContainsKey("25"));
+        }
+
+        [Test]
+        public void Export_NullFilePath_ReturnsFalse()
+        {
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            bool result = _exporter.Export(doc, new CellTypeRegistry(), null);
+            Assert.IsFalse(result);
+        }
+
+        [Test]
+        public void Export_FilenameWithNoNumber_ReturnsFalse()
+        {
+            string noNumberFile = Path.Combine(Path.GetTempPath(), "my_awesome_level.json");
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            bool result = _exporter.Export(doc, new CellTypeRegistry(), noNumberFile);
+            Assert.IsFalse(result);
         }
 
         [Test]
         public void Export_EmptyCell_ProducesBottomType2_ColorType0()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var bottom = BottomConfigAt(0);
             Assert.AreEqual(2, (int)bottom["BottomType"]);
             Assert.AreEqual(0, (int)bottom["ColorType"]);
@@ -77,7 +97,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_BoxCell_ProducesBottomType3_AndMappedColor()
         {
             var doc = MakeDoc("level_001", new[] { BoxCell("pink") }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var bottom = BottomConfigAt(0);
             Assert.AreEqual(3, (int)bottom["BottomType"]);
             Assert.AreEqual(7, (int)bottom["ColorType"]);
@@ -87,7 +107,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_WallCell_ProducesBottomType1()
         {
             var doc = MakeDoc("level_001", new[] { WallCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             Assert.AreEqual(1, (int)BottomConfigAt(0)["BottomType"]);
         }
 
@@ -97,7 +117,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
             // Grid 2x1: cell[0] is (x=0,y=0), cell[1] is (x=1,y=0)
             var cells = new ICellData[] { EmptyCell(), BoxCell("blue") };
             var doc   = MakeDoc("level_001", cells, MakeTopSection(), width: 2, height: 1);
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var bottom1 = BottomConfigAt(1);
             Assert.AreEqual(1, (int)bottom1["Position"]["x"]);
             Assert.AreEqual(0, (int)bottom1["Position"]["y"]);
@@ -107,7 +127,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_TopSection_ProducesExactly4TopConfigs()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             Assert.AreEqual(4, TopConfigs().Count);
         }
 
@@ -115,7 +135,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_SpoolColor_MapsToCorrectColorType()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection(col0Spool: "pink"));
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var winder = TopConfigs()[0]["WinderConfigs"][0];
             Assert.AreEqual(7, (int)winder["ColorType"]);
         }
@@ -124,7 +144,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_NewLevel_StubsRewardEntry()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var rewards = ReadOutput()["LevelRewardConfigs"]["1"];
             Assert.IsNotNull(rewards);
             Assert.AreEqual("Coin", (string)rewards["WinReward"][0]["ScoreType"]);
@@ -141,7 +161,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
             File.WriteAllText(_tempFile, existing.ToString());
 
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
 
             var reward = ReadOutput()["LevelRewardConfigs"]["1"]["WinReward"][0];
             Assert.AreEqual("Gem", (string)reward["ScoreType"]);
@@ -152,10 +172,10 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_Upsert_OverwritesExistingLevelData()
         {
             var doc1 = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc1, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc1, new CellTypeRegistry(), _levelFile);
 
             var doc2 = MakeDoc("level_001", new[] { BoxCell("pink") }, MakeTopSection());
-            _exporter.Export(doc2, new CellTypeRegistry(), _tempFile);
+            _exporter.Export(doc2, new CellTypeRegistry(), _levelFile);
 
             Assert.AreEqual(3, (int)BottomConfigAt(0)["BottomType"]);
         }
