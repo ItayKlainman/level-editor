@@ -58,13 +58,13 @@ namespace Hoppa.YarnTwist.Editor
                 return false;
             }
             var fileNameNoExt = Path.GetFileNameWithoutExtension(jsonFilePath);
-            var match = Regex.Match(fileNameNoExt, @"\d+$");
-            if (!match.Success)
+            var allMatches = Regex.Matches(fileNameNoExt, @"\d+");
+            if (allMatches.Count == 0)
             {
                 Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse integer key from filename '{fileNameNoExt}'.");
                 return false;
             }
-            string levelKey = int.Parse(match.Value).ToString();
+            string levelKey = int.Parse(allMatches[allMatches.Count - 1].Value).ToString();
 
             // Read existing file or start fresh
             JObject root = null;

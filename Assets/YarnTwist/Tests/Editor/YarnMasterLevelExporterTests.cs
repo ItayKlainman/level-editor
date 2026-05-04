@@ -84,6 +84,17 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         [Test]
+        public void Export_FilenameWithSuffixAfterNumber_UsesLastDigitGroup()
+        {
+            // e.g. "level_004_example.json" → last digit group "004" → key "4"
+            string exampleFile = Path.Combine(Path.GetTempPath(), "level_004_example.json");
+            var doc = MakeDoc("level_004_example", new[] { EmptyCell() }, MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), exampleFile);
+            var config = ReadOutput();
+            Assert.IsTrue(config["LevelConfigs"].ToObject<JObject>().ContainsKey("4"));
+        }
+
+        [Test]
         public void Export_EmptyCell_ProducesBottomType2_ColorType0()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
