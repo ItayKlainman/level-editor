@@ -5,10 +5,10 @@
 
 ---
 
-## Current status (as of 2026-04-26)
+## Current status (as of 2026-05-04)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `feat/phase5-data-pipeline` — pushed to GitHub, ready for PR/merge.
+- **Active branch**: `master` — all phases merged; latest tag `v0.3.0`.
 - **All planned phases complete.** The framework is fully functional with Yarn Twist as the first game integration.
 
 ---
@@ -26,15 +26,16 @@
 - `ColorPaletteAsset`, `ColorEntry`
 
 **Editor assembly** (`Hoppa.LevelEditor.Core.Editor`):
-- `LevelEditorWindow` — 3-column IMGUI window (Toolbar | Canvas+TopSection | Validation+Inspector+Summary); toolbar has New/Open/Save/SaveAs/Export▸/Undo/Redo/Test
+- `LevelEditorWindow` — 3-column IMGUI window (Toolbar | Canvas+TopSection | Validation+Inspector+Summary); toolbar has New/Open/Save/SaveAs/Export▸/Undo/Redo/⇅Order/Test. Save/Open dialogs remember last-used directory via `EditorPrefs` (`Hoppa.LevelEditor.LastSaveDir`). Order mode renders `GameProfile.OrderPanel` full-window.
 - `LevelEditorSession` — session state: `Document`, `CellTypes`, `ActiveCellType`, `BrushTemplate`, `SelectedCell`, `IsDirty`, undo/redo stack, `CloneBrushTemplate()`
-- `GameProfile` — ScriptableObject wiring cell types, validation rules, exporters, top section script
+- `GameProfile` — ScriptableObject wiring cell types, validation rules, exporters, top section script, and optional `OrderPanel` (`EditorPanelAsset`)
+- `EditorPanelAsset` — abstract `ScriptableObject` base implementing `IEditorPanel`; lets games expose panels as Inspector fields
 - `CellTypeDefinition` / `ICellTypeDefinition` — abstract SO base; game subclasses implement `DrawCell` + `DrawInspector`
 - `CellTypeRegistry` — maps TypeId ↔ concrete type ↔ definition
 - `LevelExporterAsset` — abstract SO base for exporters
 - `ScriptableObjectExporter` — produces `.asset` alongside `.json`
 - `ColorPaletteAsset`, `ColorSwatchDrawer` — palette SO + reusable IMGUI swatch picker
-- Panels: `PalettePanel` (cell list + BRUSH config), `GridCanvasPanel`, `ToolbarPanel`, `ValidationPanel`, `CellInspectorPanel`, `SummaryPanel`
+- Panels: `PalettePanel` (cell list + BRUSH config), `GridCanvasPanel`, `ToolbarPanel` (incl. `OnOrderToggle`/`OrderMode`), `ValidationPanel`, `CellInspectorPanel`, `SummaryPanel`
 - `TopSectionPanel` / `EmptyTopSectionPanel` — game-overridable top section
 - `StringIntMapping` — reusable string→int ScriptableObject
 
@@ -48,7 +49,8 @@
 - Cell definitions: `YarnEmptyCellDefinition`, `YarnWallCellDefinition`, `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`, `YarnTunnelCellDefinition` (all use color swatches in `DrawInspector`)
 - `YarnTopSectionPanel` — 4-column spool editor with color swatches + hidden toggle, dynamic height
 - Validation rules: `YarnColorBalanceRule` (emits Info table + Error for imbalances), `YarnArrowBoxTargetRule`, `YarnTunnelOutputRule`
-- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button
+- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button. Key derived from the **saved filename** (e.g. `level_005.json` → slot `"5"`), not from `LevelId`. Exposes `OutputPath` getter for use by `YarnLevelOrderPanel`.
+- `YarnLevelOrderPanel` — `EditorPanelAsset` shown in the ⇅ Order tab. Reads `level_config.json`, displays levels as a draggable `ReorderableList`, supports reordering (Apply Order) and per-level deletion (with confirmation dialog). Assigned to `YarnTwistProfile.asset`'s Order Panel field.
 - `StringIntMapping` assets: `YarnColorMapping.asset` (10 colors), `YarnCellTypeMapping.asset` (5 types)
 
 **Data assets** (`Assets/YarnTwist/Data/Config/`):
@@ -87,10 +89,11 @@ hoppa-level-editor-core/
     Samples/                 — DemoColorGridGame sample
 ```
 
-Consumer game (`YarnTwist`) references this package via:
+Consumer game (`YarnTwist`) references this package via private GitHub Git URL (production):
 ```
-"com.hoppa.leveleditor.core": "file:../hoppa-level-editor-core/Packages/com.hoppa.leveleditor.core"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.3.0"
 ```
+Layer 2 files (`YarnMasterLevelExporter.cs`, `YarnLevelOrderPanel.cs`) live in both repos and must be kept in sync manually when changed. Target path in YarnTwist: `Assets/_YAT/Scripts/Editor/`.
 
 ---
 
@@ -99,7 +102,7 @@ Consumer game (`YarnTwist`) references this package via:
 ### Manual steps (no code needed)
 - [ ] `YarnTwistProfile.asset` → set `_schemaId` to `yarn-twist` (currently causes double `.v1` in schema display)
 - [ ] `YarnTunnelCellDef.asset` → assign `YarnTwistPalette` to `_palette` field
-- [ ] Smoke test the full Save → `level_config.json` export pipeline
+- [ ] In YarnTwist project: create `YarnLevelOrderPanel` asset, assign exporter, assign to `YarnTwistProfile.asset` → Order Panel field
 
 ### Low-priority Jira gaps (not implemented)
 - Arrow box / tunnel target cell highlight
@@ -129,7 +132,7 @@ Consumer game (`YarnTwist`) references this package via:
 
 ### Package hosting
 - Dev: local `file:` path in game project's `manifest.json`
-- Prod: private GitHub repo Git URL ref
+- Prod: private GitHub repo Git URL, pinned to a version tag (currently `v0.3.0`). Bump tag and update consumer `manifest.json` to deploy Layer 1 changes.
 
 ### Deferred
 - Addressables integration

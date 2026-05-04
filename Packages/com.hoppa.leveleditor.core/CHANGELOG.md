@@ -5,6 +5,21 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-05-04
+
+### Added
+
+- `LevelEditorWindow`: Save As and Open dialogs now remember the last-used directory via `EditorPrefs` (`Hoppa.LevelEditor.LastSaveDir`). No longer resets to `Application.dataPath` each session.
+
+## [0.2.0] - 2026-05-04
+
+### Added
+
+- `EditorPanelAsset` — abstract `ScriptableObject` base implementing `IEditorPanel`; allows games to expose a custom panel as an Inspector field on `GameProfile`.
+- `GameProfile.OrderPanel` (`EditorPanelAsset`) — optional slot for a game-provided order-management panel.
+- `ToolbarPanel`: `OnOrderToggle` event, `OrderMode` bool property, and `⇅ Order` toggle button. Button stays depressed while order mode is active.
+- `LevelEditorWindow`: `_inOrderMode` flag — when active, renders `GameProfile.OrderPanel` full-window instead of the normal editing layout. Shows a helpful message if no panel is configured.
+
 ## [0.1.0] - 2026-04-23
 
 ### Added

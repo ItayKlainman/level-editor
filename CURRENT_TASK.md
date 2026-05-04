@@ -8,59 +8,51 @@
 
 ## Active phase
 
-**Post-phase polish — Export button + integration docs (2026-04-28)**
+**Post-ship polish — Level authoring UX improvements (2026-05-04)**
 
-Branch `feat/phase5-data-pipeline` is pushed to GitHub and ready for review/merge.
-Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-data-pipeline
+All changes on `master`, deployed to Yarn Sort project. Latest package tag: `v0.3.0`.
 
-### Added this session
-- `ToolbarPanel`: new `OnExport` event + "Export ▸" button (64px, in the Save group, disabled when no session)
-- `LevelEditorWindow`: `HandleExport()` — runs all `_profile.Exporters` on demand; prompts to Save first if dirty; shows per-exporter success/error dialog; calls `AssetDatabase.Refresh()` after
-- `GameProfile`: updated `_exporters` tooltip to document the Export button and the swap-in pattern
-- `docs/integration/new-game-exporter.md`: step-by-step guide for integrating any future game
+### Added this session (2026-05-04)
+
+**Export key fix (Layer 2 — `YarnMasterLevelExporter`)**
+- Key into `level_config.json` is now derived from the **saved filename** (`level_005.json` → slot `"5"`) instead of `document.LevelId`. Fixes the bug where all levels overwrote slot 1 because the default `LevelId` is always `"level_001"`.
+- Null or numberless filenames return `false` with a clear Console warning.
+- Tests updated; two new edge-case tests added (`NullFilePath`, `FilenameWithNoNumber`).
+- Added `public string OutputPath => _outputPath;` getter (used by `YarnLevelOrderPanel`).
+
+**Level Order Manager tab (Layer 1 + Layer 2)**
+- `EditorPanelAsset` (new, Layer 1): abstract `ScriptableObject` base implementing `IEditorPanel`.
+- `GameProfile.OrderPanel` (new field): optional `EditorPanelAsset` for a game-provided order panel.
+- `ToolbarPanel`: `⇅ Order` toggle button + `OnOrderToggle` event + `OrderMode` property.
+- `LevelEditorWindow`: order mode renders the profile's `OrderPanel` full-window; falls back to a helpful message if none is configured.
+- `YarnLevelOrderPanel` (new, Layer 2): reads `level_config.json`, shows a draggable `ReorderableList`, supports reorder (Apply Order) and per-level deletion (confirmation dialog). Auto-renumbers keys after both operations.
+
+**Remember last save directory (Layer 1 — `LevelEditorWindow`)**
+- Save As and Open dialogs now start in the last-used folder (`EditorPrefs` key `Hoppa.LevelEditor.LastSaveDir`).
+- Falls back to `Application.dataPath` on first use.
+
+**Deployment**
+- Layer 1 changes tagged as `v0.2.0` then `v0.3.0` and pushed to GitHub.
+- Yarn Sort `manifest.json` updated to `#v0.3.0`.
+- Layer 2 files (`YarnMasterLevelExporter.cs`, `YarnLevelOrderPanel.cs`) copied to `Assets/_YAT/Scripts/Editor/` in the Yarn Sort project.
 
 ---
 
-## Last session work (2026-04-26)
+## Last session work (2026-04-28)
 
-### Jira UI gaps implemented
-
-**Gap 1 — Cell Inspector panel (MEDIUM)**
-- `LevelEditorSession.MarkDirty()` exposed (was private-setter only)
-- `CellInspectorPanel` (new): renders `DrawInspector` for the selected grid cell; sits between Validation (50%) and Summary in the right column (130px fixed)
-- Right column layout: Validation (50%) → Cell Inspector (130px) → Summary (remaining)
-
-**Gap 2 — Per-color validation breakdown (MEDIUM)**
-- `YarnColorBalanceRule` now emits `ValidationSeverity.Info` entries per color (always shown as a balance table); Error entries still fire for imbalanced colors
-- `ValidationPanel` already rendered Info with blue rows — no panel change needed
-
-**Gap 3 — Notes field + improved Summary (MEDIUM)**
-- `LevelDocument.LevelMetadata.Notes` (string, serialized as `"notes"`)
-- `SummaryPanel` shows `DisplayName` from registry instead of raw TypeId for cell counts; Notes textarea pinned to bottom (editable, calls `MarkDirty`)
-
-### Brush template system
-- `LevelEditorSession.BrushTemplate` — pre-configured cell template for next paint stroke
-- `LevelEditorSession.CloneBrushTemplate()` — round-trips template through `JsonLevelSerializer` to produce a fresh instance per painted cell
-- `PalettePanel` split into cell list (top, scrollable) + BRUSH section (96px bottom); clicking a cell type resets `BrushTemplate`; `DrawInspector` runs on the brush so color/direction/queue are configurable before painting
-- `GridCanvasPanel.PlaceAt` uses `CloneBrushTemplate()` instead of `CreateDefault()`
-
-### Color swatch pickers
-- `ColorSwatchDrawer` (new, core Editor): reusable wrapping swatch grid with selected/hover borders and tooltip
-- `YarnBoxCellDefinition.DrawInspector`: swatches + Hidden toggle
-- `YarnArrowBoxCellDefinition.DrawInspector`: swatches + direction EnumPopup
-- `YarnTunnelCellDefinition.DrawInspector`: rewritten with absolute rects (removes `GUILayout.BeginArea` that caused right-panel text overflow); queue entries show click-to-cycle color swatch
-- `YarnTopSectionPanel`: spool rows show swatch strip + hidden toggle; `PreferredHeight` is now dynamic (was hardcoded for 9 spools)
+### Export button + integration docs
+- `ToolbarPanel`: `OnExport` event + "Export ▸" button
+- `LevelEditorWindow`: `HandleExport()` — runs all exporters, prompts to save if dirty, shows result dialog
+- `docs/integration/new-game-exporter.md`: step-by-step guide for integrating a future game
 
 ---
 
 ## Open items / known gaps
 
 ### Manual steps still needed
-- [x] `_schemaId` is already `yarn-twist` in asset — was stale note
-- [x] `YarnTwistPalette` already assigned on `YarnTunnelCellDef.asset` — was stale note
-- [ ] Smoke test: open Level Editor → YarnTwistProfile → paint boxes + spools → Save → verify `level_config.json` updated in YarnTwist project
-- [ ] Merge `feat/phase5-data-pipeline` → `master` and push
-- [ ] Tag release: `git tag v0.1.0 && git push origin v0.1.0`
+- [ ] In YarnTwist project: create `YarnLevelOrderPanel` asset → assign `YarnMasterLevelExporter` → assign to `YarnTwistProfile.asset` Order Panel field
+- [ ] Smoke test: export `level_005.json` → confirm key `"5"` appears in `level_config.json` (not `"1"`)
+- [ ] Smoke test: ⇅ Order tab → drag levels → Apply Order → verify keys renumbered in `level_config.json`
 
 ### Low-priority Jira gaps (not implemented)
 - Arrow box / tunnel target cell highlight (highlight destination cell when selected)
@@ -90,6 +82,8 @@ Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-
 | Phase 5 — Data pipeline integration | ✅ Complete |
 | Jira UI gaps (Medium) | ✅ Complete |
 | Brush template + color swatches | ✅ Complete |
+| Export key fix + Level Order Manager | ✅ Complete |
+| Save/Open directory memory | ✅ Complete |
 | Phase 6 — Second-game onboarding | Deferred |
 
 ---
@@ -108,3 +102,6 @@ Open a PR at: https://github.com/ItayKlainman/level-editor/pull/new/feat/phase5-
 - `GameProfile.CreateTopSection()` uses `MonoScript.GetClass()` + `Activator.CreateInstance`
 - `GridCanvasPanel.HoverCell` is public — read by `LevelEditorWindow` status bar
 - `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels (replaces `PushUndoSnapshot()` for non-grid mutations like Notes edits)
+- `YarnMasterLevelExporter` key = trailing digits of the **filename** (`level_005.json` → `"5"`), not `document.LevelId` — save the file with the right name before exporting
+- `YarnLevelOrderPanel.WriteToFile()` is shared by Apply Order and the remove callback — both paths renumber keys 1, 2, 3… sequentially after the operation
+- Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump; Layer 2 changes (`Assets/YarnTwist/Editor/`) must be manually copied to `YarnTwist/Assets/_YAT/Scripts/Editor/`
