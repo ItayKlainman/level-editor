@@ -8,11 +8,33 @@
 
 ## Active phase
 
-**Post-ship polish — Level authoring UX improvements (2026-05-04)**
+**Post-ship polish — Level authoring UX improvements (2026-05-05)**
 
-All changes on `master`, deployed to Yarn Sort project. Latest package tag: `v0.3.0`.
+All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.4.1`.
 
-### Added this session (2026-05-04)
+### Added this session (2026-05-05)
+
+**Spool columns UI/UX (Layer 2 — `YarnTopSectionPanel`)**
+- Drag-and-drop reorder within each spool column via IMGUI drag handle (2×3 dot grid). `MoveVisual()` handles visual-index ↔ data-index conversion.
+- Per-row `✕ Del` button replaces the old global `−` button; any specific spool can now be removed.
+- Color picker (right-click swatch) now filtered to only colors present on the grid. Falls back to full palette when grid is empty.
+- `+` button default color priority: previous spool's color → first color painted on the grid → first palette color → "pink".
+- `GetFirstGridColor()` and `GetGridColors()` helpers scan `Grid.Cells` for `IColoredCell` and `YarnTunnelCell`.
+
+**Level Order tab (Layer 2 — `YarnLevelOrderPanel`)**
+- Each entry in the `ReorderableList` now shows a `#N` index label (30 px, `miniLabel`) before the level name.
+
+**Layer 1 package (ColorPalette)**
+- `ColorSwatchDrawer` and `ColorPickerPopup` extended with optional `allowedIds` filter (see CHANGELOG v0.4.1).
+
+**Deployment**
+- Layer 1 changes tagged `v0.4.1` and pushed to GitHub.
+- YarnTwist `manifest.json` bumped from `#v0.4.0` → `#v0.4.1`.
+- Layer 2 files copied to `YarnTwist/Assets/_YAT/Scripts/Editor/TopSection/YarnTopSectionPanel.cs` and `…/Editor/YarnLevelOrderPanel.cs`.
+
+---
+
+### Added previous session (2026-05-04)
 
 **Export key fix (Layer 2 — `YarnMasterLevelExporter`)**
 - Key into `level_config.json` is now derived from the **saved filename** (`level_005.json` → slot `"5"`) instead of `document.LevelId`. Fixes the bug where all levels overwrote slot 1 because the default `LevelId` is always `"level_001"`.
@@ -104,4 +126,4 @@ All changes on `master`, deployed to Yarn Sort project. Latest package tag: `v0.
 - `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels (replaces `PushUndoSnapshot()` for non-grid mutations like Notes edits)
 - `YarnMasterLevelExporter` key = trailing digits of the **filename** (`level_005.json` → `"5"`), not `document.LevelId` — save the file with the right name before exporting
 - `YarnLevelOrderPanel.WriteToFile()` is shared by Apply Order and the remove callback — both paths renumber keys 1, 2, 3… sequentially after the operation
-- Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump; Layer 2 changes (`Assets/YarnTwist/Editor/`) must be manually copied to `YarnTwist/Assets/_YAT/Scripts/Editor/`
+- Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump (currently `v0.4.1`); Layer 2 changes (`Assets/YarnTwist/Editor/`) must be manually copied to their matching paths in `YarnTwist/Assets/_YAT/Scripts/Editor/` (preserve subdirectory structure — e.g. `TopSection/YarnTopSectionPanel.cs`)

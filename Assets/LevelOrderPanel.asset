@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d57158eaf33ec9e4890e2f73838c3c2a, type: 3}
   m_Name: LevelOrderPanel
   m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::Hoppa.YarnTwist.Editor.YarnLevelOrderPanel
-  _exporter: {fileID: 0}
+  _exporter: {fileID: 11400000, guid: bf213284f034d504fb46bdce9e92580b, type: 2}

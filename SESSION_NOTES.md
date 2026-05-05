@@ -8,7 +8,7 @@
 ## Current status (as of 2026-05-04)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `master` — all phases merged; latest tag `v0.3.0`.
+- **Active branch**: `master` — all phases merged; latest tag `v0.4.1`.
 - **All planned phases complete.** The framework is fully functional with Yarn Twist as the first game integration.
 
 ---
@@ -47,10 +47,10 @@
 
 **Editor** (`Hoppa.YarnTwist.Editor`):
 - Cell definitions: `YarnEmptyCellDefinition`, `YarnWallCellDefinition`, `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`, `YarnTunnelCellDefinition` (all use color swatches in `DrawInspector`)
-- `YarnTopSectionPanel` — 4-column spool editor with color swatches + hidden toggle, dynamic height
+- `YarnTopSectionPanel` — 4-column spool editor with drag-and-drop reorder, per-row delete, grid-filtered color picker, smart `+` default color, dynamic height
 - Validation rules: `YarnColorBalanceRule` (emits Info table + Error for imbalances), `YarnArrowBoxTargetRule`, `YarnTunnelOutputRule`
 - `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button. Key derived from the **saved filename** (e.g. `level_005.json` → slot `"5"`), not from `LevelId`. Exposes `OutputPath` getter for use by `YarnLevelOrderPanel`.
-- `YarnLevelOrderPanel` — `EditorPanelAsset` shown in the ⇅ Order tab. Reads `level_config.json`, displays levels as a draggable `ReorderableList`, supports reordering (Apply Order) and per-level deletion (with confirmation dialog). Assigned to `YarnTwistProfile.asset`'s Order Panel field.
+- `YarnLevelOrderPanel` — `EditorPanelAsset` shown in the ⇅ Order tab. Reads `level_config.json`, displays levels as a draggable `ReorderableList` with `#N` index labels, supports reordering (Apply Order) and per-level deletion (with confirmation dialog). Assigned to `YarnTwistProfile.asset`'s Order Panel field.
 - `StringIntMapping` assets: `YarnColorMapping.asset` (10 colors), `YarnCellTypeMapping.asset` (5 types)
 
 **Data assets** (`Assets/YarnTwist/Data/Config/`):
@@ -91,9 +91,11 @@ hoppa-level-editor-core/
 
 Consumer game (`YarnTwist`) references this package via private GitHub Git URL (production):
 ```
-"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.3.0"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.4.1"
 ```
-Layer 2 files (`YarnMasterLevelExporter.cs`, `YarnLevelOrderPanel.cs`) live in both repos and must be kept in sync manually when changed. Target path in YarnTwist: `Assets/_YAT/Scripts/Editor/`.
+Layer 2 files live in both repos and must be kept in sync manually when changed. Target paths in YarnTwist:
+- `Assets/_YAT/Scripts/Editor/TopSection/YarnTopSectionPanel.cs`
+- `Assets/_YAT/Scripts/Editor/YarnLevelOrderPanel.cs`
 
 ---
 

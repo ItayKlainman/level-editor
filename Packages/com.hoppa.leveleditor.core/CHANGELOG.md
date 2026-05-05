@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-05-05
+
+### Added
+
+- `ColorSwatchDrawer.Draw()`: optional `ICollection<string> allowedIds` parameter — when supplied, only palette entries in the set are rendered.
+- `ColorSwatchDrawer.MeasureHeight()`: matching `allowedIds` parameter so popup window height is correct when filtered.
+- `ColorPickerPopup`: accepts optional `ICollection<string> allowedIds` and forwards it to `ColorSwatchDrawer`.
+
 ## [0.4.0] - 2026-05-04
 
 ### Fixed
