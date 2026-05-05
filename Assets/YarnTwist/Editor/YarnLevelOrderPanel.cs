@@ -127,11 +127,16 @@ namespace Hoppa.YarnTwist.Editor
 
             _list.drawElementCallback = (elementRect, index, isActive, isFocused) =>
             {
-                var entry = _entries[index];
-                float lh = EditorGUIUtility.singleLineHeight;
-                float y  = elementRect.y + (elementRect.height - lh) * 0.5f;
+                var   entry  = _entries[index];
+                float lh     = EditorGUIUtility.singleLineHeight;
+                float y      = elementRect.y + (elementRect.height - lh) * 0.5f;
+                const float IndexW = 30f;
+
                 EditorGUI.LabelField(
-                    new Rect(elementRect.x, y, elementRect.width, lh),
+                    new Rect(elementRect.x, y, IndexW, lh),
+                    $"#{index + 1}", EditorStyles.miniLabel);
+                EditorGUI.LabelField(
+                    new Rect(elementRect.x + IndexW + 4f, y, elementRect.width - IndexW - 4f, lh),
                     entry.Label);
             };
 

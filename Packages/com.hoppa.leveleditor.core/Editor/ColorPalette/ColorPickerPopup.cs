@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,21 +10,24 @@ namespace Hoppa.LevelEditor.Core.Editor
         private const float Padding = 8f;
         private const float Width   = 160f;
 
-        private readonly ColorPaletteAsset _palette;
-        private readonly string            _currentId;
-        private readonly Action<string>    _onSelected;
+        private readonly ColorPaletteAsset  _palette;
+        private readonly string             _currentId;
+        private readonly Action<string>     _onSelected;
+        private readonly ICollection<string> _allowedIds;
 
-        public ColorPickerPopup(ColorPaletteAsset palette, string currentId, Action<string> onSelected)
+        public ColorPickerPopup(ColorPaletteAsset palette, string currentId, Action<string> onSelected,
+            ICollection<string> allowedIds = null)
         {
             _palette    = palette;
             _currentId  = currentId;
             _onSelected = onSelected;
+            _allowedIds = allowedIds;
         }
 
         public override Vector2 GetWindowSize()
         {
             float innerW = Width - Padding * 2f;
-            float h      = ColorSwatchDrawer.MeasureHeight(_palette, innerW);
+            float h      = ColorSwatchDrawer.MeasureHeight(_palette, innerW, _allowedIds);
             return new Vector2(Width, Mathf.Max(32f, h + Padding * 2f));
         }
 
@@ -31,7 +35,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             var inner  = new Rect(rect.x + Padding, rect.y + Padding,
                                   rect.width - Padding * 2f, rect.height - Padding * 2f);
-            var newId = ColorSwatchDrawer.Draw(inner, _palette, _currentId);
+            var newId = ColorSwatchDrawer.Draw(inner, _palette, _currentId, _allowedIds);
             if (!string.Equals(newId, _currentId, StringComparison.Ordinal))
             {
                 _onSelected(newId);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -16,7 +17,9 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         // Draws swatches wrapping into multiple rows as needed.
         // Returns the new selectedId; unchanged when nothing is clicked.
-        public static string Draw(Rect rect, ColorPaletteAsset palette, string selectedId)
+        // Pass allowedIds to restrict which palette entries are shown; null shows all.
+        public static string Draw(Rect rect, ColorPaletteAsset palette, string selectedId,
+            ICollection<string> allowedIds = null)
         {
             if (palette == null) return selectedId;
 
@@ -26,6 +29,8 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             foreach (var entry in palette.Entries)
             {
+                if (allowedIds != null && !allowedIds.Contains(entry.Id)) continue;
+
                 // Wrap to next row
                 if (x + Size > rect.xMax + 0.5f)
                 {
@@ -63,11 +68,17 @@ namespace Hoppa.LevelEditor.Core.Editor
         }
 
         // Height needed to fit all swatches within the given pixel width.
-        public static float MeasureHeight(ColorPaletteAsset palette, float width)
+        // Pass allowedIds to count only a subset of palette entries; null counts all.
+        public static float MeasureHeight(ColorPaletteAsset palette, float width,
+            ICollection<string> allowedIds = null)
         {
             if (palette == null || palette.Entries.Count == 0) return 0f;
+            int count = 0;
+            foreach (var entry in palette.Entries)
+                if (allowedIds == null || allowedIds.Contains(entry.Id)) count++;
+            if (count == 0) return 0f;
             int perRow = Mathf.Max(1, Mathf.FloorToInt((width + Gap) / (Size + Gap)));
-            int rows   = Mathf.CeilToInt(palette.Entries.Count / (float)perRow);
+            int rows   = Mathf.CeilToInt(count / (float)perRow);
             return rows * Size + Mathf.Max(0, rows - 1) * Gap;
         }
     }
