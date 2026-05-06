@@ -110,20 +110,28 @@ namespace Hoppa.YarnTwist.Editor
             // Build TopConfigs from TopSection
             var topConfigs = BuildTopConfigs(document.TopSection);
 
-            // Upsert LevelConfigs[levelKey]
+            // Upsert LevelConfigs — preserve the key assigned by Apply Order if this levelId
+            // already exists in the file, otherwise fall back to the filename-derived key.
             var levelConfigsObj = (JObject)root["LevelConfigs"];
-            levelConfigsObj[levelKey] = new JObject
+            string existingKey = null;
+            foreach (var kvp in levelConfigsObj)
+            {
+                if (string.Equals(kvp.Value?["levelId"]?.ToString(), fileNameNoExt, StringComparison.Ordinal))
+                { existingKey = kvp.Key; break; }
+            }
+            string writeKey = existingKey ?? levelKey;
+            levelConfigsObj[writeKey] = new JObject
             {
                 ["levelId"]       = fileNameNoExt,
                 ["BottomConfigs"] = bottomConfigs,
                 ["TopConfigs"]    = topConfigs
             };
 
-            // Stub LevelRewardConfigs[levelKey] only if not already present
+            // Stub LevelRewardConfigs[writeKey] only if not already present
             var rewardConfigsObj = (JObject)root["LevelRewardConfigs"];
-            if (rewardConfigsObj[levelKey] == null)
+            if (rewardConfigsObj[writeKey] == null)
             {
-                rewardConfigsObj[levelKey] = new JObject
+                rewardConfigsObj[writeKey] = new JObject
                 {
                     ["WinReward"] = new JArray
                     {

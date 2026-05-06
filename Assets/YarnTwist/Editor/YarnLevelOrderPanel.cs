@@ -43,8 +43,8 @@ namespace Hoppa.YarnTwist.Editor
 
             EditorGUILayout.HelpBox(
                 "Drag levels to the desired order, then click Apply Order to renumber the master JSON.\n" +
-                "Note: re-exporting a level after reordering will restore it to its filename-based slot — finish all exports before reordering.",
-                MessageType.Warning);
+                "Saving a level after reordering will update it in-place at its assigned slot.",
+                MessageType.Info);
 
             GUILayout.Space(4f);
             if (GUILayout.Button("Refresh", GUILayout.Width(80f)))
