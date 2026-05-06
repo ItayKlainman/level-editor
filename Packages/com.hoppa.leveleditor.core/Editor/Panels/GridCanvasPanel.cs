@@ -20,15 +20,16 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         public CellRef? HoverCell => _hoverCell;
 
-        private static readonly Color OuterBg        = new Color(0.10f, 0.11f, 0.13f);
-        private static readonly Color GridShadow      = new Color(0.00f, 0.00f, 0.00f, 0.55f);
-        private static readonly Color GridBorder      = new Color(0.12f, 0.13f, 0.16f);
-        private static readonly Color CellBg          = new Color(0.24f, 0.26f, 0.30f);
-        private static readonly Color HoverColor      = new Color(1.00f, 1.00f, 1.00f, 0.13f);
-        private static readonly Color SelectOutline   = new Color(1.00f, 1.00f, 1.00f, 0.90f);
-        private static readonly Color MoveSourceColor = new Color(0.30f, 1.00f, 0.40f, 0.90f);
-        private static readonly Color MoveTargetColor = new Color(0.30f, 1.00f, 0.40f, 0.30f);
-        private static readonly Color CopiedOutline   = new Color(1.00f, 0.85f, 0.20f, 0.85f);
+        private static readonly Color OuterBg          = new Color(0.10f, 0.11f, 0.13f);
+        private static readonly Color GridShadow       = new Color(0.00f, 0.00f, 0.00f, 0.55f);
+        private static readonly Color GridBorder       = new Color(0.12f, 0.13f, 0.16f);
+        private static readonly Color CellBg           = new Color(0.24f, 0.26f, 0.30f);
+        private static readonly Color HoverColor       = new Color(1.00f, 1.00f, 1.00f, 0.13f);
+        private static readonly Color SelectOutline    = new Color(1.00f, 1.00f, 1.00f, 0.90f);
+        private static readonly Color MultiSelOutline  = new Color(0.30f, 0.65f, 1.00f, 0.90f);
+        private static readonly Color MoveSourceColor  = new Color(0.30f, 1.00f, 0.40f, 0.90f);
+        private static readonly Color MoveTargetColor  = new Color(0.30f, 1.00f, 0.40f, 0.30f);
+        private static readonly Color CopiedOutline    = new Color(1.00f, 0.85f, 0.20f, 0.85f);
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -100,7 +101,10 @@ namespace Hoppa.LevelEditor.Core.Editor
                     && session.CopiedCellRef.HasValue && session.CopiedCellRef.Value == cellRef)
                     DrawCellOutline(cellRect, CopiedOutline, 2f);
 
-                if (session.SelectedCell == cellRef)
+                if (session.MultiSelection.Contains(cellRef))
+                    DrawCellOutline(cellRect, MultiSelOutline, 2f);
+
+                if (session.SelectedCell == cellRef && !session.MultiSelection.Contains(cellRef))
                     DrawCellOutline(cellRect, SelectOutline, 2f);
             }
         }
@@ -169,25 +173,36 @@ namespace Hoppa.LevelEditor.Core.Editor
                     break;
 
                 case EventType.MouseDown when inBounds.Contains(e.mousePosition) && e.button == 0:
-                    session.SelectedCell = _hoverCell;
-                    switch (session.ActiveTool)
+                    if (ctrl && _hoverCell.HasValue)
                     {
-                        case GridEditTool.Paint:
-                            session.PushUndoSnapshot();
-                            _isDragging = true;
-                            PlaceAt(session, _hoverCell);
-                            break;
-                        case GridEditTool.Select:
-                            _isDragging = true;
-                            break;
-                        case GridEditTool.Delete:
-                            session.PushUndoSnapshot();
-                            _isDragging = true;
-                            if (_hoverCell.HasValue) EraseAt(session, _hoverCell.Value);
-                            break;
-                        case GridEditTool.Move:
-                            HandleMoveTool(session, _hoverCell);
-                            break;
+                        // Ctrl+click: toggle this cell in the multi-selection, no painting
+                        if (!session.MultiSelection.Add(_hoverCell.Value))
+                            session.MultiSelection.Remove(_hoverCell.Value);
+                        session.SelectedCell = _hoverCell;
+                    }
+                    else
+                    {
+                        session.ClearMultiSelection();
+                        session.SelectedCell = _hoverCell;
+                        switch (session.ActiveTool)
+                        {
+                            case GridEditTool.Paint:
+                                session.PushUndoSnapshot();
+                                _isDragging = true;
+                                PlaceAt(session, _hoverCell);
+                                break;
+                            case GridEditTool.Select:
+                                _isDragging = true;
+                                break;
+                            case GridEditTool.Delete:
+                                session.PushUndoSnapshot();
+                                _isDragging = true;
+                                if (_hoverCell.HasValue) EraseAt(session, _hoverCell.Value);
+                                break;
+                            case GridEditTool.Move:
+                                HandleMoveTool(session, _hoverCell);
+                                break;
+                        }
                     }
                     GUI.changed = true;
                     e.Use();
@@ -217,8 +232,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                     break;
 
                 case EventType.KeyDown when e.keyCode == KeyCode.Escape:
-                    // Cancel move source selection
-                    if (session.ActiveTool == GridEditTool.Move && _moveSource.HasValue)
+                    if (session.MultiSelection.Count > 0)
+                    {
+                        session.ClearMultiSelection();
+                        GUI.changed = true;
+                        e.Use();
+                    }
+                    else if (session.ActiveTool == GridEditTool.Move && _moveSource.HasValue)
                     {
                         _moveSource = null;
                         GUI.changed = true;

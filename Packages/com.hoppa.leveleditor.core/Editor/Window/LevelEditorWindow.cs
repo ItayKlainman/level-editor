@@ -10,12 +10,12 @@ namespace Hoppa.LevelEditor.Core.Editor
         [MenuItem("Window/Level Editor")]
         public static void Open() => GetWindow<LevelEditorWindow>("Level Editor");
 
-        private readonly PalettePanel    _palette    = new PalettePanel();
-        private readonly GridCanvasPanel _canvas     = new GridCanvasPanel();
-        private readonly ToolbarPanel    _toolbar    = new ToolbarPanel();
-        private readonly SummaryPanel        _summary    = new SummaryPanel();
-        private readonly ValidationPanel    _validation = new ValidationPanel();
-        // private readonly CellInspectorPanel _inspector  = new CellInspectorPanel();
+        private readonly PalettePanel      _palette     = new PalettePanel();
+        private readonly GridCanvasPanel   _canvas      = new GridCanvasPanel();
+        private readonly ToolbarPanel      _toolbar     = new ToolbarPanel();
+        private readonly SummaryPanel      _summary     = new SummaryPanel();
+        private readonly ValidationPanel   _validation  = new ValidationPanel();
+        private readonly MultiSelectPanel  _multiSelect = new MultiSelectPanel();
         private TopSectionPanel _topSection = new EmptyTopSectionPanel();
 
         private LevelEditorSession _session;
@@ -136,7 +136,11 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             float summaryY = bodyY + validH;
             EditorGUI.DrawRect(new Rect(rightX, summaryY, RightW, 1f), Divider);
-            _summary.OnGUI(new Rect(rightX, summaryY + 1f, RightW, summaryH - 1f), _session);
+            var summaryRect = new Rect(rightX, summaryY + 1f, RightW, summaryH - 1f);
+            if (_session.MultiSelection.Count > 0)
+                _multiSelect.OnGUI(summaryRect, _session);
+            else
+                _summary.OnGUI(summaryRect, _session);
 
             if (GUI.changed) Repaint();
         }

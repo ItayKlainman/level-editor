@@ -5,6 +5,6 @@
     // rather than on game-specific cell types, keeping Layer 1 clean.
     public interface IColoredCell : ICellData
     {
-        string ColorId { get; }
+        string ColorId { get; set; }
     }
 }

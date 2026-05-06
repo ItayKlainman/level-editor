@@ -16,6 +16,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public ICellData BrushTemplate { get; set; }
         public CellRef? SelectedCell { get; set; }
         public GridEditTool ActiveTool { get; set; } = GridEditTool.Paint;
+        public HashSet<CellRef> MultiSelection { get; } = new HashSet<CellRef>();
+
+        public void ClearMultiSelection() => MultiSelection.Clear();
         public ICellData CopiedCell { get; private set; }
         public CellRef? CopiedCellRef { get; private set; }
         public bool IsDirty { get; private set; }
