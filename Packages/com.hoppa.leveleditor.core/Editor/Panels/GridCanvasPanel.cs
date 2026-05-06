@@ -63,6 +63,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 new Rect(_gridOffsetX, _gridOffsetY, totalW, totalH),
                 GridBorder);
 
+            // Update hover before drawing so the highlight matches the current event's mouse position
+            var me = new Vector2(Event.current.mousePosition.x + _scroll.x,
+                                 Event.current.mousePosition.y + _scroll.y);
+            _hoverCell = ScreenToCell(me, grid, _gridOffsetX, _gridOffsetY);
+
             DrawCells(grid, session);
             HandleEvents(rect, grid, session);
 
@@ -127,7 +132,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             var e           = Event.current;
             var mouseInView = new Vector2(e.mousePosition.x + _scroll.x, e.mousePosition.y + _scroll.y);
-            _hoverCell = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY);
+            _hoverCell      = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY);
 
             bool ctrl = e.control || e.command;
             var  inBounds = new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height);
@@ -297,8 +302,10 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private static CellRef? ScreenToCell(Vector2 mousePos, GridData<ICellData> grid, float offsetX, float offsetY)
         {
-            float localX = mousePos.x - offsetX;
-            float localY = mousePos.y - offsetY;
+            // Subtract CellGap so the detection zone starts exactly at the visual pixel of each cell,
+            // not 2 px before it (which caused clicks in the inter-cell gap to select the row below).
+            float localX = mousePos.x - offsetX - CellGap;
+            float localY = mousePos.y - offsetY - CellGap;
             if (localX < 0f || localY < 0f) return null;
             int x          = Mathf.FloorToInt(localX / CellStep);
             int displayRow = Mathf.FloorToInt(localY / CellStep);

@@ -19,17 +19,29 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color HideBg    = new Color(0.30f, 0.22f, 0.40f);
         private static readonly Color UnhideBg  = new Color(0.22f, 0.32f, 0.24f);
 
+        private Vector2 _scroll;
+        private float   _contentH = 300f;
+
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
             int count = session.MultiSelection.Count;
 
+            // ── Header (not scrolled) ─────────────────────────────────────
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, HeaderH), HeaderBg);
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 2f), Accent);
             GUI.Label(new Rect(rect.x + Pad, rect.y + 5f, rect.width - Pad * 2f, HeaderH - 10f),
                 $"MULTI-SELECT  ({count} cell{(count == 1 ? "" : "s")})", EditorStyles.boldLabel);
 
-            float x  = rect.x + Pad;
-            float y  = rect.y + HeaderH + 4f;
+            // ── Scrollable body ───────────────────────────────────────────
+            float bodyY = rect.y + HeaderH + 4f;
+            float bodyH = rect.height - HeaderH - 4f;
+            _scroll = GUI.BeginScrollView(
+                new Rect(rect.x, bodyY, rect.width, bodyH), _scroll,
+                new Rect(0f, 0f, rect.width - 2f, _contentH),
+                alwaysShowHorizontal: false, alwaysShowVertical: false);
+
+            float x  = Pad;
+            float y  = 0f;
             float cw = rect.width - Pad * 2f;
 
             var palette = session.Profile?.ColorPalette;
@@ -43,7 +55,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                 GUI.contentColor = oldColor;
                 y += LabelH;
 
-                float swatchH = ColorSwatchDrawer.MeasureHeight(palette, cw);
+                float swatchH    = ColorSwatchDrawer.MeasureHeight(palette, cw);
                 var   swatchRect = new Rect(x, y, cw, swatchH);
 
                 string pickedColor = ColorSwatchDrawer.Draw(swatchRect, palette, selectedId: null);
@@ -74,12 +86,12 @@ namespace Hoppa.LevelEditor.Core.Editor
                 GUI.contentColor = oldColor;
                 y += LabelH;
 
-                var types = session.Profile.CellTypes;
-                int typeCount   = types.Count;
-                float btnW      = Mathf.Floor((cw - BtnGap * (Mathf.Min(typeCount, 3) - 1)) / Mathf.Min(typeCount, 3));
-                int   perRow    = Mathf.Max(1, Mathf.FloorToInt((cw + BtnGap) / (btnW + BtnGap)));
-                float rowX      = x;
-                int   colInRow  = 0;
+                var types     = session.Profile.CellTypes;
+                int typeCount = types.Count;
+                float btnW    = Mathf.Floor((cw - BtnGap * (Mathf.Min(typeCount, 3) - 1)) / Mathf.Min(typeCount, 3));
+                int   perRow  = Mathf.Max(1, Mathf.FloorToInt((cw + BtnGap) / (btnW + BtnGap)));
+                float rowX    = x;
+                int   colInRow = 0;
 
                 for (int i = 0; i < typeCount; i++)
                 {
@@ -169,6 +181,12 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (GUI.Button(new Rect(x, y, cw, BtnH), "✕  Deselect All", EditorStyles.miniButton))
                 session.ClearMultiSelection();
             GUI.backgroundColor = old;
+            y += BtnH + Pad;
+
+            // Record content height for next frame's scroll view sizing
+            _contentH = y;
+
+            GUI.EndScrollView();
         }
     }
 }
