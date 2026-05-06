@@ -8,9 +8,9 @@
 
 ## Active phase
 
-**Post-ship polish — Multi-select + bug fixes (2026-05-06)**
+**Post-ship polish — Multi-select + bug fixes + level index fix (2026-05-06)**
 
-All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.3`.
+All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.5` (Layer 1). Layer 2 fixes committed on master.
 
 ### Added this session (2026-05-06)
 
@@ -27,10 +27,14 @@ All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.
 **Bug fixes**
 - `ValidationTests.cs`: `TestColoredCell.ColorId` updated to `{ get; set; }` to satisfy the updated `IColoredCell` interface. This was a silent compile failure that blocked both new features from loading.
 - `MultiSelectPanel.cs.meta` was not committed to git, causing CS0246 in the YarnTwist package cache. Fixed by committing the meta file and releasing `v0.5.3`.
+- Hit-testing offset (`GridCanvasPanel.ScreenToCell`): detection zones were 2 px offset from visual cells due to missing `CellGap` subtraction. Fixed in `v0.5.5`.
+- MultiSelectPanel scroll: body had no scroll view; content exceeded panel height. Fixed in `v0.5.5`.
+- **Level naming/indexing corruption** (Layer 2): `YarnMasterLevelExporter` was blindly writing to the filename-derived key on every save, overwriting the slot that `Apply Order` had assigned to another level. Fixed: now scans existing `LevelConfigs` for a matching `levelId` and updates in-place; only falls back to filename key for new levels.
 
 **Deployment**
-- Tags: `v0.5.0` → `v0.5.1` → `v0.5.2` → `v0.5.3` (v0.5.3 = meta fix)
-- YarnTwist `manifest.json` bumped to `#v0.5.3`.
+- Tags: `v0.5.0` → `v0.5.1` → `v0.5.2` → `v0.5.3` (meta fix) → `v0.5.4` (IHideableCell) → `v0.5.5` (hit-test + scroll)
+- YarnTwist `manifest.json` bumped to `#v0.5.5`.
+- Level index fix: Layer 2 only — no new tag needed. Commit `0548633` on master.
 
 **Maintenance**
 - McpPlugin NuGet upgraded 6.1.1 → 6.1.3 in `Assets/Plugins/NuGet/`.
@@ -110,7 +114,7 @@ All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.
 - `GameProfile.CreateTopSection()` uses `MonoScript.GetClass()` + `Activator.CreateInstance`
 - `GridCanvasPanel.HoverCell` is public — read by `LevelEditorWindow` status bar
 - `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels
-- `YarnMasterLevelExporter` key = trailing digits of the **filename** (`level_005.json` → `"5"`), not `document.LevelId`
+- `YarnMasterLevelExporter` searches existing `LevelConfigs` for a matching `levelId` first; only falls back to the filename-derived key (`level_005.json` → `"5"`) for brand-new levels
 - `YarnLevelOrderPanel.WriteToFile()` is shared by Apply Order and the remove callback
 - `LevelEditorWindow._profile` is `[SerializeField]` — persists across domain reloads automatically (do NOT use EditorPrefs for this)
 - `MultiSelectPanel` is shown instead of `SummaryPanel` when `session.MultiSelection.Count > 0`
