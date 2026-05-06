@@ -5,10 +5,10 @@
 
 ---
 
-## Current status (as of 2026-05-04)
+## Current status (as of 2026-05-06)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `master` — all phases merged; latest tag `v0.4.1`.
+- **Active branch**: `master` — all phases merged; latest tag `v0.5.3`.
 - **All planned phases complete.** The framework is fully functional with Yarn Twist as the first game integration.
 
 ---
@@ -27,7 +27,7 @@
 
 **Editor assembly** (`Hoppa.LevelEditor.Core.Editor`):
 - `LevelEditorWindow` — 3-column IMGUI window (Toolbar | Canvas+TopSection | Validation+Inspector+Summary); toolbar has New/Open/Save/SaveAs/Export▸/Undo/Redo/⇅Order/Test. Save/Open dialogs remember last-used directory via `EditorPrefs` (`Hoppa.LevelEditor.LastSaveDir`). Order mode renders `GameProfile.OrderPanel` full-window.
-- `LevelEditorSession` — session state: `Document`, `CellTypes`, `ActiveCellType`, `BrushTemplate`, `SelectedCell`, `IsDirty`, undo/redo stack, `CloneBrushTemplate()`
+- `LevelEditorSession` — session state: `Document`, `CellTypes`, `ActiveCellType`, `BrushTemplate`, `SelectedCell`, `MultiSelection` (HashSet), `IsDirty`, undo/redo stack, `CloneBrushTemplate()`
 - `GameProfile` — ScriptableObject wiring cell types, validation rules, exporters, top section script, and optional `OrderPanel` (`EditorPanelAsset`)
 - `EditorPanelAsset` — abstract `ScriptableObject` base implementing `IEditorPanel`; lets games expose panels as Inspector fields
 - `CellTypeDefinition` / `ICellTypeDefinition` — abstract SO base; game subclasses implement `DrawCell` + `DrawInspector`
@@ -35,7 +35,7 @@
 - `LevelExporterAsset` — abstract SO base for exporters
 - `ScriptableObjectExporter` — produces `.asset` alongside `.json`
 - `ColorPaletteAsset`, `ColorSwatchDrawer` — palette SO + reusable IMGUI swatch picker
-- Panels: `PalettePanel` (cell list + BRUSH config), `GridCanvasPanel`, `ToolbarPanel` (incl. `OnOrderToggle`/`OrderMode`), `ValidationPanel`, `CellInspectorPanel`, `SummaryPanel`
+- Panels: `PalettePanel` (cell list + BRUSH config), `GridCanvasPanel` (CTRL+click multi-select), `ToolbarPanel` (incl. `OnOrderToggle`/`OrderMode`), `ValidationPanel`, `CellInspectorPanel`, `SummaryPanel`, `MultiSelectPanel` (batch color/type for multi-selection)
 - `TopSectionPanel` / `EmptyTopSectionPanel` — game-overridable top section
 - `StringIntMapping` — reusable string→int ScriptableObject
 
@@ -91,7 +91,7 @@ hoppa-level-editor-core/
 
 Consumer game (`YarnTwist`) references this package via private GitHub Git URL (production):
 ```
-"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.4.1"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.3"
 ```
 Layer 2 files live in both repos and must be kept in sync manually when changed. Target paths in YarnTwist:
 - `Assets/_YAT/Scripts/Editor/TopSection/YarnTopSectionPanel.cs`
@@ -134,7 +134,8 @@ Layer 2 files live in both repos and must be kept in sync manually when changed.
 
 ### Package hosting
 - Dev: local `file:` path in game project's `manifest.json`
-- Prod: private GitHub repo Git URL, pinned to a version tag (currently `v0.3.0`). Bump tag and update consumer `manifest.json` to deploy Layer 1 changes.
+- Prod: private GitHub repo Git URL, pinned to a version tag (currently `v0.5.3`). Bump tag and update consumer `manifest.json` to deploy Layer 1 changes.
+- **Critical:** every new `.cs` file added to the UPM package must have its `.meta` file committed to git, or Unity will silently exclude the file from compilation in consumers (experienced with `MultiSelectPanel.cs.meta`).
 
 ### Deferred
 - Addressables integration
