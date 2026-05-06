@@ -141,7 +141,7 @@ namespace Hoppa.LevelEditor.Core.Tests
         {
             private readonly string _typeId;
             public string CellTypeId => _typeId;
-            public string ColorId { get; }
+            public string ColorId { get; set; }
 
             public TestColoredCell(string typeId, string colorId)
             {
