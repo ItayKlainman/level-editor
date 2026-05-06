@@ -22,7 +22,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         private GameProfile        _profile;
         private bool               _inOrderMode;
 
-        private const string LastDirPrefKey = "Hoppa.LevelEditor.LastSaveDir";
+        private const string LastDirPrefKey    = "Hoppa.LevelEditor.LastSaveDir";
+        private const string ProfileGuidPrefKey = "Hoppa.LevelEditor.ProfileGuid";
 
         private const float ToolbarH   = 28f;
         private const float PaletteW   = 195f;
@@ -40,6 +41,14 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void OnEnable()
         {
+            var savedGuid = EditorPrefs.GetString(ProfileGuidPrefKey, string.Empty);
+            if (!string.IsNullOrEmpty(savedGuid))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(savedGuid);
+                if (!string.IsNullOrEmpty(path))
+                    _profile = AssetDatabase.LoadAssetAtPath<GameProfile>(path);
+            }
+
             _toolbar.OnNew         += HandleNew;
             _toolbar.OnOpen        += HandleOpen;
             _toolbar.OnSave        += HandleSave;
@@ -194,8 +203,10 @@ namespace Hoppa.LevelEditor.Core.Editor
             GUILayout.BeginVertical(GUILayout.Width(300f));
             GUILayout.Label("Level Editor", EditorStyles.largeLabel);
             GUILayout.Space(8f);
+            EditorGUI.BeginChangeCheck();
             _profile = (GameProfile)EditorGUILayout.ObjectField(
                 "Game Profile", _profile, typeof(GameProfile), false);
+            if (EditorGUI.EndChangeCheck()) SaveProfilePref();
             GUILayout.Space(8f);
             using (new EditorGUI.DisabledGroupScope(_profile == null))
             {
@@ -389,6 +400,14 @@ namespace Hoppa.LevelEditor.Core.Editor
             _session.BrushTemplate  = def.CreateDefault();
         }
 
+        private void SaveProfilePref()
+        {
+            if (_profile == null) return;
+            var guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(_profile));
+            if (!string.IsNullOrEmpty(guid))
+                EditorPrefs.SetString(ProfileGuidPrefKey, guid);
+        }
+
         private bool TryAutoPickProfile()
         {
             var guids = AssetDatabase.FindAssets("t:GameProfile");
@@ -396,6 +415,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 _profile = AssetDatabase.LoadAssetAtPath<GameProfile>(
                     AssetDatabase.GUIDToAssetPath(guids[0]));
+                SaveProfilePref();
                 return true;
             }
             EditorUtility.DisplayDialog("No Profile Selected",
