@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace Hoppa.YarnTwist
 {
-    public sealed class YarnBoxCell : IColoredCell
+    public sealed class YarnBoxCell : IColoredCell, IHideableCell
     {
         [JsonIgnore]
         public string CellTypeId => "yt.box";

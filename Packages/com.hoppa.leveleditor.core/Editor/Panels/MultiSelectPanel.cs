@@ -16,6 +16,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color Accent     = new Color(0.30f, 0.65f, 1.00f);
         private static readonly Color LabelColor = new Color(0.55f, 0.68f, 0.85f);
         private static readonly Color DeselBg   = new Color(0.22f, 0.24f, 0.32f);
+        private static readonly Color HideBg    = new Color(0.30f, 0.22f, 0.40f);
+        private static readonly Color UnhideBg  = new Color(0.22f, 0.32f, 0.24f);
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -111,6 +113,54 @@ namespace Hoppa.LevelEditor.Core.Editor
                 }
                 if (colInRow > 0) y += BtnH + BtnGap;
                 y += 2f;
+            }
+
+            // ── Hidden toggle ────────────────────────────────────────────
+            bool anyHideable = false;
+            foreach (var cellRef in session.MultiSelection)
+            {
+                if (session.Document.Grid.Get(cellRef.X, cellRef.Y) is IHideableCell)
+                { anyHideable = true; break; }
+            }
+
+            if (anyHideable)
+            {
+                var oldColor = GUI.contentColor;
+                GUI.contentColor = LabelColor;
+                GUI.Label(new Rect(x, y, cw, LabelH), "Visibility", EditorStyles.miniLabel);
+                GUI.contentColor = oldColor;
+                y += LabelH;
+
+                float halfW = Mathf.Floor((cw - BtnGap) * 0.5f);
+
+                var oldBg = GUI.backgroundColor;
+                GUI.backgroundColor = HideBg;
+                if (GUI.Button(new Rect(x, y, halfW, BtnH), "Hide", EditorStyles.miniButton))
+                {
+                    session.PushUndoSnapshot();
+                    foreach (var cellRef in session.MultiSelection)
+                    {
+                        if (session.Document.Grid.Get(cellRef.X, cellRef.Y) is IHideableCell h)
+                        { h.Hidden = true; session.Document.Grid.Set(cellRef.X, cellRef.Y, (ICellData)h); }
+                    }
+                    session.MarkDirty();
+                    session.RunValidation();
+                }
+
+                GUI.backgroundColor = UnhideBg;
+                if (GUI.Button(new Rect(x + halfW + BtnGap, y, halfW, BtnH), "Unhide", EditorStyles.miniButton))
+                {
+                    session.PushUndoSnapshot();
+                    foreach (var cellRef in session.MultiSelection)
+                    {
+                        if (session.Document.Grid.Get(cellRef.X, cellRef.Y) is IHideableCell h)
+                        { h.Hidden = false; session.Document.Grid.Set(cellRef.X, cellRef.Y, (ICellData)h); }
+                    }
+                    session.MarkDirty();
+                    session.RunValidation();
+                }
+                GUI.backgroundColor = oldBg;
+                y += BtnH + BtnGap + 2f;
             }
 
             // ── Deselect All ─────────────────────────────────────────────
