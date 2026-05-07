@@ -8,11 +8,30 @@
 
 ## Active phase
 
-**Post-ship polish — Multi-select + bug fixes + level index fix (2026-05-06)**
+**Post-ship polish — Hidden box color + profile persistence (2026-05-07)**
 
-All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.5` (Layer 1). Layer 2 fixes committed on master.
+All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.6` (Layer 1). Layer 2 fixes committed on master.
 
-### Added this session (2026-05-06)
+### Added this session (2026-05-07)
+
+**Hidden box color display (Layer 2 — `YarnBoxCellDefinition`)**
+- Hidden boxes now draw their actual palette color instead of the fixed `HiddenColor` purple.
+- "?" label is overlaid on top so the cell is still identifiable as hidden.
+- Removed unused `HiddenColor` constant.
+
+**Game Profile persistence across window close/reopen (Layer 1 — `LevelEditorWindow`)**
+- Profile selection now saved to `EditorPrefs` under `Hoppa.LevelEditor.ProfileGuid` whenever the ObjectField changes or `TryAutoPickProfile` resolves a profile.
+- `OnEnable` restores the profile from `EditorPrefs` if `[SerializeField]` didn't recover it (i.e., window was fully closed, not just domain-reloaded).
+- Clearing the field (None) deletes the pref key.
+
+**Deployment**
+- Tags: → `v0.5.6`
+- YarnTwist `manifest.json` bumped to `#v0.5.6`.
+- Layer 2 `YarnBoxCellDefinition.cs` copied to `Assets/_YAT/Scripts/Editor/Cells/`.
+
+---
+
+### Added previous session (2026-05-06)
 
 **CTRL+click multi-cell selection (Layer 1)**
 - `IColoredCell.ColorId` changed from `{ get; }` to `{ get; set; }` to enable batch color writes.
