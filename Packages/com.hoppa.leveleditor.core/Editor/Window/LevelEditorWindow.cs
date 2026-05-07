@@ -127,9 +127,12 @@ namespace Hoppa.LevelEditor.Core.Editor
             _palette.OnGUI(new Rect(0f, bodyY, PaletteW, innerH), _session);
 
             // ── Centre: top section + canvas ──────────────────────────
+            // Canvas is bottom-anchored: it gets exactly what the grid needs;
+            // the top section fills all remaining space above it.
             float centerX = PaletteW + 1f;
             float centerW = w - PaletteW - RightW - 2f;
-            float topH    = _topSection.PreferredHeight;
+            float canvasH = _canvas.RequiredHeight(centerW, _session);
+            float topH    = Mathf.Max(0f, innerH - canvasH);
             if (topH > 0f)
                 _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
             _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH), _session);

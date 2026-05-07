@@ -6,11 +6,13 @@ namespace Hoppa.LevelEditor.Core.Editor
 {
     public sealed class GridCanvasPanel : IEditorPanel
     {
-        private const float CellSize = 32f;
-        private const float CellGap  = 2f;
-        private const float CellStep = CellSize + CellGap;
-        private const float Margin   = 32f;
+        private const float CellGap     = 2f;
+        private const float Margin      = 32f;
+        private const float MinCellSize = 20f;
+        private const float MaxCellSize = 48f;
 
+        private float _cellSize = 32f;
+        private float _cellStep = 34f;
         private Vector2  _scroll;
         private bool     _isDragging;
         private CellRef? _hoverCell;
@@ -41,8 +43,10 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
 
             var grid   = session.Document.Grid;
-            float totalW = grid.Width  * CellStep + CellGap;
-            float totalH = grid.Height * CellStep + CellGap;
+            _cellSize = ComputeCellSize(rect, grid.Width, grid.Height);
+            _cellStep = _cellSize + CellGap;
+            float totalW = grid.Width  * _cellStep + CellGap;
+            float totalH = grid.Height * _cellStep + CellGap;
 
             float viewW = Mathf.Max(totalW + Margin * 2f, rect.width);
             float viewH = Mathf.Max(totalH + Margin * 2f, rect.height);
@@ -66,7 +70,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             // Update hover before drawing so the highlight matches the current event's mouse position
             var me = new Vector2(Event.current.mousePosition.x + _scroll.x,
                                  Event.current.mousePosition.y + _scroll.y);
-            _hoverCell = ScreenToCell(me, grid, _gridOffsetX, _gridOffsetY);
+            _hoverCell = ScreenToCell(me, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             DrawCells(grid, session);
             HandleEvents(rect, grid, session);
@@ -81,7 +85,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 var cell     = grid.Get(x, y);
                 var cellRef  = new CellRef(x, y);
-                var cellRect = CellRect(x, y, grid.Height, _gridOffsetX, _gridOffsetY);
+                var cellRect = CellRect(x, y, grid.Height, _gridOffsetX, _gridOffsetY, _cellSize, _cellStep);
 
                 EditorGUI.DrawRect(cellRect, CellBg);
 
@@ -132,7 +136,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             var e           = Event.current;
             var mouseInView = new Vector2(e.mousePosition.x + _scroll.x, e.mousePosition.y + _scroll.y);
-            _hoverCell      = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY);
+            _hoverCell      = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             bool ctrl = e.control || e.command;
             var  inBounds = new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height);
@@ -300,26 +304,50 @@ namespace Hoppa.LevelEditor.Core.Editor
             session.SetCell(cellRef.X, cellRef.Y, emptyDef?.CreateDefault());
         }
 
-        private static CellRef? ScreenToCell(Vector2 mousePos, GridData<ICellData> grid, float offsetX, float offsetY)
+        // Returns the canvas height needed to display the full grid without scrolling,
+        // using only the available width to determine cell size.
+        public float RequiredHeight(float canvasW, LevelEditorSession session)
+        {
+            if (session?.Document?.Grid == null) return 300f;
+            var   grid     = session.Document.Grid;
+            float usableW  = canvasW - Margin * 2f;
+            float cellSize = Mathf.Clamp(
+                (usableW - CellGap * (grid.Width + 1)) / grid.Width,
+                MinCellSize, MaxCellSize);
+            return grid.Height * (cellSize + CellGap) + CellGap + Margin * 2f;
+        }
+
+        private static float ComputeCellSize(Rect rect, int cols, int rows)
+        {
+            float usableW  = rect.width  - Margin * 2f;
+            float usableH  = rect.height - Margin * 2f;
+            float byWidth  = (usableW - CellGap * (cols + 1)) / cols;
+            float byHeight = (usableH - CellGap * (rows + 1)) / rows;
+            return Mathf.Clamp(Mathf.Min(byWidth, byHeight), MinCellSize, MaxCellSize);
+        }
+
+        private static CellRef? ScreenToCell(Vector2 mousePos, GridData<ICellData> grid,
+            float offsetX, float offsetY, float cellStep)
         {
             // Subtract CellGap so the detection zone starts exactly at the visual pixel of each cell,
             // not 2 px before it (which caused clicks in the inter-cell gap to select the row below).
             float localX = mousePos.x - offsetX - CellGap;
             float localY = mousePos.y - offsetY - CellGap;
             if (localX < 0f || localY < 0f) return null;
-            int x          = Mathf.FloorToInt(localX / CellStep);
-            int displayRow = Mathf.FloorToInt(localY / CellStep);
+            int x          = Mathf.FloorToInt(localX / cellStep);
+            int displayRow = Mathf.FloorToInt(localY / cellStep);
             int y          = grid.Height - 1 - displayRow;
             return grid.InBounds(x, y) ? new CellRef(x, y) : (CellRef?)null;
         }
 
-        private static Rect CellRect(int x, int y, int gridHeight, float offsetX, float offsetY)
+        private static Rect CellRect(int x, int y, int gridHeight, float offsetX, float offsetY,
+            float cellSize, float cellStep)
         {
             int displayRow = gridHeight - 1 - y;
             return new Rect(
-                offsetX + CellGap + x * CellStep,
-                offsetY + CellGap + displayRow * CellStep,
-                CellSize, CellSize);
+                offsetX + CellGap + x * cellStep,
+                offsetY + CellGap + displayRow * cellStep,
+                cellSize, cellSize);
         }
     }
 }

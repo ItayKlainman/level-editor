@@ -10,29 +10,30 @@ namespace Hoppa.YarnTwist.Editor
 {
     public sealed class YarnTopSectionPanel : TopSectionPanel
     {
-        private const int   Columns  = 4;
-        private const float SpoolH   = 30f;
-        private const float HandleW  = 14f;
-        private const float DelBtnW  = 44f;
-        private const float HeaderH  = 22f;
-        private const float ColLblH  = 18f;
-        private const float BtnH     = 20f;
-        private const float ColPad   = 4f;
-
+        private const int   Columns          = 4;
+        private const float SpoolH           = 30f;
+        private const float HandleW          = 14f;
+        private const float DelBtnW          = 44f;
+        private const float ArrowBtnW        = 16f;
+        private const float HeaderH          = 22f;
+        private const float ColLblH          = 18f;
+        private const float BtnH             = 20f;
+        private const float ColPad           = 4f;
         private static readonly Color HeaderBg    = new Color(0.17f, 0.19f, 0.26f);
         private static readonly Color Accent      = new Color(0.30f, 0.65f, 1.00f);
         private static readonly Color HiddenTint  = new Color(0.35f, 0.28f, 0.45f, 0.28f);
         private static readonly Color DragDimTint = new Color(0f,    0f,    0f,    0.30f);
 
-        private int _maxSpoolCount = 3;
+        private readonly Vector2[] _scrollPos = new Vector2[Columns];
 
-        // Drag state
+        // Drag state (within a single column)
         private int _dragCol = -1;
-        private int _dragSrc = -1;  // visual index being dragged (0 = top)
-        private int _dragTgt = -1;  // insertion target (0..count)
+        private int _dragSrc = -1;
+        private int _dragTgt = -1;
 
-        public override float PreferredHeight =>
-            HeaderH + ColLblH + SpoolH * Mathf.Max(1, _maxSpoolCount) + BtnH + 14f;
+        // PreferredHeight is no longer used for layout (LevelEditorWindow uses
+        // GridCanvasPanel.RequiredHeight to bottom-anchor the canvas instead).
+        public override float PreferredHeight => HeaderH + ColLblH + SpoolH + BtnH + 14f;
 
         public override void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -44,10 +45,6 @@ namespace Hoppa.YarnTwist.Editor
             while (topData.Columns.Count < Columns)
                 topData.Columns.Add(new YarnSpoolColumn());
 
-            _maxSpoolCount = 0;
-            foreach (var col in topData.Columns)
-                if (col?.Spools != null) _maxSpoolCount = Mathf.Max(_maxSpoolCount, col.Spools.Count);
-
             var gridColors = GetGridColors(session);
             ICollection<string> pickerFilter = gridColors.Count > 0 ? gridColors : null;
 
@@ -57,7 +54,18 @@ namespace Hoppa.YarnTwist.Editor
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, 200f, HeaderH - 2f),
                 "Spool Columns", EditorStyles.boldLabel);
 
-            float colW = (rect.width - ColPad * (Columns - 1)) / Columns;
+            float colW       = (rect.width - ColPad * (Columns - 1)) / Columns;
+            // Scroll area fills all space the window gives us (minus header, col labels, + button).
+            // Scroll only activates when a column's content actually overflows this height.
+            float scrollAreaH = Mathf.Max(SpoolH,
+                rect.height - HeaderH - 2f - ColLblH - BtnH - 14f);
+
+            // Deferred cross-column move (applied after all columns to avoid mid-loop mutation)
+            int moveFromCol  = -1;
+            int moveFromIdx  = -1;
+            int moveToColIdx = -1;
+            // Deferred column swap: swapColA and swapColA+1 are exchanged
+            int swapColA = -1;
 
             EditorGUI.BeginChangeCheck();
 
@@ -71,35 +79,41 @@ namespace Hoppa.YarnTwist.Editor
                     $"Col {c + 1}", EditorStyles.centeredGreyMiniLabel);
                 cy += ColLblH;
 
-                float colStartY = cy;
-                int   count     = col.Spools.Count;
-                int   removeIdx = -1;
+                int   count         = col.Spools.Count;
+                int   removeIdx     = -1;
+                bool  needsScrollbar = count * SpoolH > scrollAreaH;
+                float contentW      = needsScrollbar ? colW - 14f : colW;
+                float contentH      = Mathf.Max(scrollAreaH, count * SpoolH);
 
-                // Keep drag target current on every event type
+                _scrollPos[c] = GUI.BeginScrollView(
+                    new Rect(cx, cy, colW, scrollAreaH),
+                    _scrollPos[c],
+                    new Rect(0f, 0f, contentW, contentH),
+                    false, needsScrollbar);
+
+                // ── Drag target: compute in scroll-content-local coords ──────
                 if (_dragCol == c && count > 0)
                 {
                     _dragTgt = Mathf.Clamp(
-                        Mathf.FloorToInt(
-                            (Event.current.mousePosition.y - colStartY + SpoolH * 0.5f) / SpoolH),
+                        Mathf.FloorToInt((Event.current.mousePosition.y + SpoolH * 0.5f) / SpoolH),
                         0, count);
                 }
 
-                // Spools — drawn top-to-bottom visually (s = count-1 down to 0)
+                // ── Spool rows (all coords local: x=0, y=visualIdx*SpoolH) ──
                 for (int s = count - 1; s >= 0; s--)
                 {
                     var   spool     = col.Spools[s];
-                    float rowTop    = cy;
-                    int   visualIdx = count - 1 - s;  // 0 = top
-                    cy += SpoolH;
+                    int   visualIdx = count - 1 - s;
+                    float rowTop    = visualIdx * SpoolH;
 
                     bool colDragging   = _dragCol == c;
                     bool thisIsDragged = colDragging && _dragSrc == visualIdx;
 
                     if (thisIsDragged && Event.current.type == EventType.Repaint)
-                        EditorGUI.DrawRect(new Rect(cx, rowTop, colW, SpoolH), DragDimTint);
+                        EditorGUI.DrawRect(new Rect(0f, rowTop, contentW, SpoolH), DragDimTint);
 
-                    // ── Drag handle (2×3 dot grid) ──────────────────────
-                    var handleRect = new Rect(cx, rowTop, HandleW, SpoolH);
+                    // Drag handle
+                    var handleRect = new Rect(0f, rowTop, HandleW, SpoolH);
                     DrawDragHandle(handleRect);
 
                     if (Event.current.type == EventType.MouseDown
@@ -112,20 +126,19 @@ namespace Hoppa.YarnTwist.Editor
                         Event.current.Use();
                     }
 
-                    // ── Swatch row (disabled while this column is being dragged) ──
                     using (new EditorGUI.DisabledGroupScope(colDragging))
                     {
                         float sz      = ColorSwatchDrawer.Size;  // 20px
                         float vCenter = rowTop + (SpoolH - sz) * 0.5f;
                         const float ToggleW = 18f;
-                        float toggleX = cx + HandleW + 2f;
+                        float toggleX = HandleW + 2f;
 
                         spool.Hidden = EditorGUI.Toggle(
                             new Rect(toggleX, vCenter + 1f, ToggleW, ToggleW), spool.Hidden);
 
                         float swatchX    = toggleX + ToggleW + 2f;
-                        var swatchRect   = new Rect(swatchX, vCenter, sz, sz);
-                        bool swatchHover = swatchRect.Contains(Event.current.mousePosition);
+                        var   swatchRect = new Rect(swatchX, vCenter, sz, sz);
+                        bool  swatchHover = swatchRect.Contains(Event.current.mousePosition);
 
                         if (swatchHover)
                             EditorGUI.DrawRect(
@@ -141,23 +154,17 @@ namespace Hoppa.YarnTwist.Editor
                         GUI.Label(swatchRect, new GUIContent(string.Empty,
                             $"Right-click to change color\n{spool.ColorId}"));
 
-                        // Color ID label
-                        float labelX = swatchX + sz + 4f;
-                        float labelW = colW - (labelX - cx) - DelBtnW - 4f;
-                        if (labelW > 6f)
-                            GUI.Label(new Rect(labelX, vCenter + 2f, labelW, sz),
-                                spool.ColorId, EditorStyles.miniLabel);
-
-                        // Right-click → color picker (filtered to grid colors)
+                        // Right-click → color picker
+                        // GUIToScreenPoint needed: mouse pos is content-local inside a scroll group
                         if (Event.current.type == EventType.MouseDown && Event.current.button == 1
                             && swatchHover && palette != null)
                         {
                             var capSpool   = spool;
                             var capTopData = topData;
                             var capSession = session;
-                            var mp = Event.current.mousePosition;
+                            var screenMp   = GUIUtility.GUIToScreenPoint(Event.current.mousePosition);
                             PopupWindow.Show(
-                                new Rect(mp.x, mp.y, 1f, 1f),
+                                new Rect(screenMp.x, screenMp.y, 1f, 1f),
                                 new ColorPickerPopup(palette, spool.ColorId, id =>
                                 {
                                     capSession.PushUndoSnapshot();
@@ -168,20 +175,49 @@ namespace Hoppa.YarnTwist.Editor
                             Event.current.Use();
                         }
 
+                        // Color ID label
+                        float labelX     = swatchX + sz + 4f;
+                        float arrowGrpX  = contentW - DelBtnW - ArrowBtnW * 2f - 4f;
+                        float labelW     = arrowGrpX - labelX - 4f;
+                        if (labelW > 6f)
+                            GUI.Label(new Rect(labelX, vCenter + 2f, labelW, sz),
+                                spool.ColorId, EditorStyles.miniLabel);
+
+                        // ← → buttons: move spool to adjacent column
+                        float arrowBtnY = rowTop + (SpoolH - 18f) * 0.5f;
+                        using (new EditorGUI.DisabledGroupScope(c == 0))
+                        {
+                            if (GUI.Button(new Rect(arrowGrpX, arrowBtnY, ArrowBtnW, 18f),
+                                "←", EditorStyles.miniButton))
+                            {
+                                moveFromCol  = c;
+                                moveFromIdx  = s;
+                                moveToColIdx = c - 1;
+                            }
+                        }
+                        using (new EditorGUI.DisabledGroupScope(c == Columns - 1))
+                        {
+                            if (GUI.Button(new Rect(arrowGrpX + ArrowBtnW + 2f, arrowBtnY, ArrowBtnW, 18f),
+                                "→", EditorStyles.miniButton))
+                            {
+                                moveFromCol  = c;
+                                moveFromIdx  = s;
+                                moveToColIdx = c + 1;
+                            }
+                        }
+
                         // Delete button
                         var prevBg = GUI.backgroundColor;
                         GUI.backgroundColor = new Color(0.85f, 0.35f, 0.35f);
                         if (GUI.Button(
-                                new Rect(cx + colW - DelBtnW,
-                                         rowTop + (SpoolH - 18f) * 0.5f,
-                                         DelBtnW, 18f),
+                                new Rect(contentW - DelBtnW, rowTop + (SpoolH - 18f) * 0.5f, DelBtnW, 18f),
                                 "✕ Del", EditorStyles.miniButton))
                             removeIdx = s;
                         GUI.backgroundColor = prevBg;
                     }
                 }
 
-                // ── Column-level drag events ─────────────────────────────
+                // ── Column drag events (inside scroll view) ──────────────────
                 if (_dragCol == c)
                 {
                     if (Event.current.type == EventType.MouseDrag)
@@ -200,25 +236,39 @@ namespace Hoppa.YarnTwist.Editor
                         Event.current.Use();
                     }
 
-                    // Insertion line
                     if (Event.current.type == EventType.Repaint && _dragTgt >= 0)
                     {
-                        float lineY = colStartY + _dragTgt * SpoolH;
-                        EditorGUI.DrawRect(new Rect(cx, lineY - 1f, colW, 2f), Accent);
+                        float lineY = _dragTgt * SpoolH;
+                        EditorGUI.DrawRect(new Rect(0f, lineY - 1f, contentW, 2f), Accent);
                     }
                 }
 
-                // Apply deferred remove (after loop so we don't mutate mid-iteration)
+                // Deferred remove
                 if (removeIdx >= 0)
                 {
                     session.PushUndoSnapshot();
                     col.Spools.RemoveAt(removeIdx);
                 }
 
-                // + button
+                GUI.EndScrollView();
+
+                // Bottom row: [← swap col] [+ add] [→ swap col]
                 const float AddBtnW = 36f;
+                float btnRowY = cy + scrollAreaH + 2f;
+
+                using (new EditorGUI.DisabledGroupScope(c == 0))
+                {
+                    if (GUI.Button(new Rect(cx + 2f, btnRowY, ArrowBtnW, BtnH), "←", EditorStyles.miniButton))
+                        swapColA = c - 1;
+                }
+                using (new EditorGUI.DisabledGroupScope(c == Columns - 1))
+                {
+                    if (GUI.Button(new Rect(cx + colW - ArrowBtnW - 2f, btnRowY, ArrowBtnW, BtnH), "→", EditorStyles.miniButton))
+                        swapColA = c;
+                }
+
                 if (GUI.Button(
-                        new Rect(cx + (colW - AddBtnW) * 0.5f, cy + 2f, AddBtnW, BtnH),
+                        new Rect(cx + (colW - AddBtnW) * 0.5f, btnRowY, AddBtnW, BtnH),
                         "+", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
@@ -230,10 +280,31 @@ namespace Hoppa.YarnTwist.Editor
                 }
             }
 
-            // Safety net: release drag if mouse up outside every column
+            // Safety net: release drag if mouse up outside all columns
             if (_dragCol >= 0 && Event.current.type == EventType.MouseUp)
             {
                 _dragCol = -1; _dragSrc = -1; _dragTgt = -1;
+            }
+
+            // Apply deferred cross-column move (after all column loops)
+            if (moveFromCol >= 0)
+            {
+                session.PushUndoSnapshot();
+                var spool = topData.Columns[moveFromCol].Spools[moveFromIdx];
+                topData.Columns[moveFromCol].Spools.RemoveAt(moveFromIdx);
+                topData.Columns[moveToColIdx].Spools.Add(spool);
+                GUI.changed = true;
+            }
+
+            // Apply deferred column swap
+            if (swapColA >= 0 && swapColA + 1 < Columns)
+            {
+                session.PushUndoSnapshot();
+                (topData.Columns[swapColA], topData.Columns[swapColA + 1]) =
+                    (topData.Columns[swapColA + 1], topData.Columns[swapColA]);
+                (_scrollPos[swapColA], _scrollPos[swapColA + 1]) =
+                    (_scrollPos[swapColA + 1], _scrollPos[swapColA]);
+                GUI.changed = true;
             }
 
             if (EditorGUI.EndChangeCheck())
@@ -269,7 +340,6 @@ namespace Hoppa.YarnTwist.Editor
                 spools[count - 1 - v] = visual[v];
         }
 
-        // Returns the colorId of the first colored cell found in the grid, or null if none.
         private static string GetFirstGridColor(LevelEditorSession session)
         {
             foreach (var cell in session.Document.Grid.Cells)

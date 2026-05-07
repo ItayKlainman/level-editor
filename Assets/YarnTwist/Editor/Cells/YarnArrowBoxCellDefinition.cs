@@ -11,7 +11,7 @@ namespace Hoppa.YarnTwist.Editor
     {
         [SerializeField] private ColorPaletteAsset _palette;
 
-        public override float InspectorPreferredHeight => 56f;
+        public override float InspectorPreferredHeight => 70f;
 
         public override ICellData CreateDefault() => new YarnArrowBoxCell();
 
