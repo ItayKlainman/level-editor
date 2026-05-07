@@ -8,26 +8,36 @@
 
 ## Active phase
 
-**Post-ship polish — Hidden box color + profile persistence (2026-05-07)**
+**Polish — Color palette, spool columns UX, grid scaling (2026-05-07)**
 
-All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.6` (Layer 1). Layer 2 fixes committed on master.
+All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.7` (Layer 1). Layer 2 fixes committed on master.
 
 ### Added this session (2026-05-07)
 
-**Hidden box color display (Layer 2 — `YarnBoxCellDefinition`)**
-- Hidden boxes now draw their actual palette color instead of the fixed `HiddenColor` purple.
-- "?" label is overlaid on top so the cell is still identifiable as hidden.
-- Removed unused `HiddenColor` constant.
+**Color palette expanded to full YATColorType enum (Layer 2 — data assets)**
+- `YarnTwistPalette.asset` replaced 6-color placeholder with all 13 YATColorType entries (Blue→PurpleBright).
+- Colors sourced directly from `StaticManager.asset` exact RGB values.
+- `YarnColorMapping.asset` corrected: turquoise fixed 10→12, added magenta(5), greenlime(11), purplebright(13), bluedark(10).
 
-**Game Profile persistence across window close/reopen (Layer 1 — `LevelEditorWindow`)**
-- Profile selection now saved to `EditorPrefs` under `Hoppa.LevelEditor.ProfileGuid` whenever the ObjectField changes or `TryAutoPickProfile` resolves a profile.
-- `OnEnable` restores the profile from `EditorPrefs` if `[SerializeField]` didn't recover it (i.e., window was fully closed, not just domain-reloaded).
-- Clearing the field (None) deletes the pref key.
+**Inspector color swatch popup now shows all colors (Layer 2 — `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`)**
+- `InspectorPreferredHeight` bumped 60→70 (Box) and 56→70 (ArrowBox) so the popup allocates enough height for 2 swatch rows at the popup's 228px inner width.
+
+**Spool columns: scrollable, dynamic height, cross-column moves (Layer 2 — `YarnTopSectionPanel`)**
+- Columns no longer have a fixed visible-row count; scroll area fills all space above the grid.
+- Scroll activates only when column content exceeds available height (edge case: 15-20+ entries).
+- Per-row ← → buttons move individual spool entries between adjacent columns.
+- Per-column ← → buttons at the bottom swap entire column lists with adjacent columns (scroll positions travel with the data).
+- Color picker popup fixed to use `GUIUtility.GUIToScreenPoint` (was off-screen inside scroll group).
+
+**Grid canvas: bottom-anchored, dynamic cell size (Layer 1 — `GridCanvasPanel`, `LevelEditorWindow`)**
+- `GridCanvasPanel.RequiredHeight(canvasW, session)` computes the exact canvas height needed to show the grid without scrolling, based on width-only cell-size calculation.
+- `LevelEditorWindow` now uses bottom-up layout: canvas is anchored to the bottom at `RequiredHeight`; top section fills all remaining space above it.
+- Cell size scales dynamically (min 20px, max 48px) to fill available canvas width.
 
 **Deployment**
-- Tags: → `v0.5.6`
-- YarnTwist `manifest.json` bumped to `#v0.5.6`.
-- Layer 2 `YarnBoxCellDefinition.cs` copied to `Assets/_YAT/Scripts/Editor/Cells/`.
+- Tags: → `v0.5.7`
+- YarnTwist `manifest.json` bumped to `#v0.5.7`.
+- Layer 2 files copied: `YarnTopSectionPanel.cs`, `YarnBoxCellDefinition.cs`, `YarnArrowBoxCellDefinition.cs`.
 
 ---
 
