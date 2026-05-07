@@ -13,27 +13,55 @@ MonoBehaviour:
   m_Name: YarnTwistPalette
   m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.ColorPaletteAsset
   _entries:
-  - Id: pink
-    DisplayName: Pink
-    Color: {r: 1, g: 0.45, b: 0.65, a: 1}
-    SwatchIcon: {fileID: 0}
   - Id: blue
     DisplayName: Blue
-    Color: {r: 0.25, g: 0.55, b: 1, a: 1}
+    Color: {r: 0.1254902, g: 0.68235296, b: 1, a: 1}
     SwatchIcon: {fileID: 0}
-  - Id: teal
-    DisplayName: Teal
-    Color: {r: 0.2, g: 0.8, b: 0.75, a: 1}
-    SwatchIcon: {fileID: 0}
-  - Id: green
-    DisplayName: Green
-    Color: {r: 0.35, g: 0.8, b: 0.35, a: 1}
+  - Id: cyan
+    DisplayName: Cyan
+    Color: {r: 0.37254903, g: 0.8392157, b: 1, a: 1}
     SwatchIcon: {fileID: 0}
   - Id: yellow
     DisplayName: Yellow
-    Color: {r: 1, g: 0.85, b: 0.25, a: 1}
+    Color: {r: 1, g: 0.9137255, b: 0.33333334, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: green
+    DisplayName: Green
+    Color: {r: 0.19215687, g: 0.8980392, b: 0.5568628, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: magenta
+    DisplayName: Magenta
+    Color: {r: 1, g: 0.4627451, b: 0.72156864, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: orange
+    DisplayName: Orange
+    Color: {r: 1, g: 0.58431375, b: 0.36862746, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: pink
+    DisplayName: Pink
+    Color: {r: 1, g: 0.6901961, b: 0.84705883, a: 1}
     SwatchIcon: {fileID: 0}
   - Id: purple
     DisplayName: Purple
-    Color: {r: 0.65, g: 0.35, b: 0.9, a: 1}
+    Color: {r: 0.76862746, g: 0.42745098, b: 1, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: red
+    DisplayName: Red
+    Color: {r: 0.99607843, g: 0.41568628, b: 0.41568628, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: bluedark
+    DisplayName: Blue Dark
+    Color: {r: 0.1, g: 0.15, b: 0.55, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: greenlime
+    DisplayName: Green Lime
+    Color: {r: 0.78039217, g: 0.9411765, b: 0.2901961, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: turquoise
+    DisplayName: Turquoise
+    Color: {r: 0.3529412, g: 1, b: 0.7764706, a: 1}
+    SwatchIcon: {fileID: 0}
+  - Id: purplebright
+    DisplayName: Purple Bright
+    Color: {r: 0.81960785, g: 0.77254903, b: 0.99215686, a: 1}
     SwatchIcon: {fileID: 0}

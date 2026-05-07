@@ -31,5 +31,11 @@ MonoBehaviour:
     Value: 8
   - Key: red
     Value: 9
-  - Key: turquoise
+  - Key: bluedark
     Value: 10
+  - Key: greenlime
+    Value: 11
+  - Key: turquoise
+    Value: 12
+  - Key: purplebright
+    Value: 13
