@@ -22,7 +22,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
 
-        private const string LastDirPrefKey = "Hoppa.LevelEditor.LastSaveDir";
+        private const string LastDirPrefKey    = "Hoppa.LevelEditor.LastSaveDir";
+        private const string ProfileGuidPrefKey = "Hoppa.LevelEditor.ProfileGuid";
 
         private const float ToolbarH   = 28f;
         private const float PaletteW   = 195f;
@@ -40,6 +41,13 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void OnEnable()
         {
+            if (_profile == null)
+            {
+                var guid = EditorPrefs.GetString(ProfileGuidPrefKey, string.Empty);
+                if (!string.IsNullOrEmpty(guid))
+                    _profile = AssetDatabase.LoadAssetAtPath<GameProfile>(AssetDatabase.GUIDToAssetPath(guid));
+            }
+
             _toolbar.OnNew         += HandleNew;
             _toolbar.OnOpen        += HandleOpen;
             _toolbar.OnSave        += HandleSave;
@@ -194,8 +202,10 @@ namespace Hoppa.LevelEditor.Core.Editor
             GUILayout.BeginVertical(GUILayout.Width(300f));
             GUILayout.Label("Level Editor", EditorStyles.largeLabel);
             GUILayout.Space(8f);
+            EditorGUI.BeginChangeCheck();
             _profile = (GameProfile)EditorGUILayout.ObjectField(
                 "Game Profile", _profile, typeof(GameProfile), false);
+            if (EditorGUI.EndChangeCheck()) SaveProfilePref();
             GUILayout.Space(8f);
             using (new EditorGUI.DisabledGroupScope(_profile == null))
             {
@@ -396,11 +406,19 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 _profile = AssetDatabase.LoadAssetAtPath<GameProfile>(
                     AssetDatabase.GUIDToAssetPath(guids[0]));
+                SaveProfilePref();
                 return true;
             }
             EditorUtility.DisplayDialog("No Profile Selected",
                 "Assign a Game Profile in the editor first.", "OK");
             return false;
+        }
+
+        private void SaveProfilePref()
+        {
+            if (_profile == null) { EditorPrefs.DeleteKey(ProfileGuidPrefKey); return; }
+            var guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(_profile));
+            EditorPrefs.SetString(ProfileGuidPrefKey, guid);
         }
 
         private bool ConfirmDiscard()

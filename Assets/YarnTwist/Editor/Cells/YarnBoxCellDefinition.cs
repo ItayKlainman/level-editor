@@ -11,8 +11,6 @@ namespace Hoppa.YarnTwist.Editor
     {
         [SerializeField] private ColorPaletteAsset _palette;
 
-        private static readonly Color HiddenColor = new Color(0.40f, 0.32f, 0.52f);
-
         public override float InspectorPreferredHeight => 60f;
 
         public override ICellData CreateDefault() => new YarnBoxCell();
@@ -21,17 +19,15 @@ namespace Hoppa.YarnTwist.Editor
         {
             if (data is not YarnBoxCell box) return;
 
-            if (box.Hidden)
-            {
-                EditorGUI.DrawRect(rect, HiddenColor);
-                GUI.Label(rect, "?", new GUIStyle(EditorStyles.boldLabel)
-                    { alignment = TextAnchor.MiddleCenter, fontSize = 14, normal = { textColor = Color.white } });
-                return;
-            }
-
             var color = new Color(0.4f, 0.4f, 0.4f);
             if (_palette != null && _palette.TryGetColor(box.ColorId, out var c)) color = c;
             EditorGUI.DrawRect(rect, color);
+
+            if (box.Hidden)
+            {
+                GUI.Label(rect, "?", new GUIStyle(EditorStyles.boldLabel)
+                    { alignment = TextAnchor.MiddleCenter, fontSize = 14, normal = { textColor = Color.white } });
+            }
         }
 
         public override void DrawInspector(Rect rect, ref ICellData data)
