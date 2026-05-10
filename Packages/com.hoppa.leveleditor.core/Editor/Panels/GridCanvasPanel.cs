@@ -295,6 +295,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (!cellRef.HasValue) return;
             if (!session.Document.Grid.InBounds(cellRef.Value.X, cellRef.Value.Y)) return;
             session.SetCell(cellRef.Value.X, cellRef.Value.Y, session.CloneBrushTemplate());
+            (session.ActiveCellType as CellTypeDefinition)?.OnAfterPlaced(cellRef.Value.X, cellRef.Value.Y, session);
         }
 
         private static void EraseAt(LevelEditorSession session, CellRef cellRef)

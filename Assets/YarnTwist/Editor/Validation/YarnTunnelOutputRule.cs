@@ -35,11 +35,15 @@ namespace Hoppa.YarnTwist.Editor
                     };
 
                     if (!ctx.Grid.InBounds(tx, ty))
+                    {
                         yield return new ValidationEntry(Id, ValidationSeverity.Error,
-                            $"Tunnel at ({x},{y}) output cell is outside the grid.");
-                    else if (ctx.Grid.Get(tx, ty) is YarnWallCell)
+                            $"Tunnel at ({x},{y}) points {tunnel.OutputDirection} off the grid border — move it inward or change its direction.");
+                    }
+                    else if (ctx.Grid.Get(tx, ty) is not YarnEmptyCell)
+                    {
                         yield return new ValidationEntry(Id, ValidationSeverity.Error,
-                            $"Tunnel at ({x},{y}) output is permanently blocked by a wall at ({tx},{ty}).");
+                            $"Tunnel at ({x},{y}) output cell ({tx},{ty}) must be Empty so items can exit.");
+                    }
                 }
             }
         }

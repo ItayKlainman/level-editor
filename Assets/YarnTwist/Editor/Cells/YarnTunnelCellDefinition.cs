@@ -16,12 +16,71 @@ namespace Hoppa.YarnTwist.Editor
         private static readonly Color ArrowColor    = new Color(0.35f, 0.72f, 1.00f);
         private static readonly Color BadgeColor    = new Color(0.90f, 0.60f, 0.10f);
 
-        private Vector2 _queueScroll;
-        private bool    _pendingSave;
+        private Vector2        _queueScroll;
+        private bool           _pendingSave;
+        private YarnDirection  _inspectorDirection = YarnDirection.Up;
 
         public override float InspectorPreferredHeight => 150f;
 
         public override ICellData CreateDefault() => new YarnTunnelCell();
+
+        public override void OnAfterPlaced(int x, int y, LevelEditorSession session)
+        {
+            if (session.Document.Grid.Get(x, y) is not YarnTunnelCell tunnel) return;
+
+            var (nx, ny) = NeighborOf(tunnel.OutputDirection, x, y);
+            var grid     = session.Document.Grid;
+
+            if (!grid.InBounds(nx, ny)) return;
+
+            var existing = grid.Get(nx, ny);
+            tunnel.DisplacedCell = existing is not YarnEmptyCell ? existing : null;
+            session.SetCell(nx, ny, new YarnEmptyCell());
+        }
+
+        public override void OnAfterInspectorChanged(int x, int y, LevelEditorSession session)
+        {
+            if (session.Document.Grid.Get(x, y) is not YarnTunnelCell tunnel) return;
+            if (tunnel.OutputDirection == _inspectorDirection) return;
+
+            var grid = session.Document.Grid;
+            var (ox, oy) = NeighborOf(_inspectorDirection,      x, y);
+            var (nx, ny) = NeighborOf(tunnel.OutputDirection,   x, y);
+
+            // Restore old neighbor
+            if (grid.InBounds(ox, oy))
+            {
+                var restore = tunnel.DisplacedCell ?? FallbackFill(session);
+                session.SetCell(ox, oy, restore);
+            }
+
+            // Clear new neighbor, capturing what was there
+            if (grid.InBounds(nx, ny))
+            {
+                var displaced = grid.Get(nx, ny);
+                tunnel.DisplacedCell = displaced is not YarnEmptyCell ? displaced : null;
+                session.SetCell(nx, ny, new YarnEmptyCell());
+            }
+            else
+            {
+                tunnel.DisplacedCell = null;
+            }
+        }
+
+        private static (int x, int y) NeighborOf(YarnDirection dir, int x, int y) => dir switch
+        {
+            YarnDirection.Up    => (x, y + 1),
+            YarnDirection.Down  => (x, y - 1),
+            YarnDirection.Left  => (x - 1, y),
+            YarnDirection.Right => (x + 1, y),
+            _                   => (x, y)
+        };
+
+        private static ICellData FallbackFill(LevelEditorSession session)
+        {
+            var types = session.Profile.CellTypes;
+            return (types.Count > 1 ? types[1] : types.Count > 0 ? types[0] : null)?.CreateDefault();
+        }
 
         public override void DrawCell(Rect rect, ICellData data)
         {
@@ -70,6 +129,7 @@ namespace Hoppa.YarnTwist.Editor
 
             // Direction row
             GUI.Label(new Rect(x, y, 60f, lh), "Direction", EditorStyles.miniLabel);
+            _inspectorDirection = tunnel.OutputDirection; // snapshot before EnumPopup may change it
             tunnel.OutputDirection = (YarnDirection)EditorGUI.EnumPopup(
                 new Rect(x + 62f, y, rect.width - 62f, lh), tunnel.OutputDirection);
             y += lh + 4f;

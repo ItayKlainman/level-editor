@@ -40,5 +40,13 @@ namespace Hoppa.LevelEditor.Core.Editor
         public abstract ICellData CreateDefault();
         public abstract void DrawCell(Rect cellRect, ICellData data);
         public abstract void DrawInspector(Rect rect, ref ICellData data);
+
+        // Called immediately after this cell type is painted onto the grid.
+        // Override to apply automatic side effects (e.g. clearing a neighbour cell).
+        public virtual void OnAfterPlaced(int x, int y, LevelEditorSession session) { }
+
+        // Called immediately after a cell of this type is modified via the inspector.
+        // Override to react to property changes (e.g. swapping emptied neighbours on direction change).
+        public virtual void OnAfterInspectorChanged(int x, int y, LevelEditorSession session) { }
     }
 }

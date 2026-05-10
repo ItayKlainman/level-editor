@@ -62,6 +62,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 session.Document.Grid.Set(cellRef.X, cellRef.Y, cell);
                 session.MarkDirty();
+                (definition as CellTypeDefinition)?.OnAfterInspectorChanged(cellRef.X, cellRef.Y, session);
                 session.RunValidation();
             }
         }
