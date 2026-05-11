@@ -43,7 +43,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public IReadOnlyList<CellTypeDefinition> CellTypes => _cellTypes;
         public IReadOnlyList<ValidationRuleBase> Rules => _rules;
         public IReadOnlyList<LevelExporterAsset> Exporters => _exporters;
-        public EditorPanelAsset OrderPanel => _orderPanel;
+        public IEditorPanel OrderPanel => _orderPanel;
 
         public CellTypeRegistry BuildRegistry()
         {
