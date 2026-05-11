@@ -155,16 +155,18 @@ namespace Hoppa.YarnTwist.Editor
                             $"Right-click to change color\n{spool.ColorId}"));
 
                         // Right-click → color picker
-                        // GUIToScreenPoint needed: mouse pos is content-local inside a scroll group
                         if (Event.current.type == EventType.MouseDown && Event.current.button == 1
                             && swatchHover && palette != null)
                         {
                             var capSpool   = spool;
                             var capTopData = topData;
                             var capSession = session;
-                            var screenMp   = GUIUtility.GUIToScreenPoint(Event.current.mousePosition);
+                            // Pass swatchRect in content-local coords directly.
+                            // PopupWindow.Show calls GUIToScreenRect internally, which
+                            // correctly accounts for the scroll-view matrix — no manual
+                            // screen-space conversion needed (that was the bug).
                             PopupWindow.Show(
-                                new Rect(screenMp.x, screenMp.y, 1f, 1f),
+                                swatchRect,
                                 new ColorPickerPopup(palette, spool.ColorId, id =>
                                 {
                                     capSession.PushUndoSnapshot();

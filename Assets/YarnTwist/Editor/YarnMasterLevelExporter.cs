@@ -185,6 +185,7 @@ namespace Hoppa.YarnTwist.Editor
                     else if (cell is YarnTunnelCell tunnelCell)
                     {
                         entry["ColorType"] = 0;
+                        entry["Direction"] = tunnelCell.OutputDirection.ToString();
                         var queue = new JArray();
                         if (tunnelCell.Queue != null)
                         {
