@@ -17,7 +17,7 @@ namespace Hoppa.YarnTwist.Editor
         [SerializeField] private StringIntMapping _colorMapping;
         [SerializeField] private StringIntMapping _cellTypeMapping;
         [SerializeField] private string _defaultRewardScoreType = "Coin";
-        [SerializeField] private int    _defaultRewardAmount    = 10;
+        [SerializeField] private int    _defaultRewardAmount    = 40;
 
         public override string Name => "MasterLevelConfig";
         public string OutputPath => ResolveOutputPath();
