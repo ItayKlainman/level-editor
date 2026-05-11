@@ -135,6 +135,11 @@ namespace Hoppa.LevelEditor.Core.Tests
 
             public bool Contains(string colorId) => _ids.Contains(colorId);
             public System.Collections.Generic.IEnumerable<string> ColorIds => _ids;
+            public bool TryGetColor(string colorId, out UnityEngine.Color color)
+            {
+                color = UnityEngine.Color.white;
+                return false;
+            }
         }
 
         private sealed class TestColoredCell : IColoredCell
