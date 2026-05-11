@@ -104,6 +104,10 @@ namespace Hoppa.YarnTwist.Editor
                 EditorGUI.DrawRect(badge, BadgeColor);
                 GUI.Label(badge, tunnel.Queue.Count.ToString(), new GUIStyle(EditorStyles.miniLabel)
                     { alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.black } });
+
+                if (Event.current.type == EventType.Repaint
+                    && rect.Contains(Event.current.mousePosition))
+                    DrawQueueTooltip(rect, tunnel);
             }
         }
 
@@ -219,6 +223,41 @@ namespace Hoppa.YarnTwist.Editor
                 float addY = rect.yMax - lh - 2f;
                 if (GUI.Button(new Rect(x, addY, rect.width, lh), "+ Add color", EditorStyles.miniButton))
                     tunnel.Queue.Add(ids[0]);
+            }
+        }
+
+        private void DrawQueueTooltip(Rect anchor, YarnTunnelCell tunnel)
+        {
+            const float PadX     = 6f;
+            const float PadY     = 5f;
+            const float SwatchSz = 10f;
+            const float HeaderH  = 15f;
+            const float RowH     = 14f;
+
+            float boxW = 120f;
+            float boxH = PadY + HeaderH + tunnel.Queue.Count * RowH + PadY;
+            var   box  = new Rect(anchor.x, anchor.yMax + 3f, boxW, boxH);
+
+            EditorGUI.DrawRect(box, new Color(0.08f, 0.09f, 0.12f, 0.97f));
+            DrawFrame(box, new Color(0.35f, 0.40f, 0.55f, 0.90f));
+
+            float y = box.y + PadY;
+            GUI.Label(new Rect(box.x + PadX, y, boxW - PadX * 2f, HeaderH),
+                $"Queue ({tunnel.Queue.Count}):",
+                new GUIStyle(EditorStyles.miniLabel) { fontStyle = FontStyle.Bold });
+            y += HeaderH;
+
+            foreach (var colorId in tunnel.Queue)
+            {
+                Color c = Color.grey;
+                _palette?.TryGetColor(colorId, out c);
+                float sy = y + (RowH - SwatchSz) * 0.5f;
+                EditorGUI.DrawRect(new Rect(box.x + PadX - 1f, sy - 1f, SwatchSz + 2f, SwatchSz + 2f),
+                    new Color(0f, 0f, 0f, 0.55f));
+                EditorGUI.DrawRect(new Rect(box.x + PadX, sy, SwatchSz, SwatchSz), c);
+                GUI.Label(new Rect(box.x + PadX + SwatchSz + 4f, y, boxW - PadX - SwatchSz - 8f, RowH),
+                    colorId, EditorStyles.miniLabel);
+                y += RowH;
             }
         }
 
