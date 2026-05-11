@@ -46,9 +46,12 @@ namespace Hoppa.YarnTwist.Editor
             {
                 balls.TryGetValue(colorId, out var b);
                 capacity.TryGetValue(colorId, out var cap);
+                int boxes  = _ballsPerBox   > 0 ? b   / _ballsPerBox   : 0;
+                int spools = _ballsPerSpool > 0 ? cap / _ballsPerSpool : 0;
                 string mark = b == cap ? "✓" : "✗";
+                Color? swatch = ctx.Palette != null && ctx.Palette.TryGetColor(colorId, out var c) ? c : (Color?)null;
                 yield return new ValidationEntry(Id, ValidationSeverity.Info,
-                    $"{colorId}: {b} balls / {cap} cap  {mark}");
+                    $"{colorId}: {boxes} boxes / {spools} spools  {mark}", swatch: swatch);
             }
 
             // Error row only for imbalanced colors
@@ -57,8 +60,13 @@ namespace Hoppa.YarnTwist.Editor
                 balls.TryGetValue(colorId, out var b);
                 capacity.TryGetValue(colorId, out var cap);
                 if (b != cap)
+                {
+                    int boxes  = _ballsPerBox   > 0 ? b   / _ballsPerBox   : 0;
+                    int spools = _ballsPerSpool > 0 ? cap / _ballsPerSpool : 0;
+                    Color? swatch = ctx.Palette != null && ctx.Palette.TryGetColor(colorId, out var c) ? c : (Color?)null;
                     yield return new ValidationEntry(Id, ValidationSeverity.Error,
-                        $"Color '{colorId}': {b} balls vs {cap} spool capacity.");
+                        $"Color '{colorId}': {boxes} boxes vs {spools} spools capacity.", swatch: swatch);
+                }
             }
         }
 

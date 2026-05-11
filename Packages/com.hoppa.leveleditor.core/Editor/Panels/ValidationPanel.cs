@@ -100,7 +100,21 @@ namespace Hoppa.LevelEditor.Core.Editor
                 entry.Severity == ValidationSeverity.Error   ? new Color(1f, 0.3f, 0.3f) :
                 entry.Severity == ValidationSeverity.Warning ? new Color(1f, 0.7f, 0.1f) :
                                                                new Color(0.3f, 0.7f, 1f));
-            GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 10f, rect.height - 2f),
+
+            float msgX = rect.x + 6f;
+            if (entry.Swatch.HasValue)
+            {
+                const float SwatchSize = 12f;
+                float sy = rect.y + (rect.height - SwatchSize) * 0.5f;
+                var swatchRect = new Rect(msgX, sy, SwatchSize, SwatchSize);
+                // Thin dark border for contrast against any background
+                EditorGUI.DrawRect(new Rect(swatchRect.x - 1f, swatchRect.y - 1f, SwatchSize + 2f, SwatchSize + 2f),
+                    new Color(0f, 0f, 0f, 0.6f));
+                EditorGUI.DrawRect(swatchRect, entry.Swatch.Value);
+                msgX += SwatchSize + 4f;
+            }
+
+            GUI.Label(new Rect(msgX, rect.y + 2f, rect.xMax - msgX - 4f, rect.height - 2f),
                 entry.Message, EditorStyles.miniLabel);
         }
     }

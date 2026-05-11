@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace Hoppa.LevelEditor.Core
 {
@@ -9,13 +10,17 @@ namespace Hoppa.LevelEditor.Core
         public string Message { get; }
         // Optional: cell/color/stack that caused the issue (null = level-wide)
         public CellRef? OffendingCell { get; }
+        // Optional: color swatch rendered next to the message in the validation panel
+        public Color? Swatch { get; }
 
-        public ValidationEntry(string ruleId, ValidationSeverity severity, string message, CellRef? offendingCell = null)
+        public ValidationEntry(string ruleId, ValidationSeverity severity, string message,
+            CellRef? offendingCell = null, Color? swatch = null)
         {
             RuleId = ruleId;
             Severity = severity;
             Message = message;
             OffendingCell = offendingCell;
+            Swatch = swatch;
         }
     }
 

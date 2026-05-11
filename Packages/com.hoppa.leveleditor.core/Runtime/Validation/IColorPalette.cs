@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace Hoppa.LevelEditor.Core
 {
@@ -9,5 +10,6 @@ namespace Hoppa.LevelEditor.Core
     {
         bool Contains(string colorId);
         IEnumerable<string> ColorIds { get; }
+        bool TryGetColor(string colorId, out Color color);
     }
 }
