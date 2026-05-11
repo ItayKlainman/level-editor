@@ -30,7 +30,7 @@ namespace Hoppa.YarnTwist.Editor
         private bool             _loaded;
         private Vector2          _scroll;
 
-        public override void OnGUI(Rect rect, LevelEditorSession session)
+        protected override void Draw(Rect rect, LevelEditorSession session)
         {
             if (!_loaded) Reload();
 
