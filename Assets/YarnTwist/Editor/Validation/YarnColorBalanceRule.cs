@@ -41,32 +41,29 @@ namespace Hoppa.YarnTwist.Editor
             var colors = new HashSet<string>(balls.Keys);
             colors.UnionWith(capacity.Keys);
 
-            // Info row per color (always shown as a balance table)
+            // One row per color: grid is the source of truth.
+            // coveredBoxes = how much box-capacity the configured spools provide.
+            // neededSpools = how many spools the grid requires.
+            // Severity reflects balance so the header turns red on mismatch.
             foreach (var colorId in colors)
             {
                 balls.TryGetValue(colorId, out var b);
                 capacity.TryGetValue(colorId, out var cap);
-                int boxes  = _ballsPerBox   > 0 ? b   / _ballsPerBox   : 0;
-                int spools = _ballsPerSpool > 0 ? cap / _ballsPerSpool : 0;
-                string mark = b == cap ? "✓" : "✗";
-                Color? swatch = ctx.Palette != null && ctx.Palette.TryGetColor(colorId, out var c) ? c : (Color?)null;
-                yield return new ValidationEntry(Id, ValidationSeverity.Info,
-                    $"{colorId}: {boxes} boxes / {spools} spools  {mark}", swatch: swatch);
-            }
 
-            // Error row only for imbalanced colors
-            foreach (var colorId in colors)
-            {
-                balls.TryGetValue(colorId, out var b);
-                capacity.TryGetValue(colorId, out var cap);
-                if (b != cap)
-                {
-                    int boxes  = _ballsPerBox   > 0 ? b   / _ballsPerBox   : 0;
-                    int spools = _ballsPerSpool > 0 ? cap / _ballsPerSpool : 0;
-                    Color? swatch = ctx.Palette != null && ctx.Palette.TryGetColor(colorId, out var c) ? c : (Color?)null;
-                    yield return new ValidationEntry(Id, ValidationSeverity.Error,
-                        $"Color '{colorId}': {boxes} boxes vs {spools} spools capacity.", swatch: swatch);
-                }
+                int   gridBoxes    = _ballsPerBox   > 0 ? b   / _ballsPerBox   : 0;
+                int   neededSpools = _ballsPerSpool > 0 ? b   / _ballsPerSpool : 0;
+                int   configSpools = _ballsPerSpool > 0 ? cap / _ballsPerSpool : 0;
+                float coveredBoxes = _ballsPerBox   > 0 ? (float)cap / _ballsPerBox : 0f;
+
+                bool   balanced = b == cap;
+                string mark     = balanced ? "✓" : "✗";
+                Color? swatch   = ctx.Palette != null && ctx.Palette.TryGetColor(colorId, out var c)
+                                  ? c : (Color?)null;
+                var severity = balanced ? ValidationSeverity.Info : ValidationSeverity.Error;
+
+                yield return new ValidationEntry(Id, severity,
+                    $"{colorId}: {coveredBoxes:F1}/{gridBoxes} Boxes - {configSpools}/{neededSpools} Spools  {mark}",
+                    swatch: swatch);
             }
         }
 
