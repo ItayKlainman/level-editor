@@ -12,7 +12,15 @@
 
 All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.7` (Layer 1). Layer 2 fixes committed on master.
 
-### Added this session (2026-05-07)
+### Added this session (2026-05-11)
+
+**Bug fixes (Layer 2 — `YarnTopSectionPanel`, `YarnMasterLevelExporter`)**
+- Spool color picker popup now opens adjacent to the right-clicked swatch instead of far off-screen. Root cause: `GUIToScreenPoint` was called manually before passing to `PopupWindow.Show`, which also calls `GUIToScreenRect` internally — double-conversion. Fix: pass `swatchRect` (content-local) directly to `PopupWindow.Show`.
+- Tunnel cell export now includes `Direction` field (`OutputDirection` was never written to `BottomConfigs`). Arrow box already exported Direction correctly; tunnel was missed.
+
+---
+
+### Added previous session (2026-05-07)
 
 **Color palette expanded to full YATColorType enum (Layer 2 — data assets)**
 - `YarnTwistPalette.asset` replaced 6-color placeholder with all 13 YATColorType entries (Blue→PurpleBright).
