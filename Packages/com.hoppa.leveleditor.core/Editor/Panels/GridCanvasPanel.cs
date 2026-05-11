@@ -27,6 +27,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color GridBorder       = new Color(0.12f, 0.13f, 0.16f);
         private static readonly Color CellBg           = new Color(0.24f, 0.26f, 0.30f);
         private static readonly Color HoverColor       = new Color(1.00f, 1.00f, 1.00f, 0.13f);
+        private static readonly Color HoverOutline     = new Color(1.00f, 1.00f, 1.00f, 0.70f);
         private static readonly Color SelectOutline    = new Color(1.00f, 1.00f, 1.00f, 0.90f);
         private static readonly Color MultiSelOutline  = new Color(0.30f, 0.65f, 1.00f, 0.90f);
         private static readonly Color MoveSourceColor  = new Color(0.30f, 1.00f, 0.40f, 0.90f);
@@ -95,7 +96,10 @@ namespace Hoppa.LevelEditor.Core.Editor
                     DrawFallback(cellRect, cell);
 
                 if (_hoverCell == cellRef)
+                {
                     EditorGUI.DrawRect(cellRect, HoverColor);
+                    DrawCellOutline(cellRect, HoverOutline, 1f);
+                }
 
                 // Move source: green fill + outline
                 if (session.ActiveTool == GridEditTool.Move && _moveSource == cellRef)

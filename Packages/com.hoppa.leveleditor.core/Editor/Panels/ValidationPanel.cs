@@ -61,13 +61,17 @@ namespace Hoppa.LevelEditor.Core.Editor
                 return null;
             }
 
-            float contentH = report.Entries.Count * (RowHeight + RowPad) + RowPad;
+            // Sort: Info → Warning → Error so errors collect at the bottom
+            var sorted = new System.Collections.Generic.List<ValidationEntry>(report.Entries);
+            sorted.Sort((a, b) => ((int)a.Severity).CompareTo((int)b.Severity));
+
+            float contentH = sorted.Count * (RowHeight + RowPad) + RowPad;
             var viewRect   = new Rect(0, 0, content.width - 14f, contentH);
             _scroll = GUI.BeginScrollView(content, _scroll, viewRect);
 
             CellRef? clicked = null;
             float y = RowPad;
-            foreach (var entry in report.Entries)
+            foreach (var entry in sorted)
             {
                 var rowRect = new Rect(0, y, viewRect.width, RowHeight);
                 DrawRow(rowRect, entry);
