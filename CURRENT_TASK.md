@@ -14,6 +14,12 @@ All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.
 
 ### Added this session (2026-05-11)
 
+**Polish — hover outline, tunnel tooltip, validation sort (Layer 1 + Layer 2)**
+- `GridCanvasPanel`: all cells now show a 1px white outline on hover (in addition to the faint fill overlay). `HoverOutline = new Color(1f,1f,1f,0.70f)`, drawn via `DrawCellOutline`.
+- `YarnTunnelCellDefinition`: replaced `GUIContent` text-only tooltip with a custom IMGUI drawn overlay shown on hover. Draws a dark semi-transparent box below the cell listing each queued color with a 10px color swatch and ID label. `_palette?.TryGetColor(colorId, out c)` pattern used.
+- `ValidationPanel`: entries sorted ascending by severity before rendering so Info/Warning stack at the top and all Errors collect at the bottom.
+- Latest package tag: `v0.5.11` (Layer 1).
+
 **Bug fixes (Layer 2 — `YarnTopSectionPanel`, `YarnMasterLevelExporter`)**
 - Spool color picker popup now opens adjacent to the right-clicked swatch instead of far off-screen. Root cause: `GUIToScreenPoint` was called manually before passing to `PopupWindow.Show`, which also calls `GUIToScreenRect` internally — double-conversion. Fix: pass `swatchRect` (content-local) directly to `PopupWindow.Show`.
 - Tunnel cell export now includes `Direction` field (`OutputDirection` was never written to `BottomConfigs`). Arrow box already exported Direction correctly; tunnel was missed.

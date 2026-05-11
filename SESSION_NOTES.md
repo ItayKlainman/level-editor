@@ -5,10 +5,10 @@
 
 ---
 
-## Current status (as of 2026-05-07)
+## Current status (as of 2026-05-11)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `master` — all phases merged; latest tag `v0.5.7` (Layer 1). Layer 2 fixes committed directly on master.
+- **Active branch**: `master` — all phases merged; latest tag `v0.5.11` (Layer 1). Layer 2 fixes committed directly on master.
 - **All planned phases complete.** The framework is fully functional with Yarn Twist as the first game integration.
 
 ---
@@ -91,7 +91,7 @@ hoppa-level-editor-core/
 
 Consumer game (`YarnTwist`) references this package via private GitHub Git URL (production):
 ```
-"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.7"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.11"
 ```
 Layer 2 files live in both repos and must be kept in sync manually when changed. Target paths in YarnTwist:
 - `Assets/_YAT/Scripts/Editor/TopSection/YarnTopSectionPanel.cs`
