@@ -20,9 +20,9 @@ All changes on `master`. Layer 1 changes require a new UPM tag before YarnTwist 
 - `SummaryPanel` (Layer 1 editor): ID row now derived from `session.FilePath` filename (falls back to `doc.LevelId` for unsaved levels). Calls `GetSummaryExtras` on all exporters and displays results as accent-coloured rows after Grid. New APS float field above Notes. Reserves space for and calls `DrawExtraSummaryRows` per exporter.
 - `YarnMasterLevelExporter` (Layer 2): overrides `GetSummaryExtras` → Order (level key from `level_config.json`, path-cached) + Layout (non-wall bounding box). Overrides `ExtraSummaryRowCount = 1` + `DrawExtraSummaryRows` → Coins int field (reads/writes `doc.GameData["coinReward"]`, persists last value in `EditorPrefs`). Export now always overwrites `LevelRewardConfigs[key]` using the per-level coin reward.
 
-**Deployment needed**
-- [ ] Layer 1 changes: bump UPM tag (currently `v0.5.11`) → new tag, update YarnTwist `manifest.json`
-- [ ] Layer 2 changes: copy `YarnMasterLevelExporter.cs` to YarnTwist `Assets/_YAT/Scripts/Editor/`
+**Deployed as `v0.5.14`**
+- [x] Layer 1: tagged `v0.5.14`, YarnTwist `manifest.json` bumped
+- [x] Layer 2: `YarnMasterLevelExporter.cs` copied to YarnTwist
 
 ---
 
