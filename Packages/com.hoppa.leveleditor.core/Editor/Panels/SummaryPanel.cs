@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.IO;
 using Hoppa.LevelEditor.Core;
 using UnityEditor;
 using UnityEngine;
@@ -36,19 +37,49 @@ namespace Hoppa.LevelEditor.Core.Editor
             float lh = EditorGUIUtility.singleLineHeight + 2f;
             float lw = rect.width - 16f;
 
-            // Accent-coloured key metrics
+            // Level ID derived from the saved filename; falls back to doc.LevelId for unsaved levels.
+            string levelId = !string.IsNullOrEmpty(session.FilePath)
+                ? Path.GetFileNameWithoutExtension(session.FilePath)
+                : doc.LevelId;
+
+            // Total editable rows contributed by exporters (e.g. Coins from YarnMasterLevelExporter).
+            int totalExtraRows = 0;
+            foreach (var exp in session.Profile.Exporters)
+                if (exp != null) totalExtraRows += exp.ExtraSummaryRowCount;
+            float extraEditH = totalExtraRows > 0 ? totalExtraRows * lh + 2f : 0f;
+
+            // Bottom layout (positions, computed once):
+            //   [Notes textarea NotesH] [Notes label lh] [gap 2] [APS lh] [gap 4] [exporter editable extraEditH]
+            float notesTextY = rect.yMax - NotesH;
+            float notesLblY  = notesTextY - lh - 2f;
+            float apsY       = notesLblY - lh - 4f;
+            float extraTop   = apsY - extraEditH;
+            float countsMax  = extraTop - lh - 8f;
+
+            // Ensure metadata exists (needed for APS + Notes below).
+            var meta = doc.Metadata ?? (doc.Metadata = new LevelMetadata());
+
+            // ── Accent key-metric rows ─────────────────────────────────
             var oldColor = GUI.contentColor;
             GUI.contentColor = LabelColor;
             Row(ref y, x, lw, lh, $"Schema   {doc.SchemaVersion}");
-            Row(ref y, x, lw, lh, $"ID         {doc.LevelId}");
+            Row(ref y, x, lw, lh, $"ID         {levelId}");
             Row(ref y, x, lw, lh, $"Grid       {grid.Width} × {grid.Height}");
+
+            // Exporter info rows (Order, Layout, etc.)
+            foreach (var exp in session.Profile.Exporters)
+            {
+                if (exp == null) continue;
+                foreach (var (label, value) in exp.GetSummaryExtras(session))
+                    Row(ref y, x, lw, lh, $"{label,-11}{value}");
+            }
             GUI.contentColor = oldColor;
 
             // Separator
             EditorGUI.DrawRect(new Rect(x, y, lw, 1f), new Color(1f, 1f, 1f, 0.07f));
             y += 5f;
 
-            // Cell counts (using DisplayName if available)
+            // ── Cell counts ────────────────────────────────────────────
             var counts = new Dictionary<string, int>();
             for (int cy = 0; cy < grid.Height; cy++)
             for (int cx2 = 0; cx2 < grid.Width; cx2++)
@@ -59,8 +90,6 @@ namespace Hoppa.LevelEditor.Core.Editor
                 counts[cell.CellTypeId] = n + 1;
             }
 
-            // Reserve bottom for Notes; stop drawing counts before we run out of room
-            float countsMax = rect.yMax - NotesH - lh - 8f;
             foreach (var kv in counts)
             {
                 if (y + lh > countsMax) break;
@@ -74,20 +103,43 @@ namespace Hoppa.LevelEditor.Core.Editor
                 y += lh;
             }
 
-            // Notes textarea
-            float notesY = rect.yMax - NotesH - lh - 4f;
-            if (notesY > y) // separator before notes
+            // ── Separator before bottom block ──────────────────────────
+            if (extraTop > y + 4f)
+                EditorGUI.DrawRect(new Rect(x, extraTop - 4f, lw, 1f), new Color(1f, 1f, 1f, 0.07f));
+
+            // ── Exporter editable rows (e.g. Coins) ───────────────────
+            if (totalExtraRows > 0)
             {
-                EditorGUI.DrawRect(new Rect(x, notesY - 4f, lw, 1f), new Color(1f, 1f, 1f, 0.07f));
+                float ey = extraTop;
+                foreach (var exp in session.Profile.Exporters)
+                {
+                    if (exp == null || exp.ExtraSummaryRowCount == 0) continue;
+                    float rowsH = exp.ExtraSummaryRowCount * lh;
+                    exp.DrawExtraSummaryRows(new Rect(x, ey, lw, rowsH), session);
+                    ey += rowsH;
+                }
             }
 
-            var meta = doc.Metadata ?? (doc.Metadata = new LevelMetadata());
-
+            // ── APS field ─────────────────────────────────────────────
             GUI.contentColor = LabelColor;
-            GUI.Label(new Rect(x, notesY, lw, lh), "Notes", EditorStyles.miniLabel);
+            GUI.Label(new Rect(x, apsY, 44f, lh), "APS", EditorStyles.miniLabel);
             GUI.contentColor = oldColor;
 
-            var notesRect = new Rect(x, notesY + lh, lw, NotesH);
+            EditorGUI.BeginChangeCheck();
+            float aps = EditorGUI.FloatField(
+                new Rect(x + 46f, apsY, lw - 46f, lh), meta.Aps, EditorStyles.miniTextField);
+            if (EditorGUI.EndChangeCheck())
+            {
+                meta.Aps = aps;
+                session.MarkDirty();
+            }
+
+            // ── Notes label + textarea ────────────────────────────────
+            GUI.contentColor = LabelColor;
+            GUI.Label(new Rect(x, notesLblY, lw, lh), "Notes", EditorStyles.miniLabel);
+            GUI.contentColor = oldColor;
+
+            var notesRect = new Rect(x, notesTextY, lw, NotesH);
             EditorGUI.BeginChangeCheck();
             string notes = EditorGUI.TextArea(notesRect, meta.Notes ?? string.Empty, EditorStyles.miniTextField);
             if (EditorGUI.EndChangeCheck())

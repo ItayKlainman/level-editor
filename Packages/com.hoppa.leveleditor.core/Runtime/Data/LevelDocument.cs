@@ -49,5 +49,8 @@ namespace Hoppa.LevelEditor.Core
 
         [JsonProperty("notes")]
         public string Notes { get; set; } = string.Empty;
+
+        [JsonProperty("aps")]
+        public float Aps { get; set; }
     }
 }

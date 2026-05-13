@@ -8,11 +8,25 @@
 
 ## Active phase
 
-**Polish — Color palette, spool columns UX, grid scaling (2026-05-07)**
+**Summary panel enhancements + per-level coin reward (2026-05-13)**
 
-All changes on `master`, deployed to YarnTwist project. Latest package tag: `v0.5.7` (Layer 1). Layer 2 fixes committed on master.
+All changes on `master`. Layer 1 changes require a new UPM tag before YarnTwist can consume them.
 
-### Added this session (2026-05-11)
+### Added this session (2026-05-13)
+
+**Summary panel enhancements (Layer 1 + Layer 2)**
+- `LevelMetadata` (Layer 1 runtime): added `float Aps` field serialised as `"aps"` in the metadata block.
+- `LevelExporterAsset` (Layer 1 editor): added three virtual extension points — `GetSummaryExtras(session)` (read-only info rows), `ExtraSummaryRowCount` (int), `DrawExtraSummaryRows(rect, session)` (editable rows). No-op defaults keep existing exporters unaffected.
+- `SummaryPanel` (Layer 1 editor): ID row now derived from `session.FilePath` filename (falls back to `doc.LevelId` for unsaved levels). Calls `GetSummaryExtras` on all exporters and displays results as accent-coloured rows after Grid. New APS float field above Notes. Reserves space for and calls `DrawExtraSummaryRows` per exporter.
+- `YarnMasterLevelExporter` (Layer 2): overrides `GetSummaryExtras` → Order (level key from `level_config.json`, path-cached) + Layout (non-wall bounding box). Overrides `ExtraSummaryRowCount = 1` + `DrawExtraSummaryRows` → Coins int field (reads/writes `doc.GameData["coinReward"]`, persists last value in `EditorPrefs`). Export now always overwrites `LevelRewardConfigs[key]` using the per-level coin reward.
+
+**Deployment needed**
+- [ ] Layer 1 changes: bump UPM tag (currently `v0.5.11`) → new tag, update YarnTwist `manifest.json`
+- [ ] Layer 2 changes: copy `YarnMasterLevelExporter.cs` to YarnTwist `Assets/_YAT/Scripts/Editor/`
+
+---
+
+### Added previous session (2026-05-11)
 
 **Polish — hover outline, tunnel tooltip, validation sort (Layer 1 + Layer 2)**
 - `GridCanvasPanel`: all cells now show a 1px white outline on hover (in addition to the faint fill overlay). `HoverOutline = new Color(1f,1f,1f,0.70f)`, drawn via `DrawCellOutline`.
