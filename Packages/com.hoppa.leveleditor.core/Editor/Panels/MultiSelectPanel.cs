@@ -175,6 +175,23 @@ namespace Hoppa.LevelEditor.Core.Editor
                 y += BtnH + BtnGap + 2f;
             }
 
+            // ── Paste ────────────────────────────────────────────────────
+            if (session.CopiedCell != null)
+            {
+                var oldColor = GUI.contentColor;
+                GUI.contentColor = LabelColor;
+                GUI.Label(new Rect(x, y, cw, LabelH), "Clipboard", EditorStyles.miniLabel);
+                GUI.contentColor = oldColor;
+                y += LabelH;
+
+                if (GUI.Button(new Rect(x, y, cw, BtnH), "Paste to Selection  (Ctrl+V)", EditorStyles.miniButton))
+                {
+                    session.PasteToMultiSelection();
+                    GUI.changed = true;
+                }
+                y += BtnH + BtnGap + 2f;
+            }
+
             // ── Deselect All ─────────────────────────────────────────────
             var old = GUI.backgroundColor;
             GUI.backgroundColor = DeselBg;

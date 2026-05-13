@@ -166,6 +166,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                     break;
 
                 case EventType.KeyDown when ctrl && e.keyCode == KeyCode.V
+                    && session.CopiedCell != null
+                    && session.MultiSelection.Count > 0:
+                    if (session.PasteToMultiSelection()) GUI.changed = true;
+                    e.Use();
+                    break;
+
+                case EventType.KeyDown when ctrl && e.keyCode == KeyCode.V
                     && session.ActiveTool == GridEditTool.Select
                     && session.CopiedCell != null
                     && session.SelectedCell.HasValue:

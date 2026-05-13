@@ -100,6 +100,17 @@ namespace Hoppa.LevelEditor.Core.Editor
             return true;
         }
 
+        // Pastes the clipboard cell onto every cell in MultiSelection. Returns true on success.
+        public bool PasteToMultiSelection()
+        {
+            if (CopiedCell == null || MultiSelection.Count == 0) return false;
+            PushUndoSnapshot();
+            foreach (var cellRef in MultiSelection)
+                SetCell(cellRef.X, cellRef.Y, CloneCell(CopiedCell));
+            RunValidation();
+            return true;
+        }
+
         // Deep-clones a single cell by round-tripping through the serializer.
         public ICellData CloneCell(ICellData cell)
         {
