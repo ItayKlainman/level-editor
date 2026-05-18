@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0015, type: 3}
+  m_Name: YAKLevelExporter
+  m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKLevelExporter
+  _outputDir:
+  _colorMapping: {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0025, type: 2}
+  _defaultConveyorCount: 5

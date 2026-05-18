@@ -1,0 +1,16 @@
+{
+    "name": "Hoppa.YAK.Runtime",
+    "rootNamespace": "Hoppa.YAK",
+    "references": [
+        "Hoppa.LevelEditor.Core.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

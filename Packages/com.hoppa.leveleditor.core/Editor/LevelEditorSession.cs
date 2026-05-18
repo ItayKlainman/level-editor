@@ -145,8 +145,13 @@ namespace Hoppa.LevelEditor.Core.Editor
         public void Dispose() { }
 
         public static LevelEditorSession CreateEmpty(GameProfile profile)
+            => CreateEmpty(profile, profile.GridWidth, profile.GridHeight);
+
+        public static LevelEditorSession CreateEmpty(GameProfile profile, int width, int height)
         {
-            var grid     = new GridData<ICellData>(profile.GridWidth, profile.GridHeight);
+            width  = System.Math.Max(1, width);
+            height = System.Math.Max(1, height);
+            var grid     = new GridData<ICellData>(width, height);
             int fillIdx  = profile.CellTypes.Count > 1 ? 1 : 0;
             var fillDef  = profile.CellTypes.Count > 0 ? profile.CellTypes[fillIdx] : null;
             if (fillDef != null)

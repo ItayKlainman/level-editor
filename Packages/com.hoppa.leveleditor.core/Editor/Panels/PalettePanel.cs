@@ -16,7 +16,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private const float HeaderH  = 22f;
         private const float GroupGap = 10f;
         private const float ToolsH   = 80f;   // TOOLS section height
-        private const float BrushH   = 130f;  // BRUSH section height
+        private const float BrushH   = 180f;  // BRUSH section height (sized for larger swatches)
         private const float BrushHH  = 22f;
         private const float BtnH     = 38f;   // tool button height
 

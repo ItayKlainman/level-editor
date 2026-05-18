@@ -8,130 +8,95 @@
 
 ## Active phase
 
-**Summary panel enhancements + per-level coin reward (2026-05-13)**
+**YAK Layer 2 onboarding (2026-05-18)**
 
-All changes on `master`. Layer 1 changes require a new UPM tag before YarnTwist can consume them.
+YarnTwist's editor work is complete for now (tag `v0.5.14`). Now bringing up a
+sibling Layer 2 for the studio's next game, codenamed **YAK** — a pixel-art
+wool-grid puzzle. The framework already supports multi-profile coexistence
+(`LevelEditorWindow.DrawProfileSelector`), so YarnTwist stays untouched in
+`Assets/YarnTwist/` and YAK lives alongside it at `Assets/YAK/`. Switching
+games = drag a different `GameProfile` asset into the editor window field.
 
-### Added this session (2026-05-13)
+### Added this session (2026-05-18)
 
-**Summary panel enhancements (Layer 1 + Layer 2)**
-- `LevelMetadata` (Layer 1 runtime): added `float Aps` field serialised as `"aps"` in the metadata block.
-- `LevelExporterAsset` (Layer 1 editor): added three virtual extension points — `GetSummaryExtras(session)` (read-only info rows), `ExtraSummaryRowCount` (int), `DrawExtraSummaryRows(rect, session)` (editable rows). No-op defaults keep existing exporters unaffected.
-- `SummaryPanel` (Layer 1 editor): ID row now derived from `session.FilePath` filename (falls back to `doc.LevelId` for unsaved levels). Calls `GetSummaryExtras` on all exporters and displays results as accent-coloured rows after Grid. New APS float field above Notes. Reserves space for and calls `DrawExtraSummaryRows` per exporter.
-- `YarnMasterLevelExporter` (Layer 2): overrides `GetSummaryExtras` → Order (level key from `level_config.json`, path-cached) + Layout (non-wall bounding box). Overrides `ExtraSummaryRowCount = 1` + `DrawExtraSummaryRows` → Coins int field (reads/writes `doc.GameData["coinReward"]`, persists last value in `EditorPrefs`). Export now always overwrites `LevelRewardConfigs[key]` using the per-level coin reward.
+**YAK Layer 2 — initial scaffold (`Assets/YAK/`)**
 
-**Deployed as `v0.5.14`**
-- [x] Layer 1: tagged `v0.5.14`, YarnTwist `manifest.json` bumped
-- [x] Layer 2: `YarnMasterLevelExporter.cs` copied to YarnTwist
+Runtime (`Hoppa.YAK.Runtime`):
+- `YAKEmptyCell` (`ICellData`, `yak.empty`) — no-wool sentinel.
+- `YAKWoolCell` (`IColoredCell`, `yak.wool`) — holds `ColorId`.
+- `YAKSpoolEntry` (color + capacity + hidden), `YAKSpoolColumn`, `YAKTopSectionData`.
 
----
+Editor (`Hoppa.YAK.Editor`):
+- `YAKEmptyCellDefinition` — checker pattern in canvas, empty inspector.
+- `YAKWoolCellDefinition` — palette-coloured fill, `ColorSwatchDrawer` in inspector.
+- `YAKSpoolSectionPanel` — adapted from `YarnTopSectionPanel`. Variable column
+  count (2–5) via `+ / −` header buttons; per-spool capacity int field next to
+  the color swatch; per-spool `Hidden` toggle; drag-reorder + per-row delete +
+  cross-column move + column swap (same UX as Yarn).
+- `YAKColorBalanceRule` — counts wool tiles per color vs spool capacity sum per
+  color (including hidden); Info row when balanced, Error when not.
+- `YAKLevelExporter` — writes one YAK `LevelConfig` JSON per level. Color values
+  serialised as ints via `YAKColorMapping`. `PixelColors` is a flat int array
+  of length `Width*Height` in row-major bottom-up (`index = y*Width + x`), with
+  `0` = empty cell. Configurable `_outputDir` field on the asset (left empty
+  until the game repo is connected). Adds Columns / Spools / Wool to the
+  Summary panel, plus a Conveyor int field stored in `doc.GameData["conveyorCount"]`.
+- `YAKLevelImporter` — parses a YAK LevelConfig JSON back into a `LevelDocument`
+  using reverse-lookup on `YAKColorMapping`. Validates `PixelColors.Length == Width*Height`.
+- `YAKImportMenu` — `Tools › Hoppa Level Editor › Import YAK Level…`. Picks a
+  source YAK JSON, asks where to save the editor's working file, writes the
+  `LevelDocument` JSON, and auto-opens it in the Level Editor window.
 
-### Added previous session (2026-05-11)
+Framework (Layer 1) additions:
+- `NewLevelDialog` (modal) — pops on **New Level** with Width/Height fields
+  pre-filled from profile defaults. Lets YAK levels start at any size (30×30,
+  40×40, …) without changing the profile.
+- `LevelEditorWindow.Profile` — public getter so Layer 2 tooling can read the
+  active profile.
+- `LevelEditorWindow.OpenLevelFile(path)` — public hook used by `YAKImportMenu`
+  to auto-load the freshly imported file.
+- `LevelEditorSession.CreateEmpty(profile, width, height)` — overload accepting
+  per-level dimensions.
 
-**Polish — hover outline, tunnel tooltip, validation sort (Layer 1 + Layer 2)**
-- `GridCanvasPanel`: all cells now show a 1px white outline on hover (in addition to the faint fill overlay). `HoverOutline = new Color(1f,1f,1f,0.70f)`, drawn via `DrawCellOutline`.
-- `YarnTunnelCellDefinition`: replaced `GUIContent` text-only tooltip with a custom IMGUI drawn overlay shown on hover. Draws a dark semi-transparent box below the cell listing each queued color with a 10px color swatch and ID label. `_palette?.TryGetColor(colorId, out c)` pattern used.
-- `ValidationPanel`: entries sorted ascending by severity before rendering so Info/Warning stack at the top and all Errors collect at the bottom.
-- Latest package tag: `v0.5.11` (Layer 1).
-
-**Bug fixes (Layer 2 — `YarnTopSectionPanel`, `YarnMasterLevelExporter`)**
-- Spool color picker popup now opens adjacent to the right-clicked swatch instead of far off-screen. Root cause: `GUIToScreenPoint` was called manually before passing to `PopupWindow.Show`, which also calls `GUIToScreenRect` internally — double-conversion. Fix: pass `swatchRect` (content-local) directly to `PopupWindow.Show`.
-- Tunnel cell export now includes `Direction` field (`OutputDirection` was never written to `BottomConfigs`). Arrow box already exported Direction correctly; tunnel was missed.
-
----
-
-### Added previous session (2026-05-07)
-
-**Color palette expanded to full YATColorType enum (Layer 2 — data assets)**
-- `YarnTwistPalette.asset` replaced 6-color placeholder with all 13 YATColorType entries (Blue→PurpleBright).
-- Colors sourced directly from `StaticManager.asset` exact RGB values.
-- `YarnColorMapping.asset` corrected: turquoise fixed 10→12, added magenta(5), greenlime(11), purplebright(13), bluedark(10).
-
-**Inspector color swatch popup now shows all colors (Layer 2 — `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`)**
-- `InspectorPreferredHeight` bumped 60→70 (Box) and 56→70 (ArrowBox) so the popup allocates enough height for 2 swatch rows at the popup's 228px inner width.
-
-**Spool columns: scrollable, dynamic height, cross-column moves (Layer 2 — `YarnTopSectionPanel`)**
-- Columns no longer have a fixed visible-row count; scroll area fills all space above the grid.
-- Scroll activates only when column content exceeds available height (edge case: 15-20+ entries).
-- Per-row ← → buttons move individual spool entries between adjacent columns.
-- Per-column ← → buttons at the bottom swap entire column lists with adjacent columns (scroll positions travel with the data).
-- Color picker popup fixed to use `GUIUtility.GUIToScreenPoint` (was off-screen inside scroll group).
-
-**Grid canvas: bottom-anchored, dynamic cell size (Layer 1 — `GridCanvasPanel`, `LevelEditorWindow`)**
-- `GridCanvasPanel.RequiredHeight(canvasW, session)` computes the exact canvas height needed to show the grid without scrolling, based on width-only cell-size calculation.
-- `LevelEditorWindow` now uses bottom-up layout: canvas is anchored to the bottom at `RequiredHeight`; top section fills all remaining space above it.
-- Cell size scales dynamically (min 20px, max 48px) to fill available canvas width.
-
-**Deployment**
-- Tags: → `v0.5.7`
-- YarnTwist `manifest.json` bumped to `#v0.5.7`.
-- Layer 2 files copied: `YarnTopSectionPanel.cs`, `YarnBoxCellDefinition.cs`, `YarnArrowBoxCellDefinition.cs`.
-
----
-
-### Added previous session (2026-05-06)
-
-**CTRL+click multi-cell selection (Layer 1)**
-- `IColoredCell.ColorId` changed from `{ get; }` to `{ get; set; }` to enable batch color writes.
-- `LevelEditorSession.MultiSelection` — `HashSet<CellRef>` tracking selected cells. `ClearMultiSelection()` helper.
-- `GridCanvasPanel`: CTRL+click toggles a cell in/out of `MultiSelection`; non-CTRL click clears `MultiSelection` then does normal paint/select. Escape clears `MultiSelection` first, then exits Move tool. Multi-selected cells draw a blue outline (`MultiSelOutline = new Color(0.30f, 0.65f, 1.00f, 0.90f)`).
-- `MultiSelectPanel` (new) — shown in the right-column summary slot when `MultiSelection.Count > 0`. Lets the designer batch-change color (all `IColoredCell` in selection) and batch-change cell type (preserves color when both old+new implement `IColoredCell`). "Deselect All" button.
-- `LevelEditorWindow`: holds `private readonly MultiSelectPanel _multiSelect`; swaps Summary ↔ MultiSelectPanel based on `MultiSelection.Count`.
-
-**Game Profile persistence (Layer 1)**
-- `LevelEditorWindow._profile` is now `[SerializeField]` — Unity's EditorWindow serialization automatically restores it across close/reopen and domain reloads. Removed EditorPrefs GUID fallback code entirely.
-
-**Bug fixes**
-- `ValidationTests.cs`: `TestColoredCell.ColorId` updated to `{ get; set; }` to satisfy the updated `IColoredCell` interface. This was a silent compile failure that blocked both new features from loading.
-- `MultiSelectPanel.cs.meta` was not committed to git, causing CS0246 in the YarnTwist package cache. Fixed by committing the meta file and releasing `v0.5.3`.
-- Hit-testing offset (`GridCanvasPanel.ScreenToCell`): detection zones were 2 px offset from visual cells due to missing `CellGap` subtraction. Fixed in `v0.5.5`.
-- MultiSelectPanel scroll: body had no scroll view; content exceeded panel height. Fixed in `v0.5.5`.
-- **Level naming/indexing corruption** (Layer 2): `YarnMasterLevelExporter` was blindly writing to the filename-derived key on every save, overwriting the slot that `Apply Order` had assigned to another level. Fixed: now scans existing `LevelConfigs` for a matching `levelId` and updates in-place; only falls back to filename key for new levels.
-
-**Deployment**
-- Tags: `v0.5.0` → `v0.5.1` → `v0.5.2` → `v0.5.3` (meta fix) → `v0.5.4` (IHideableCell) → `v0.5.5` (hit-test + scroll)
-- YarnTwist `manifest.json` bumped to `#v0.5.5`.
-- Level index fix: Layer 2 only — no new tag needed. Commit `0548633` on master.
-
-**Maintenance**
-- McpPlugin NuGet upgraded 6.1.1 → 6.1.3 in `Assets/Plugins/NuGet/`.
-
----
-
-### Added previous session (2026-05-05)
-
-**Spool columns UI/UX (Layer 2 — `YarnTopSectionPanel`)**
-- Drag-and-drop reorder within each spool column via IMGUI drag handle.
-- Per-row `✕ Del` button replaces the old global `−` button.
-- Color picker filtered to only colors present on the grid; falls back to full palette when grid is empty.
-- `+` button default color: previous spool's color → first grid color → first palette color → "pink".
-
-**Layer 1 package (ColorPalette)**
-- `ColorSwatchDrawer` and `ColorPickerPopup` extended with optional `allowedIds` filter (v0.4.1).
-
-**Level Order tab (Layer 2 — `YarnLevelOrderPanel`)**
-- Each entry now shows a `#N` index label before the level name.
+Data assets (`Assets/YAK/Data/Config/`):
+- `YAKProfile.asset` — schema `yak`, default grid 30×30, wires empty+wool cell
+  defs, color balance rule, exporter, and the spool section panel script. No
+  order panel (one file per level, no master config to renumber).
+- `YAKPalette.asset` — 13 colors copied from `YarnTwistPalette` as starting set.
+- `YAKEmptyCellDef.asset`, `YAKWoolCellDef.asset`, `YAKColorBalanceRule.asset`.
+- `YAKColorMapping.asset` — 13 entries (`blue→1`, `cyan→2`, …, `purplebright→13`).
+  Reserves `0` for empty cells.
+- `YAKLevelExporter.asset` — color mapping wired; output dir empty pending game repo.
 
 ---
 
 ## Open items / known gaps
 
-### Manual steps still needed
-- [ ] In YarnTwist project: create `YarnLevelOrderPanel` asset → assign `YarnMasterLevelExporter` → assign to `YarnTwistProfile.asset` Order Panel field
-- [ ] Smoke test: export `level_005.json` → confirm key `"5"` appears in `level_config.json`
-- [ ] Smoke test: ⇅ Order tab → drag levels → Apply Order → verify keys renumbered
+### Manual verification still pending (must run in Unity)
+- [ ] Recompile scripts; confirm no compile errors in `Hoppa.YAK.Runtime` /
+      `Hoppa.YAK.Editor` / `Hoppa.LevelEditor.Core.Editor`.
+- [ ] Switch active profile to `YAKProfile` in `LevelEditorWindow`; confirm
+      grid renders, palette shows Empty + Wool, spool section panel renders
+      with two empty columns.
+- [ ] Click **New Level** → confirm the size dialog pops and 30×30 default is
+      pre-filled; create a level and paint a few wool cells.
+- [ ] Add spool columns / spools / capacities; confirm the Color Balance rule
+      shows one row per color and turns Error on mismatch.
+- [ ] Save level (LevelDocument JSON). Open it again via Open → round-trip works.
+- [ ] Set `_outputDir` on `YAKLevelExporter.asset` to a real path; click Export;
+      confirm `level_NNN.json` is written with int color values + correct
+      `Width`/`Height`/`ConveyorCount`/`SpoolColumnConfigs`/`PixelColors`.
+- [ ] **Regression** — switch profile back to `YarnTwistProfile`; confirm Yarn
+      flows (open existing `YT_*.json`, edit, save, export) still work.
+- [ ] **Importer** — once Eliran shares his `level_001.json`, run
+      `Tools › Hoppa Level Editor › Import YAK Level…` and round-trip it.
 
-### Low-priority Jira gaps (not implemented)
-- Arrow box / tunnel target cell highlight
-- Top View (Preview) mini-panel in right column
-- Copy Level ID button in toolbar/summary
-
-### Remaining open questions
-- [ ] Confirm `YATColorType` int values with game team and lock `YarnColorMapping.asset`
-- [ ] Grid offset `−3.5f` fix (when grid dimensions become variable)
-- [ ] ArrowBox + Tunnel full prefab implementation in game
-- [ ] Camera auto-fit wiring
-- [ ] Win/lose flow restoration
+### Decisions still pending input
+- [ ] Game repo output path for `YAKLevelExporter._outputDir`
+- [ ] Confirm `YAKColorType` int values once the game's enum is settled (current
+      mapping copied from YarnTwist's order: blue=1 … purplebright=13).
+- [ ] Whether YAK needs an Order panel later (currently filesystem-driven order;
+      can add later if a master config is introduced).
 
 ---
 
@@ -147,33 +112,37 @@ All changes on `master`. Layer 1 changes require a new UPM tag before YarnTwist 
 | Phase 4 — Top-section abstraction + export | ✅ Complete |
 | Phase 4.5 — UI/UX polish | ✅ Complete |
 | Phase 5 — Data pipeline integration | ✅ Complete |
-| Jira UI gaps (Medium) | ✅ Complete |
-| Brush template + color swatches | ✅ Complete |
-| Export key fix + Level Order Manager | ✅ Complete |
-| Save/Open directory memory | ✅ Complete |
-| Spool columns drag-reorder + per-row delete + grid color filter | ✅ Complete |
-| Multi-select (CTRL+click) + profile persistence | ✅ Complete |
-| Phase 6 — Second-game onboarding | Deferred |
+| YarnTwist Jira UI gaps | ✅ Complete |
+| YarnTwist brush template + color swatches | ✅ Complete |
+| YarnTwist export key fix + Level Order Manager | ✅ Complete |
+| YarnTwist save/open directory memory | ✅ Complete |
+| YarnTwist spool columns drag-reorder | ✅ Complete |
+| YarnTwist multi-select + profile persistence | ✅ Complete |
+| YarnTwist summary panel enhancements + coin reward (v0.5.14) | ✅ Complete |
+| Phase 6 — Second-game onboarding | 🔵 **In progress (YAK)** |
 
 ---
 
 ## Key design notes (carry forward)
 
-- `GridData` is bottomUp: y=0 = bottom row in data, drawn at bottom of canvas
-- First cell type in `GameProfile.CellTypes` must be the "empty" type (erase + fill)
-- `PushUndoSnapshot()` must be called BEFORE mutations (not after)
-- `CloneBrushTemplate()` is the correct way to get a fresh painted cell — never store `BrushTemplate` reference directly in the grid
-- `DrawInspector` must use absolute `GUI.*` / `EditorGUI.*` calls — never `GUILayout.BeginArea` (causes render leaks outside panel bounds)
-- `ColorSwatchDrawer.Draw()` is the reusable swatch picker for any `ColorPaletteAsset`
-- `YarnColorBalanceRule` emits Info entries (color table) + Error entries (imbalances) — both appear in `ValidationPanel`
-- `ScriptableObjectExporter.Export()` only works when .json path is inside `Assets/`
-- `LevelAsset.ApplyJson` is internal — only callable from Editor assembly
-- `GameProfile.CreateTopSection()` uses `MonoScript.GetClass()` + `Activator.CreateInstance`
-- `GridCanvasPanel.HoverCell` is public — read by `LevelEditorWindow` status bar
-- `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels
-- `YarnMasterLevelExporter` searches existing `LevelConfigs` for a matching `levelId` first; only falls back to the filename-derived key (`level_005.json` → `"5"`) for brand-new levels
-- `YarnLevelOrderPanel.WriteToFile()` is shared by Apply Order and the remove callback
-- `LevelEditorWindow._profile` is `[SerializeField]` — persists across domain reloads automatically (do NOT use EditorPrefs for this)
-- `MultiSelectPanel` is shown instead of `SummaryPanel` when `session.MultiSelection.Count > 0`
-- Every new `.cs` file in the UPM package **must** have a committed `.meta` file or Unity silently excludes it from compilation in consumers
-- Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump (currently `v0.5.3`); Layer 2 changes must be manually copied to `YarnTwist/Assets/_YAT/Scripts/Editor/` (preserve subdirectory structure)
+- `GridData` is bottomUp: y=0 = bottom row in data, drawn at bottom of canvas.
+  YAK's `PixelColors` follows the same convention so export needs no inversion.
+- YAK reserves `0` in its color mapping for the empty/no-wool sentinel; wool
+  colors start at `1`.
+- First cell type in `GameProfile.CellTypes` must be the "empty" type (erase + fill).
+- `PushUndoSnapshot()` must be called BEFORE mutations (not after).
+- `CloneBrushTemplate()` is the correct way to get a fresh painted cell — never
+  store `BrushTemplate` reference directly in the grid.
+- `DrawInspector` must use absolute `GUI.*` / `EditorGUI.*` calls — never
+  `GUILayout.BeginArea` (causes render leaks outside panel bounds).
+- `LevelEditorSession.MarkDirty()` is the safe way to flag unsaved state from panels.
+- Game switching = drag a different `GameProfile` asset into the
+  `LevelEditorWindow`'s profile selector. The selector remembers the choice
+  per project via `EditorPrefs` (`Hoppa.LevelEditor.ProfileGuid`).
+- Every new `.cs` file in the package or under `Assets/` **must** have a
+  committed `.meta` file with a stable GUID, or Unity silently excludes it from
+  compilation in package consumers.
+- Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump
+  (currently `v0.5.14`). Adding `NewLevelDialog`, `LevelEditorWindow.Profile`,
+  `LevelEditorWindow.OpenLevelFile`, and the `CreateEmpty(profile, w, h)`
+  overload will require a **`v0.5.15`** tag before YarnTwist consumers see them.

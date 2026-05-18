@@ -18,10 +18,13 @@ namespace Hoppa.LevelEditor.Core.Editor
         // Draws swatches wrapping into multiple rows as needed.
         // Returns the new selectedId; unchanged when nothing is clicked.
         // Pass allowedIds to restrict which palette entries are shown; null shows all.
+        // Pass size > 0 to override the default 20px swatch size (e.g. for big brush pickers).
         public static string Draw(Rect rect, ColorPaletteAsset palette, string selectedId,
-            ICollection<string> allowedIds = null)
+            ICollection<string> allowedIds = null, float size = 0f)
         {
             if (palette == null) return selectedId;
+
+            float sz = size > 0f ? size : Size;
 
             string result = selectedId;
             float  x      = rect.x;
@@ -32,23 +35,23 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (allowedIds != null && !allowedIds.Contains(entry.Id)) continue;
 
                 // Wrap to next row
-                if (x + Size > rect.xMax + 0.5f)
+                if (x + sz > rect.xMax + 0.5f)
                 {
                     x  = rect.x;
-                    y += Size + Gap;
+                    y += sz + Gap;
                 }
-                if (y + Size > rect.yMax + 0.5f) break;
+                if (y + sz > rect.yMax + 0.5f) break;
 
                 bool isSelected = string.Equals(entry.Id, selectedId, StringComparison.Ordinal);
-                bool isHovered  = new Rect(x, y, Size, Size).Contains(Event.current.mousePosition);
+                bool isHovered  = new Rect(x, y, sz, sz).Contains(Event.current.mousePosition);
 
                 // Border
                 if (isSelected)
-                    EditorGUI.DrawRect(new Rect(x - 2f, y - 2f, Size + 4f, Size + 4f), SelectBorder);
+                    EditorGUI.DrawRect(new Rect(x - 2f, y - 2f, sz + 4f, sz + 4f), SelectBorder);
                 else if (isHovered)
-                    EditorGUI.DrawRect(new Rect(x - 1f, y - 1f, Size + 2f, Size + 2f), HoverBorder);
+                    EditorGUI.DrawRect(new Rect(x - 1f, y - 1f, sz + 2f, sz + 2f), HoverBorder);
 
-                var swatchRect = new Rect(x, y, Size, Size);
+                var swatchRect = new Rect(x, y, sz, sz);
                 EditorGUI.DrawRect(swatchRect, entry.Color);
 
                 // Tooltip
@@ -61,7 +64,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                     GUI.changed = true;
                 }
 
-                x += Size + Gap;
+                x += sz + Gap;
             }
 
             return result;
@@ -69,17 +72,19 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         // Height needed to fit all swatches within the given pixel width.
         // Pass allowedIds to count only a subset of palette entries; null counts all.
+        // Pass size > 0 to override the default 20px swatch size.
         public static float MeasureHeight(ColorPaletteAsset palette, float width,
-            ICollection<string> allowedIds = null)
+            ICollection<string> allowedIds = null, float size = 0f)
         {
             if (palette == null || palette.Entries.Count == 0) return 0f;
+            float sz = size > 0f ? size : Size;
             int count = 0;
             foreach (var entry in palette.Entries)
                 if (allowedIds == null || allowedIds.Contains(entry.Id)) count++;
             if (count == 0) return 0f;
-            int perRow = Mathf.Max(1, Mathf.FloorToInt((width + Gap) / (Size + Gap)));
+            int perRow = Mathf.Max(1, Mathf.FloorToInt((width + Gap) / (sz + Gap)));
             int rows   = Mathf.CeilToInt(count / (float)perRow);
-            return rows * Size + Mathf.Max(0, rows - 1) * Gap;
+            return rows * sz + Mathf.Max(0, rows - 1) * Gap;
         }
     }
 }

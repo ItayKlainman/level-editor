@@ -33,6 +33,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region above the grid.\nExample: SpoolColumnsTopSectionPanel — leave empty for no top section.")]
         [SerializeField] private MonoScript _topSectionScript;
 
+        [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region BELOW the grid (e.g. a spool queue that lives at the bottom of the game screen).\nThe abstract base type is the same as top section — the slot it renders in is decided by which field you assign it to.")]
+        [SerializeField] private MonoScript _bottomSectionScript;
+
         [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
         [SerializeField] private EditorPanelAsset _orderPanel;
 
@@ -61,10 +64,13 @@ namespace Hoppa.LevelEditor.Core.Editor
             return registry;
         }
 
-        public TopSectionPanel CreateTopSection()
+        public TopSectionPanel CreateTopSection() => InstantiateSection(_topSectionScript);
+        public TopSectionPanel CreateBottomSection() => InstantiateSection(_bottomSectionScript);
+
+        private static TopSectionPanel InstantiateSection(MonoScript script)
         {
-            if (_topSectionScript == null) return new EmptyTopSectionPanel();
-            var type = _topSectionScript.GetClass();
+            if (script == null) return new EmptyTopSectionPanel();
+            var type = script.GetClass();
             if (type == null || !typeof(TopSectionPanel).IsAssignableFrom(type))
                 return new EmptyTopSectionPanel();
             try   { return (TopSectionPanel)Activator.CreateInstance(type); }

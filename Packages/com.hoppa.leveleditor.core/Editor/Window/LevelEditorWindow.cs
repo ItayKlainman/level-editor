@@ -16,14 +16,39 @@ namespace Hoppa.LevelEditor.Core.Editor
         private readonly SummaryPanel      _summary     = new SummaryPanel();
         private readonly ValidationPanel   _validation  = new ValidationPanel();
         private readonly MultiSelectPanel  _multiSelect = new MultiSelectPanel();
-        private TopSectionPanel _topSection = new EmptyTopSectionPanel();
+        private TopSectionPanel _topSection    = new EmptyTopSectionPanel();
+        private TopSectionPanel _bottomSection = new EmptyTopSectionPanel();
 
         private LevelEditorSession _session;
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
 
+        // Exposed so Layer 2 importers can resolve cell types via the active registry.
+        public GameProfile Profile => _profile;
+
+        // Public entry point for Layer 2 importers: load a LevelDocument JSON file
+        // from disk into this window. Requires a profile to be selected.
+        public void OpenLevelFile(string path)
+        {
+            if (_profile == null && !TryAutoPickProfile()) return;
+            if (string.IsNullOrEmpty(path)) return;
+            EditorPrefs.SetString(LastDirPrefKey, Path.GetDirectoryName(path));
+            LoadFromPath(path);
+            Focus();
+        }
+
         private const string LastDirPrefKey    = "Hoppa.LevelEditor.LastSaveDir";
         private const string ProfileGuidPrefKey = "Hoppa.LevelEditor.ProfileGuid";
+        private const string BottomHPrefKey    = "Hoppa.LevelEditor.BottomSectionH";
+
+        // Optional user override for the bottom-section height (drag-splitter).
+        // -1 = use the panel's PreferredHeight. Persisted via EditorPrefs.
+        private float _bottomSectionOverrideH = -1f;
+        private bool  _isDraggingBotSplitter;
+        private const float SplitterHitH = 6f;
+        private const float SplitterVisH = 2f;
+        private static readonly Color SplitterIdle  = new Color(0.08f, 0.09f, 0.11f);
+        private static readonly Color SplitterHover = new Color(0.35f, 0.68f, 1.00f, 0.65f);
 
         private const float ToolbarH   = 28f;
         private const float PaletteW   = 195f;
@@ -48,6 +73,8 @@ namespace Hoppa.LevelEditor.Core.Editor
                     _profile = AssetDatabase.LoadAssetAtPath<GameProfile>(AssetDatabase.GUIDToAssetPath(guid));
             }
 
+            _bottomSectionOverrideH = EditorPrefs.GetFloat(BottomHPrefKey, -1f);
+
             _toolbar.OnNew         += HandleNew;
             _toolbar.OnOpen        += HandleOpen;
             _toolbar.OnSave        += HandleSave;
@@ -71,8 +98,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnTestPlay    -= HandleTestPlay;
             _toolbar.OnOrderToggle -= HandleOrderToggle;
             _session?.Dispose();
-            _session    = null;
-            _topSection = new EmptyTopSectionPanel();
+            _session       = null;
+            _topSection    = new EmptyTopSectionPanel();
+            _bottomSection = new EmptyTopSectionPanel();
         }
 
         private void OnGUI()
@@ -126,16 +154,45 @@ namespace Hoppa.LevelEditor.Core.Editor
             // ── Left: palette ─────────────────────────────────────────
             _palette.OnGUI(new Rect(0f, bodyY, PaletteW, innerH), _session);
 
-            // ── Centre: top section + canvas ──────────────────────────
-            // Canvas is bottom-anchored: it gets exactly what the grid needs;
-            // the top section fills all remaining space above it.
+            // ── Centre: top section + canvas + bottom section ────────
+            // Layout is top → grid → bottom. The bottom section reserves at
+            // least its PreferredHeight; the user can drag the splitter to
+            // give it more room (persisted via EditorPrefs). The canvas takes
+            // whatever's left between the two sections and scrolls internally
+            // if its content exceeds that space. The top section soaks up any
+            // leftover height (preserves Yarn's bottom-anchored grid).
             float centerX = PaletteW + 1f;
             float centerW = w - PaletteW - RightW - 2f;
             float canvasH = _canvas.RequiredHeight(centerW, _session);
-            float topH    = Mathf.Max(0f, innerH - canvasH);
+            float minTopH = _topSection.PreferredHeight;
+            float minBotH = _bottomSection.PreferredHeight;
+
+            // Bottom: PreferredHeight as floor; user can drag larger (capped so
+            // the grid keeps at least ~100px and 1 row of cells).
+            float maxBotH = Mathf.Max(minBotH, innerH - 100f);
+            float botH    = 0f;
+            if (minBotH > 0f)
+            {
+                botH = (_bottomSectionOverrideH > 0f)
+                    ? Mathf.Clamp(_bottomSectionOverrideH, minBotH, maxBotH)
+                    : minBotH;
+            }
+
+            float remaining = innerH - botH;
+            float topH      = (canvasH + minTopH <= remaining)
+                ? Mathf.Max(0f, remaining - canvasH)
+                : minTopH;
+            topH = Mathf.Clamp(topH, 0f, remaining);
+
             if (topH > 0f)
                 _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
-            _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH), _session);
+            _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH - botH), _session);
+            if (botH > 0f)
+                _bottomSection.OnGUI(new Rect(centerX, bodyY + innerH - botH, centerW, botH), _session);
+
+            // Splitter between canvas and bottom section (only when both exist).
+            if (botH > 0f)
+                HandleBottomSplitter(centerX, bodyY + innerH - botH, centerW, minBotH, maxBotH, bodyY, innerH);
 
             // ── Right: validation (50%) + summary (50%) ──────────────────
             float rightX   = w - RightW + 1f;
@@ -230,12 +287,17 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             if (_profile == null && !TryAutoPickProfile()) return;
             if (!ConfirmDiscard()) return;
-            _session?.Dispose();
-            _session    = LevelEditorSession.CreateEmpty(_profile);
-            _topSection = _profile.CreateTopSection();
-            AutoActivateCellType();
-            _session.RunValidation();
-            Repaint();
+
+            NewLevelDialog.Show(_profile.GridWidth, _profile.GridHeight, (w, h) =>
+            {
+                _session?.Dispose();
+                _session       = LevelEditorSession.CreateEmpty(_profile, w, h);
+                _topSection    = _profile.CreateTopSection();
+                _bottomSection = _profile.CreateBottomSection();
+                AutoActivateCellType();
+                _session.RunValidation();
+                Repaint();
+            });
         }
 
         private void HandleOpen()
@@ -354,6 +416,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                 _session          = new LevelEditorSession(_profile, doc);
                 _session.FilePath = path;
                 _topSection       = _profile.CreateTopSection();
+                _bottomSection    = _profile.CreateBottomSection();
                 AutoActivateCellType();
                 _session.RunValidation();
                 Repaint();
@@ -429,6 +492,47 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (_session == null || !_session.IsDirty) return true;
             return EditorUtility.DisplayDialog("Unsaved Changes",
                 "You have unsaved changes. Discard them?", "Discard", "Cancel");
+        }
+
+        // Draws a thin draggable splitter on the boundary between the canvas
+        // and the bottom-section panel. Drag to resize; persists in EditorPrefs.
+        // Hit area is wider than the visible line so it's easy to grab.
+        private void HandleBottomSplitter(float centerX, float boundaryY, float centerW,
+            float minBotH, float maxBotH, float bodyY, float innerH)
+        {
+            var hitRect = new Rect(centerX, boundaryY - SplitterHitH * 0.5f,
+                centerW, SplitterHitH);
+            var visRect = new Rect(centerX, boundaryY - SplitterVisH * 0.5f,
+                centerW, SplitterVisH);
+
+            EditorGUIUtility.AddCursorRect(hitRect, MouseCursor.ResizeVertical);
+
+            bool isHover = hitRect.Contains(Event.current.mousePosition);
+            EditorGUI.DrawRect(visRect, (isHover || _isDraggingBotSplitter) ? SplitterHover : SplitterIdle);
+
+            var e = Event.current;
+            if (!_isDraggingBotSplitter
+                && e.type == EventType.MouseDown && e.button == 0 && isHover)
+            {
+                _isDraggingBotSplitter = true;
+                e.Use();
+            }
+            else if (_isDraggingBotSplitter)
+            {
+                if (e.type == EventType.MouseDrag)
+                {
+                    float newBotH = bodyY + innerH - e.mousePosition.y;
+                    _bottomSectionOverrideH = Mathf.Clamp(newBotH, minBotH, maxBotH);
+                    EditorPrefs.SetFloat(BottomHPrefKey, _bottomSectionOverrideH);
+                    Repaint();
+                    e.Use();
+                }
+                else if (e.type == EventType.MouseUp)
+                {
+                    _isDraggingBotSplitter = false;
+                    e.Use();
+                }
+            }
         }
 
         private static void DrawCenteredMessage(Rect rect, string message)

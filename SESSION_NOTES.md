@@ -5,11 +5,23 @@
 
 ---
 
-## Current status (as of 2026-05-13)
+## Current status (as of 2026-05-18)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `master` — all phases merged; latest tag `v0.5.14` (Layer 1). Layer 2 fixes committed directly on master.
-- **All planned phases complete.** The framework is fully functional with Yarn Twist as the first game integration.
+- **Active branch**: `master` — YarnTwist phase complete at tag `v0.5.14`. **YAK Layer 2 onboarding in progress** — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). Next Layer 1 tag will be `v0.5.15` when those changes deploy to consumers.
+- **Multi-game project**: both YarnTwist and YAK Layer 2s coexist in this same Unity project. The framework's profile selector (`LevelEditorWindow.DrawProfileSelector`) is the switcher.
+
+---
+
+## Game profiles in this project
+
+| Profile | Path | Purpose |
+|---|---|---|
+| `YarnTwistProfile.asset` | `Assets/YarnTwist/Data/Config/` | Yarn Twist (puzzle: spool→box matching, walls, tunnels, arrow boxes). Schema `yarn-twist`. |
+| `YAKProfile.asset` | `Assets/YAK/Data/Config/` | YAK (pixel-art wool grid + vertical spool queue + conveyor). Schema `yak`. |
+| `DemoProfile.asset` | `Assets/Samples/Hoppa Level Editor Core/0.1.0/DemoColorGridGame/Data/` | Sample / minimal-game reference. Schema `demo`. |
+
+**To switch games**: open `Window ▸ Level Editor`. If a level is loaded, click New or Open to bring up the profile selector; drag a different `GameProfile.asset` into the Game Profile field. The choice persists across sessions via `EditorPrefs` key `Hoppa.LevelEditor.ProfileGuid`. Layer 2 assets do not interfere with each other — different namespaces, asmdefs, and cell-type prefixes (`yt.*` vs `yak.*`).
 
 ---
 
