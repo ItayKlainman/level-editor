@@ -1,0 +1,123 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd1ea1777eab2fe40b4e14e4bd9b98a1, type: 3}
+  m_Name: StaticManager
+  m_EditorClassIdentifier:
+  _colorTypeHelpers:
+  - ColorType: 1
+    Color: {r: 0.10196079, g: 0.37254903, b: 0.8784314, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 2
+    Color: {r: 0.35686275, g: 0.78431374, b: 0.9411765, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 3
+    Color: {r: 1, g: 0.8392157, b: 0.039215688, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 4
+    Color: {r: 0.12156863, g: 0.63529414, b: 0.16470589, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 5
+    Color: {r: 0.90980394, g: 0.22745098, b: 0.67058825, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 6
+    Color: {r: 1, g: 0.5411765, b: 0.10980392, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 7
+    Color: {r: 1, g: 0.7019608, b: 0.78039217, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 8
+    Color: {r: 0.627451, g: 0.20784314, b: 0.85882354, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 9
+    Color: {r: 0.90980394, g: 0.11764706, b: 0.17254902, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 10
+    Color: {r: 0.043137256, g: 0.18039216, b: 0.47058824, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 11
+    Color: {r: 0.36862746, g: 0.90980394, b: 0.24705882, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 12
+    Color: {r: 0.12156863, g: 0.79607844, b: 0.83137256, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 13
+    Color: {r: 0.76862746, g: 0.36862746, b: 0.85882354, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 14
+    Color: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 15
+    Color: {r: 0.65882355, g: 0.6862745, b: 0.7372549, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 16
+    Color: {r: 0.23921569, g: 0.25882354, b: 0.3137255, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 17
+    Color: {r: 0.10196079, g: 0.105882354, b: 0.13725491, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 18
+    Color: {r: 0.627451, g: 0.3529412, b: 0.16470589, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 19
+    Color: {r: 0.36078432, g: 0.21176471, b: 0.14117648, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 20
+    Color: {r: 0.83137256, g: 0.6313726, b: 0.39215687, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 21
+    Color: {r: 0.9607843, g: 0.78431374, b: 0.5882353, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 22
+    Color: {r: 0.8156863, g: 0.8352941, b: 0.87058824, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 23
+    Color: {r: 0.3647059, g: 0.39607844, b: 0.46666667, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 24
+    Color: {r: 0.078431375, g: 0.28235295, b: 0.70980394, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 25
+    Color: {r: 0.20392157, g: 0.34509805, b: 0.8, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 26
+    Color: {r: 0.38431373, g: 0.6901961, b: 0.9607843, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 27
+    Color: {r: 0.039215688, g: 0.41960785, b: 0.12156863, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 28
+    Color: {r: 0.41960785, g: 0.78431374, b: 0.20392157, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 29
+    Color: {r: 1, g: 0.72156864, b: 0.10980392, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 30
+    Color: {r: 1, g: 0.2901961, b: 0.10980392, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 31
+    Color: {r: 1, g: 0.79607844, b: 0.52156866, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 32
+    Color: {r: 0.29411766, g: 0.078431375, b: 0.52156866, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 33
+    Color: {r: 0.62352943, g: 0.90980394, b: 0.9019608, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 34
+    Color: {r: 0.83137256, g: 0.21960784, b: 0.44705883, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 35
+    Color: {r: 1, g: 0.9254902, b: 0.5411765, a: 1}
+    PixelMaterial: {fileID: 0}
+  - ColorType: 36
+    Color: {r: 0.18039216, g: 0.09411765, b: 0.07058824, a: 1}
+    PixelMaterial: {fileID: 0}

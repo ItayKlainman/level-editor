@@ -68,10 +68,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 new Rect(_gridOffsetX, _gridOffsetY, totalW, totalH),
                 GridBorder);
 
-            // Update hover before drawing so the highlight matches the current event's mouse position
-            var me = new Vector2(Event.current.mousePosition.x + _scroll.x,
-                                 Event.current.mousePosition.y + _scroll.y);
-            _hoverCell = ScreenToCell(me, grid, _gridOffsetX, _gridOffsetY, _cellStep);
+            // Inside BeginScrollView, Event.current.mousePosition is already in
+            // scroll-content-local space — IMGUI applies the scroll translation
+            // for us. Adding _scroll here would double-translate and offset the
+            // hit-test by the scroll amount once the grid is big enough to scroll.
+            _hoverCell = ScreenToCell(Event.current.mousePosition, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             DrawCells(grid, session);
             HandleEvents(rect, grid, session);
@@ -138,9 +139,8 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void HandleEvents(Rect scrollViewRect, GridData<ICellData> grid, LevelEditorSession session)
         {
-            var e           = Event.current;
-            var mouseInView = new Vector2(e.mousePosition.x + _scroll.x, e.mousePosition.y + _scroll.y);
-            _hoverCell      = ScreenToCell(mouseInView, grid, _gridOffsetX, _gridOffsetY, _cellStep);
+            var e      = Event.current;
+            _hoverCell = ScreenToCell(e.mousePosition, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             bool ctrl = e.control || e.command;
             var  inBounds = new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height);

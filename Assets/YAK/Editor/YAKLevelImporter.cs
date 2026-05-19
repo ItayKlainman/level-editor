@@ -1,25 +1,24 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using Hoppa.LevelEditor.Core;
-using Hoppa.LevelEditor.Core.Editor;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 namespace Hoppa.YAK.Editor
 {
     // Parses a YAK LevelConfig JSON file (game-format) and reconstructs a LevelDocument
-    // the framework editor can open. Reverse-lookup against YAKColorMapping resolves
-    // ints back to colorIds; the framework's GridData is row-major bottom-up which
-    // matches PixelColors directly, so no inversion is needed.
+    // the framework editor can open. Int → colorId resolution goes through the
+    // YAKStaticManagerColorSource so the StaticManager remains the single source
+    // of truth. PixelColors is row-major bottom-up which matches the framework's
+    // GridData layout directly — no inversion needed.
     public static class YAKLevelImporter
     {
-        public static LevelDocument Import(string yakJsonPath, StringIntMapping colorMapping, string schemaId)
+        public static LevelDocument Import(string yakJsonPath, YAKStaticManagerColorSource colorSource, string schemaId)
         {
             if (string.IsNullOrEmpty(yakJsonPath))
                 throw new ArgumentException("yakJsonPath must be non-empty.");
-            if (colorMapping == null)
-                throw new ArgumentNullException(nameof(colorMapping));
+            if (colorSource == null)
+                throw new ArgumentNullException(nameof(colorSource));
 
             var text = File.ReadAllText(yakJsonPath);
             var root = JObject.Parse(text);
@@ -30,8 +29,6 @@ namespace Hoppa.YAK.Editor
 
             if (width <= 0 || height <= 0)
                 throw new InvalidDataException($"Invalid Width/Height ({width}x{height}) in '{yakJsonPath}'.");
-
-            var reverse = BuildReverseLookup(colorMapping);
 
             var grid   = new GridData<ICellData>(width, height);
             var pixels = root["PixelColors"] as JArray;
@@ -46,8 +43,11 @@ namespace Hoppa.YAK.Editor
                 if (value == 0)
                 {
                     grid.Cells[i] = new YAKEmptyCell();
+                    continue;
                 }
-                else if (reverse.TryGetValue(value, out var colorId))
+
+                var colorId = colorSource.GetColorId(value);
+                if (!string.IsNullOrEmpty(colorId))
                 {
                     grid.Cells[i] = new YAKWoolCell { ColorId = colorId };
                 }
@@ -74,9 +74,11 @@ namespace Hoppa.YAK.Editor
                             int cap      = s?["Capacity"]?.Value<int>()  ?? 0;
                             bool hidden  = s?["IsHidden"]?.Value<bool>() ?? false;
 
-                            string colorId = "blue";
-                            if (colorInt != 0 && reverse.TryGetValue(colorInt, out var resolved))
-                                colorId = resolved;
+                            string colorId = colorSource.GetColorId(colorInt);
+                            // Fallback: an empty/None entry shouldn't appear on real spools, but
+                            // keep something benign so import doesn't blow up.
+                            if (string.IsNullOrEmpty(colorId))
+                                colorId = colorSource.GetColorId(1) ?? string.Empty;
 
                             col.Spools.Add(new YAKSpoolEntry
                             {
@@ -107,17 +109,6 @@ namespace Hoppa.YAK.Editor
                 GameData      = new JObject { ["conveyorCount"] = conveyorCount },
             };
             return doc;
-        }
-
-        private static Dictionary<int, string> BuildReverseLookup(StringIntMapping mapping)
-        {
-            var dict = new Dictionary<int, string>();
-            foreach (var entry in mapping.Entries)
-            {
-                if (entry == null || string.IsNullOrEmpty(entry.Key)) continue;
-                if (!dict.ContainsKey(entry.Value)) dict[entry.Value] = entry.Key;
-            }
-            return dict;
         }
     }
 }

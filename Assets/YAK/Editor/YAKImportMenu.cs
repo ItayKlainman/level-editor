@@ -27,11 +27,11 @@ namespace Hoppa.YAK.Editor
                 return;
             }
 
-            var colorMapping = FindColorMappingFor(profile);
-            if (colorMapping == null)
+            var colorSource = FindColorSourceFor(profile);
+            if (colorSource == null)
             {
-                EditorUtility.DisplayDialog("Color Mapping Missing",
-                    "The active profile's YAKLevelExporter has no Color Mapping assigned. Set one and retry.", "OK");
+                EditorUtility.DisplayDialog("Color Source Missing",
+                    "The active profile's YAKLevelExporter has no Color Source assigned. Set one (a YAKStaticManagerColorSource asset) and retry.", "OK");
                 return;
             }
 
@@ -43,7 +43,7 @@ namespace Hoppa.YAK.Editor
             LevelDocument doc;
             try
             {
-                doc = YAKLevelImporter.Import(srcPath, colorMapping, profile.SchemaId);
+                doc = YAKLevelImporter.Import(srcPath, colorSource, profile.SchemaId);
             }
             catch (System.Exception ex)
             {
@@ -76,16 +76,16 @@ namespace Hoppa.YAK.Editor
         }
 
         // Locates the YAKLevelExporter on the active profile and returns its
-        // assigned color mapping (needed to translate ints back to colorIds).
-        private static StringIntMapping FindColorMappingFor(GameProfile profile)
+        // assigned color source (needed to translate ints back to colorIds).
+        private static YAKStaticManagerColorSource FindColorSourceFor(GameProfile profile)
         {
             foreach (var exporter in profile.Exporters)
             {
                 if (exporter is YAKLevelExporter yak)
                 {
                     var so   = new SerializedObject(yak);
-                    var prop = so.FindProperty("_colorMapping");
-                    return prop?.objectReferenceValue as StringIntMapping;
+                    var prop = so.FindProperty("_colorSource");
+                    return prop?.objectReferenceValue as YAKStaticManagerColorSource;
                 }
             }
             return null;
