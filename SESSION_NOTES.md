@@ -101,13 +101,29 @@ hoppa-level-editor-core/
     Samples/                 — DemoColorGridGame sample
 ```
 
-Consumer game (`YarnTwist`) references this package via private GitHub Git URL (production):
+Consumer games reference this package via private GitHub Git URL (production):
+- `YarnTwist` (`E:/Projects/Hoppa/YarnTwist`) — currently pinned at `v0.5.14`.
+- `YarnKingdom` (`E:/Projects/Hoppa/YarnKingdom`) — currently pinned at `v0.5.16`.
+
 ```
-"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.14"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.16"
 ```
-Layer 2 files live in both repos and must be kept in sync manually when changed. Target paths in YarnTwist:
+
+Layer 2 files live in both repos and must be kept in sync manually when changed.
+
+**YarnTwist Layer 2 target paths:**
 - `Assets/_YAT/Scripts/Editor/TopSection/YarnTopSectionPanel.cs`
 - `Assets/_YAT/Scripts/Editor/YarnLevelOrderPanel.cs`
+
+**YarnKingdom Layer 2 target paths** (`Assets/YAK/` → `Assets/_YAK/LevelEditor/`):
+- `Editor/` → `Editor/` (cells, top section, validation, importer, exporter, color source, asmdef)
+- `Runtime/` → `Runtime/` (cell types, top-section data, asmdef)
+- `Data/Config/` → `Data/Config/` (CellDefs, Exporters, Rules, Palette, YAKProfile.asset)
+
+**Do NOT sync to YarnKingdom:**
+- `Runtime/YAKStaticManagerScriptableObject.cs` — editor-side mirror; game has its own real type under `YAK.Gamelogic`.
+- `Data/Config/Palette/StaticManager.asset`, `YAKPalette.asset`, `Exporters/YAKColorMapping.asset` — legacy / editor-only artifacts.
+- `Editor/YAK.Editor.asmdef` and `Data/Config/Palette/YAKStaticManagerColorSource.asset` — these intentionally drift between projects (asmdef refs `YAK.Gamelogic` only in YarnKingdom; color source's `_staticManager` points at YarnKingdom's game StaticManager GUID).
 
 ---
 

@@ -143,6 +143,15 @@ Data assets (`Assets/YAK/Data/Config/`):
   committed `.meta` file with a stable GUID, or Unity silently excludes it from
   compilation in package consumers.
 - Layer 1 UPM changes deploy via git tag + consumer `manifest.json` bump
-  (currently `v0.5.14`). Adding `NewLevelDialog`, `LevelEditorWindow.Profile`,
-  `LevelEditorWindow.OpenLevelFile`, and the `CreateEmpty(profile, w, h)`
-  overload will require a **`v0.5.15`** tag before YarnTwist consumers see them.
+  (currently `v0.5.16`). Tag history:
+  - `v0.5.15` — `NewLevelDialog`, public `Profile`/`OpenLevelFile`,
+    `CreateEmpty(profile, w, h)` overload, framework bottom-section support,
+    YAK single-source color refactor.
+  - `v0.5.16` — `GridCanvasPanel` mouse hit-test now follows the scroll
+    offset; previously, once the canvas scrolled (e.g. when the YAK bottom
+    spool panel shrunk the canvas below the grid's required height), the
+    bottom `_scroll.y` pixels of the visible viewport silently rejected
+    clicks. Layer 2: `YAKProfile.asset` rewired from the legacy
+    `YAKPalette.asset` to `YAKStaticManagerColorSource.asset` (single
+    source of truth per `design_yak_colors_single_source.md`) — fixes the
+    empty color picker popup when right-clicking spool swatches.
