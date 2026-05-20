@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: YAKProfile
   m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
   _schemaId: yak
-  _colorPalette: {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0021, type: 2}
+  _colorPalette: {fileID: 11400000, guid: 8b4d02e9a5f37c61b9d2e3f4a5b6c7d8, type: 2}
   _gridWidth: 30
   _gridHeight: 30
   _cellTypes:
