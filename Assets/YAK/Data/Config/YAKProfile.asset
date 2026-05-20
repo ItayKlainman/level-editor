@@ -25,4 +25,4 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0026, type: 2}
   _topSectionScript: {fileID: 0}
   _bottomSectionScript: {fileID: 11500000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0013, type: 3}
-  _orderPanel: {fileID: 0}
+  _orderPanel: {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0027, type: 2}
