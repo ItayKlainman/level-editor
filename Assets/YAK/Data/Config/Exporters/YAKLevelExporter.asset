@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0015, type: 3}
   m_Name: YAKLevelExporter
   m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKLevelExporter
-  _outputPath: E:/Projects/Hoppa/YarnKingdom/Assets/_YAK/Configs/Resources/Configs/level_config.json
+  _outputPath:
   _colorSource: {fileID: 11400000, guid: 8b4d02e9a5f37c61b9d2e3f4a5b6c7d8, type: 2}
   _defaultConveyorCount: 5
