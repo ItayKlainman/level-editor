@@ -143,7 +143,11 @@ namespace Hoppa.LevelEditor.Core.Editor
             _hoverCell = ScreenToCell(e.mousePosition, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             bool ctrl = e.control || e.command;
-            var  inBounds = new Rect(0f, 0f, scrollViewRect.width, scrollViewRect.height);
+            // Inside BeginScrollView, mousePosition is in scroll-content space.
+            // The visible viewport in that space is offset by _scroll — without
+            // this shift, the bottom _scroll.y pixels of the viewport reject
+            // clicks once the grid is tall enough to scroll.
+            var  inBounds = new Rect(_scroll.x, _scroll.y, scrollViewRect.width, scrollViewRect.height);
 
             switch (e.type)
             {
