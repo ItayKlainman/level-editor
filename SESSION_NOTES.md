@@ -5,11 +5,12 @@
 
 ---
 
-## Current status (as of 2026-05-18)
+## Current status (as of 2026-05-25)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
-- **Active branch**: `master` — YarnTwist phase complete at tag `v0.5.14`. **YAK Layer 2 onboarding in progress** — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). Next Layer 1 tag will be `v0.5.15` when those changes deploy to consumers.
+- **Active branch**: `master` — YarnTwist editor was complete at tag `v0.5.14`, then **unparked for the level-generator initiative (v1 ships YarnTwist-only, 2026-05-25)**. YAK Layer 2 onboarding still in progress in parallel — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). The next Layer 1 tag bumps for both the v0.5.15/16 changes that already shipped and the new generator framework added 2026-05-25.
 - **Multi-game project**: both YarnTwist and YAK Layer 2s coexist in this same Unity project. The framework's profile selector (`LevelEditorWindow.DrawProfileSelector`) is the switcher.
+- **Level generator framework (2026-05-25)**: parameter-driven generator added on top of the editor. Layer 1 owns the generic shell (`ILevelGenerator`, `LevelGeneratorAsset`, `LevelGeneratorRequest/Result`, `LevelGeneratorRunner`, `GeneratorModePanel`, `✨ Generate` toolbar button); Layer 2 ships per-game tuning + algorithm. YarnTwist's implementation (`YarnTwistLevelGenerator` + `YarnTwistGeneratorConfig`) is wired and passing edit-mode tests.
 
 ---
 
@@ -50,6 +51,7 @@
 - Panels: `PalettePanel` (cell list + BRUSH config), `GridCanvasPanel` (CTRL+click multi-select), `ToolbarPanel` (incl. `OnOrderToggle`/`OrderMode`), `ValidationPanel`, `CellInspectorPanel`, `SummaryPanel`, `MultiSelectPanel` (batch color/type for multi-selection)
 - `TopSectionPanel` / `EmptyTopSectionPanel` — game-overridable top section
 - `StringIntMapping` — reusable string→int ScriptableObject
+- **Generator framework** (`Editor/Generator/`): `ILevelGenerator` (one-method contract), abstract `LevelGeneratorAsset : ScriptableObject, ILevelGenerator` base (inspector type-filters via this), `LevelGeneratorRequest` (Difficulty 1–10, optional TargetAPS, Seed, AdvancedConfig SO blob), `LevelGeneratorResult` (Document, Succeeded, SeedUsed, CandidatesTried, RuleRejectCounts, ElapsedMs), `LevelGeneratorRunner.Evaluate(doc, profile)` (runs `profile.Rules` and returns per-rule Error counts), `GeneratorModePanel` (IMGUI: params header + Advanced foldout via `Editor.CreateEditor(profile.GeneratorConfig).OnInspectorGUI()` + preview with `GridCanvasPanel` + the profile's top-section panel + Regenerate / Use This Level / diagnostics). `GameProfile` exposes `LevelGenerator` (optional `LevelGeneratorAsset`) and `GeneratorConfig` (optional `ScriptableObject`). `ToolbarPanel` shows ✨ Generate toggle only when the active profile has a generator. `LevelEditorWindow` handles `_inGeneratorMode` parallel to `_inOrderMode`; "Use This Level" hands the candidate to the existing document-load path as unsaved-new.
 
 ### Yarn Twist game layer (`Assets/YarnTwist/`)
 
@@ -64,11 +66,13 @@
 - `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button. On export, scans existing `LevelConfigs` for an entry matching the current `levelId` and updates it in-place (preserves the slot assigned by Apply Order). Only falls back to the filename-derived key (`level_005.json` → `"5"`) for brand-new levels. Exposes `OutputPath` getter for use by `YarnLevelOrderPanel`.
 - `YarnLevelOrderPanel` — `EditorPanelAsset` shown in the ⇅ Order tab. Reads `level_config.json`, displays levels as a draggable `ReorderableList` with `#N` index labels, supports reordering (Apply Order) and per-level deletion (with confirmation dialog). Assigned to `YarnTwistProfile.asset`'s Order Panel field.
 - `StringIntMapping` assets: `YarnColorMapping.asset` (10 colors), `YarnCellTypeMapping.asset` (5 types)
+- **Generator** (`Editor/Generator/`): `YarnTwistGeneratorConfig` — `ScriptableObject` with 9 Difficulty-keyed `AnimationCurve` knobs (GridWidth/Height, WallDensity, BoxRatio, ArrowBoxRatio, TunnelCount, ColorCount, HiddenSpoolRatio, CoinReward) + `MaxRerollAttempts` / `MaxTunnelQueueLength` + 3 numeric overrides (GridWidth/Height/ColorCount; 0 = use curve). `OnEnable` defensively populates default linear curves. `YarnTwistLevelGenerator : LevelGeneratorAsset` — Option A from the design: layout-first placement (walls → tunnels with forced-empty neighbor → boxes/arrowboxes → arrow-direction repair) then derive spool distribution from per-color grid totals (every colored grid item = 9 balls = exactly 3 spools, so YarnColorBalanceRule passes by construction). Reroll loop uses `LevelGeneratorRunner.Evaluate` against `profile.Rules`. Tests in `Assets/YarnTwist/Tests/Editor/YarnTwistLevelGeneratorTests.cs` (determinism, Difficulty sweep 1/3/5/8/10, override propagation, diagnostics, APS recording) — all green.
 
 **Data assets** (`Assets/YarnTwist/Data/Config/`):
-- `YarnTwistProfile.asset` — `GameProfile` wiring all 5 cell types + rules + exporter
+- `YarnTwistProfile.asset` — `GameProfile` wiring all 5 cell types + rules + exporter + generator (`_levelGenerator` → `YarnTwistLevelGenerator.asset`, `_generatorConfig` → `YarnTwistGeneratorConfig.asset`)
 - `YarnTwistPalette.asset` — 6 colors (pink, blue, teal, green, yellow, purple) — **needs to exist; see manual steps**
 - `YarnMasterLevelExporter.asset` — output path wired to `E:/Projects/Hoppa/YarnTwist/Assets/_YAT/Configs/Resources/Configs/level_config.json`
+- `YarnTwistGeneratorConfig.asset` + `YarnTwistLevelGenerator.asset` — generator assets (2026-05-25)
 
 ---
 

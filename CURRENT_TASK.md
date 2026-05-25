@@ -8,14 +8,34 @@
 
 ## Active phase
 
-**YAK Layer 2 onboarding (2026-05-18)**
+**Level generator framework — YarnTwist v1 (2026-05-25)**
 
-YarnTwist's editor work is complete for now (tag `v0.5.14`). Now bringing up a
-sibling Layer 2 for the studio's next game, codenamed **YAK** — a pixel-art
-wool-grid puzzle. The framework already supports multi-profile coexistence
-(`LevelEditorWindow.DrawProfileSelector`), so YarnTwist stays untouched in
-`Assets/YarnTwist/` and YAK lives alongside it at `Assets/YAK/`. Switching
-games = drag a different `GameProfile` asset into the editor window field.
+New initiative on top of the existing editor: a parameter-driven level
+generator that produces candidate `LevelDocument`s the operator previews,
+then hands off to the normal save/export flow. Architecture is Layer 1
+(generic generator framework — `ILevelGenerator`, `LevelGeneratorRequest/
+Result`, `LevelGeneratorRunner`, `GeneratorModePanel`, abstract
+`LevelGeneratorAsset` base, `GameProfile._levelGenerator` + `_generatorConfig`
+fields, ✨ Generate toolbar button) + Layer 2 YarnTwist implementation
+(`YarnTwistLevelGenerator`, `YarnTwistGeneratorConfig` with AnimationCurve
+knobs driven by Difficulty). v1 ships **YarnTwist only**; YAK gets its own
+generator later. Reuses the profile's existing validation rules as the
+sanity gate — no new playability-check interface.
+
+This unparks YarnTwist for generator work. The prior "YAK only focus"
+memory (`project_yak_only_focus.md`) is now scoped: it still applies to
+non-generator YarnTwist work (existing tests, refactors), but generator
+work is YarnTwist-first by user direction (2026-05-25). YAK Layer 2
+onboarding (below, "Added 2026-05-18") remains in flight in parallel.
+
+**YAK Layer 2 onboarding (2026-05-18)** — still in progress, manual
+verification pending (see Open items).
+
+YarnTwist's editor work was previously complete at tag `v0.5.14`. The
+framework supports multi-profile coexistence
+(`LevelEditorWindow.DrawProfileSelector`); YAK lives alongside YarnTwist
+at `Assets/YAK/`. Switching games = drag a different `GameProfile` asset
+into the editor window field.
 
 ### Added this session (2026-05-18)
 
@@ -72,7 +92,103 @@ Data assets (`Assets/YAK/Data/Config/`):
 
 ## Open items / known gaps
 
+### Generator framework — added this session (2026-05-25)
+
+**Layer 1 (`Packages/com.hoppa.leveleditor.core/Editor/Generator/`):**
+- `ILevelGenerator` — contract; one method `Generate(request, profile)`.
+- `LevelGeneratorAsset` — abstract `ScriptableObject, ILevelGenerator` base
+  (mirrors `LevelExporterAsset` / `EditorPanelAsset` pattern). Profiles
+  serialize the field as this type so the inspector type-filters.
+- `LevelGeneratorRequest` — `Difficulty` (1–10), `TargetAPS?`, `Seed`
+  (0 = random), `AdvancedConfig` (ScriptableObject blob the game uses).
+- `LevelGeneratorResult` — `Document`, `Succeeded`, `SeedUsed`,
+  `CandidatesTried`, `RuleRejectCounts`, `ElapsedMs`. `ToString()` formats
+  the diagnostics line.
+- `LevelGeneratorRunner.Evaluate(doc, profile)` — runs `profile.Rules`
+  against a candidate and returns the report + per-rule Error counts.
+  Layer 2 generators own the reroll loop; this helper exists so every
+  game produces consistent rejection diagnostics.
+- `GeneratorModePanel` — IMGUI panel; params header (Difficulty slider,
+  Target APS, Seed + 🎲 + 🔒) + Advanced foldout rendering
+  `Editor.CreateEditor(profile.GeneratorConfig).OnInspectorGUI()` for
+  game-specific tuning, + preview using `GridCanvasPanel` and the
+  profile's top-section panel, + Regenerate / Use This Level / diagnostics.
+  "Use This Level" hands off to `LevelEditorWindow` via `OnUseLevel` event;
+  the document loads as unsaved-new in normal edit view.
+
+**Layer 1 modifications:**
+- `GameProfile` — two new optional fields: `_levelGenerator`
+  (`LevelGeneratorAsset`) + `_generatorConfig` (`ScriptableObject`).
+- `ToolbarPanel` — `OnGenerateToggle` event, `GenerateMode` + `ShowGenerate`
+  flags, ✨ Generate toggle button (visible only when profile has a generator).
+- `LevelEditorWindow` — `_inGeneratorMode` state, `_generator` panel,
+  `HandleGenerateToggle` (exits Order mode if active), `HandleGeneratorUseLevel`
+  (calls existing document-load path with the candidate doc).
+
+**Layer 2 — YarnTwist (`Assets/YarnTwist/Editor/Generator/`):**
+- `YarnTwistGeneratorConfig` — `ScriptableObject` with 9 `AnimationCurve`
+  knobs (GridWidth, GridHeight, WallDensity, BoxRatio, ArrowBoxRatio,
+  TunnelCount, ColorCount, HiddenSpoolRatio, CoinReward), `MaxRerollAttempts`
+  (50), `MaxTunnelQueueLength` (3), and 3 overrides (GridWidthOverride,
+  GridHeightOverride, ColorCountOverride; 0 = use curve). `OnEnable`
+  defensively populates default linear curves if the asset YAML loads
+  them empty.
+- `YarnTwistLevelGenerator : LevelGeneratorAsset` — Option A from the
+  design: layout-first (walls → tunnels → boxes/arrowboxes), then
+  derive spool distribution from per-color grid totals (each colored grid
+  cell = 9 balls = exactly 3 spools, so balance is exact by construction).
+  Arrow-direction repair pass demotes unfixable arrows to plain boxes.
+  Wraps each candidate in a `LevelGeneratorRunner.Evaluate` call and rerolls
+  with a derived sub-seed on `Error`-severity rule failures, capped at
+  `MaxRerollAttempts`.
+
+**Assets written (with .meta GUIDs so teammates pick them up):**
+- `Assets/YarnTwist/Data/Config/YarnTwistGeneratorConfig.asset`
+- `Assets/YarnTwist/Data/Config/YarnTwistLevelGenerator.asset`
+- `Assets/YarnTwist/Data/Config/YarnTwistProfile.asset` updated with
+  `_levelGenerator` + `_generatorConfig` references.
+
+**Tests (`Assets/YarnTwist/Tests/Editor/YarnTwistLevelGeneratorTests.cs`):**
+- Determinism: same seed + config → identical structural signature
+  (timestamps/levelId stripped).
+- Difficulty sweep (1, 3, 5, 8, 10) × parameterized seeds — each must
+  produce a `Succeeded == true` document that re-passes
+  `LevelGeneratorRunner.Evaluate`.
+- `GridWidthOverride` propagates to output `Grid.Width`.
+- Diagnostics fields populated (`SeedUsed`, `CandidatesTried`, `ElapsedMs`,
+  `RuleRejectCounts`).
+- `TargetAPS` recorded on `Metadata.Aps`.
+
 ### Manual verification still pending (must run in Unity)
+
+**Generator framework:**
+- [ ] Recompile scripts; confirm no compile errors in
+      `Hoppa.LevelEditor.Core.Editor` / `Hoppa.YarnTwist.Editor` /
+      `Hoppa.YarnTwist.Editor.Tests`.
+- [ ] Run `YarnTwistLevelGeneratorTests` from the Test Runner (Edit Mode);
+      confirm all pass.
+- [ ] Open Level Editor window, select `YarnTwistProfile`; confirm
+      ✨ Generate button appears in toolbar.
+- [ ] Click Generate; confirm generator mode renders params panel +
+      preview canvas + top-section preview.
+- [ ] Sweep Difficulty 1 / 5 / 10; click Regenerate a few times per
+      Difficulty; confirm grids vary and the diagnostics line populates
+      (e.g. `Generated in 14 ms · 3 candidate(s) · seed 1745032`).
+- [ ] Lock a seed (🔒) and regenerate twice; confirm preview is identical.
+- [ ] Expand Advanced; set `GridWidthOverride = 8`; regenerate; confirm
+      the preview grid is 8 wide.
+- [ ] Click Use This Level → confirm exit to normal edit view with
+      unsaved-modified indicator, the generated grid loaded in the canvas,
+      spool columns rendering in the top section.
+- [ ] Save As `Assets/YarnTwist/Data/Levels/YT_GEN_001.json`, then Export.
+      Confirm `YarnMasterLevelExporter` produces a new entry in the master
+      `level_config.json`.
+- [ ] Open ⇅ Order panel; confirm the new level appears in the list
+      with a key.
+- [ ] **Regression** — switch profile back to `YAKProfile`; confirm
+      ✨ Generate button is hidden (YAK has no generator wired yet).
+
+**YAK Layer 2 (carried over from 2026-05-18):**
 - [ ] Recompile scripts; confirm no compile errors in `Hoppa.YAK.Runtime` /
       `Hoppa.YAK.Editor` / `Hoppa.LevelEditor.Core.Editor`.
 - [ ] Switch active profile to `YAKProfile` in `LevelEditorWindow`; confirm

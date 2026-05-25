@@ -15,8 +15,12 @@ namespace Hoppa.LevelEditor.Core.Editor
         public event Action OnRedo;
         public event Action OnTestPlay;
         public event Action OnOrderToggle;
+        public event Action OnGenerateToggle;
 
         public bool OrderMode { get; set; }
+        public bool GenerateMode { get; set; }
+        // When false, hides the Generate button (profile has no generator).
+        public bool ShowGenerate { get; set; }
 
         private const float BtnH = 20f;
         private const float Gap  = 4f;
@@ -33,6 +37,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly GUIContent LabelRedo     = new GUIContent("Redo",     "Redo last undone stroke  (Ctrl+Y)");
         private static readonly GUIContent LabelTestPlay = new GUIContent("▶ Test",   "Save and enter Play Mode");
         private static readonly GUIContent LabelOrder    = new GUIContent("⇅ Order",  "Manage level order in the master config");
+        private static readonly GUIContent LabelGenerate = new GUIContent("✨ Generate", "Generate a level from parameters");
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -81,6 +86,13 @@ namespace Hoppa.LevelEditor.Core.Editor
             bool newOrderMode = GUI.Toggle(new Rect(x, y, 64f, BtnH), OrderMode, LabelOrder, GUI.skin.button);
             if (newOrderMode != OrderMode) OnOrderToggle?.Invoke();
             x += 64f + Gap;
+
+            if (ShowGenerate)
+            {
+                bool newGen = GUI.Toggle(new Rect(x, y, 88f, BtnH), GenerateMode, LabelGenerate, GUI.skin.button);
+                if (newGen != GenerateMode) OnGenerateToggle?.Invoke();
+                x += 88f + Gap;
+            }
 
             // Level name
             if (session?.Document != null)

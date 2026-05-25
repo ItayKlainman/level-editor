@@ -39,6 +39,12 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
         [SerializeField] private EditorPanelAsset _orderPanel;
 
+        [Tooltip("Optional: assign a LevelGeneratorAsset subclass to enable the Generate toolbar button.\nExample: YarnTwistLevelGenerator")]
+        [SerializeField] private LevelGeneratorAsset _levelGenerator;
+
+        [Tooltip("Optional: tuning ScriptableObject for the assigned LevelGenerator. The generator panel's Advanced foldout renders this asset's default inspector.\nExample: YarnTwistGeneratorConfig")]
+        [SerializeField] private ScriptableObject _generatorConfig;
+
         public string SchemaId => _schemaId;
         public ColorPaletteAsset ColorPalette => _colorPalette;
         public int GridWidth => _gridWidth;
@@ -47,6 +53,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         public IReadOnlyList<ValidationRuleBase> Rules => _rules;
         public IReadOnlyList<LevelExporterAsset> Exporters => _exporters;
         public IEditorPanel OrderPanel => _orderPanel;
+        public ILevelGenerator LevelGenerator => _levelGenerator;
+        public ScriptableObject GeneratorConfig => _generatorConfig;
 
         public CellTypeRegistry BuildRegistry()
         {

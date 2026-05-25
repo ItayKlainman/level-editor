@@ -10,18 +10,20 @@ namespace Hoppa.LevelEditor.Core.Editor
         [MenuItem("Window/Level Editor")]
         public static void Open() => GetWindow<LevelEditorWindow>("Level Editor");
 
-        private readonly PalettePanel      _palette     = new PalettePanel();
-        private readonly GridCanvasPanel   _canvas      = new GridCanvasPanel();
-        private readonly ToolbarPanel      _toolbar     = new ToolbarPanel();
-        private readonly SummaryPanel      _summary     = new SummaryPanel();
-        private readonly ValidationPanel   _validation  = new ValidationPanel();
-        private readonly MultiSelectPanel  _multiSelect = new MultiSelectPanel();
+        private readonly PalettePanel        _palette     = new PalettePanel();
+        private readonly GridCanvasPanel     _canvas      = new GridCanvasPanel();
+        private readonly ToolbarPanel        _toolbar     = new ToolbarPanel();
+        private readonly SummaryPanel        _summary     = new SummaryPanel();
+        private readonly ValidationPanel     _validation  = new ValidationPanel();
+        private readonly MultiSelectPanel    _multiSelect = new MultiSelectPanel();
+        private readonly GeneratorModePanel  _generator   = new GeneratorModePanel();
         private TopSectionPanel _topSection    = new EmptyTopSectionPanel();
         private TopSectionPanel _bottomSection = new EmptyTopSectionPanel();
 
         private LevelEditorSession _session;
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
+        private bool               _inGeneratorMode;
 
         // Exposed so Layer 2 importers can resolve cell types via the active registry.
         public GameProfile Profile => _profile;
@@ -75,28 +77,32 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             _bottomSectionOverrideH = EditorPrefs.GetFloat(BottomHPrefKey, -1f);
 
-            _toolbar.OnNew         += HandleNew;
-            _toolbar.OnOpen        += HandleOpen;
-            _toolbar.OnSave        += HandleSave;
-            _toolbar.OnSaveAs      += HandleSaveAs;
-            _toolbar.OnExport      += HandleExport;
-            _toolbar.OnUndo        += HandleUndo;
-            _toolbar.OnRedo        += HandleRedo;
-            _toolbar.OnTestPlay    += HandleTestPlay;
-            _toolbar.OnOrderToggle += HandleOrderToggle;
+            _toolbar.OnNew            += HandleNew;
+            _toolbar.OnOpen           += HandleOpen;
+            _toolbar.OnSave           += HandleSave;
+            _toolbar.OnSaveAs         += HandleSaveAs;
+            _toolbar.OnExport         += HandleExport;
+            _toolbar.OnUndo           += HandleUndo;
+            _toolbar.OnRedo           += HandleRedo;
+            _toolbar.OnTestPlay       += HandleTestPlay;
+            _toolbar.OnOrderToggle    += HandleOrderToggle;
+            _toolbar.OnGenerateToggle += HandleGenerateToggle;
+            _generator.OnUseLevel     += HandleGeneratorUseLevel;
         }
 
         private void OnDisable()
         {
-            _toolbar.OnNew         -= HandleNew;
-            _toolbar.OnOpen        -= HandleOpen;
-            _toolbar.OnSave        -= HandleSave;
-            _toolbar.OnSaveAs      -= HandleSaveAs;
-            _toolbar.OnExport      -= HandleExport;
-            _toolbar.OnUndo        -= HandleUndo;
-            _toolbar.OnRedo        -= HandleRedo;
-            _toolbar.OnTestPlay    -= HandleTestPlay;
-            _toolbar.OnOrderToggle -= HandleOrderToggle;
+            _toolbar.OnNew            -= HandleNew;
+            _toolbar.OnOpen           -= HandleOpen;
+            _toolbar.OnSave           -= HandleSave;
+            _toolbar.OnSaveAs         -= HandleSaveAs;
+            _toolbar.OnExport         -= HandleExport;
+            _toolbar.OnUndo           -= HandleUndo;
+            _toolbar.OnRedo           -= HandleRedo;
+            _toolbar.OnTestPlay       -= HandleTestPlay;
+            _toolbar.OnOrderToggle    -= HandleOrderToggle;
+            _toolbar.OnGenerateToggle -= HandleGenerateToggle;
+            _generator.OnUseLevel     -= HandleGeneratorUseLevel;
             _session?.Dispose();
             _session       = null;
             _topSection    = new EmptyTopSectionPanel();
@@ -111,7 +117,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             // ── Toolbar ───────────────────────────────────────────────
             EditorGUI.DrawRect(new Rect(0f, 0f, w, ToolbarH), ToolbarBg);
             EditorGUI.DrawRect(new Rect(0f, ToolbarH - 1f, w, 1f), Divider);
-            _toolbar.OrderMode = _inOrderMode;
+            _toolbar.OrderMode    = _inOrderMode;
+            _toolbar.GenerateMode = _inGeneratorMode;
+            _toolbar.ShowGenerate = _profile?.LevelGenerator != null;
             _toolbar.OnGUI(new Rect(0f, 0f, w, ToolbarH), _session);
 
             // ── Status bar ────────────────────────────────────────────
@@ -133,6 +141,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                         _profile == null
                             ? "Select a Game Profile first."
                             : "No Order Panel configured in this Game Profile.\n\nAssign an EditorPanelAsset to the profile's Order Panel field.");
+                return;
+            }
+
+            if (_inGeneratorMode)
+            {
+                EditorGUI.DrawRect(new Rect(0f, bodyY, w, innerH), CanvasBg);
+                _generator.OnGUI(new Rect(0f, bodyY, w, innerH), _profile);
                 return;
             }
 
@@ -397,7 +412,47 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void HandleUndo()        { if (_session?.Undo() == true) Repaint(); }
         private void HandleRedo()        { if (_session?.Redo() == true) Repaint(); }
-        private void HandleOrderToggle() { _inOrderMode = !_inOrderMode; Repaint(); }
+        private void HandleOrderToggle()
+        {
+            _inOrderMode = !_inOrderMode;
+            if (_inOrderMode && _inGeneratorMode) { _inGeneratorMode = false; _generator.OnExitMode(); }
+            Repaint();
+        }
+
+        private void HandleGenerateToggle()
+        {
+            if (_profile?.LevelGenerator == null) return;
+            _inGeneratorMode = !_inGeneratorMode;
+            if (_inGeneratorMode)
+            {
+                if (_inOrderMode) _inOrderMode = false;
+                _generator.OnEnterMode();
+            }
+            else
+            {
+                _generator.OnExitMode();
+            }
+            Repaint();
+        }
+
+        private void HandleGeneratorUseLevel(LevelDocument doc)
+        {
+            if (doc == null || _profile == null) return;
+            if (!ConfirmDiscard()) return;
+
+            _session?.Dispose();
+            _session          = new LevelEditorSession(_profile, doc);
+            _session.FilePath = null;
+            _session.MarkDirty();
+            _topSection       = _profile.CreateTopSection();
+            _bottomSection    = _profile.CreateBottomSection();
+            AutoActivateCellType();
+            _session.RunValidation();
+
+            _inGeneratorMode = false;
+            _generator.OnExitMode();
+            Repaint();
+        }
 
         private void HandleTestPlay()
         {

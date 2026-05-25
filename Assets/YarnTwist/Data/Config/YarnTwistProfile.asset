@@ -31,3 +31,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: bf213284f034d504fb46bdce9e92580b, type: 2}
   _topSectionScript: {fileID: 11500000, guid: 20c7138a6394e904ebf3e850f791376d, type: 3}
   _orderPanel: {fileID: 11400000, guid: 1c9e6a248b677ce44b577099deefc15d, type: 2}
+  _levelGenerator: {fileID: 11400000, guid: 211358c1b8d64ba4bbc9035278e56b93, type: 2}
+  _generatorConfig: {fileID: 11400000, guid: 66449045c92f425bb068ec5babd2340a, type: 2}
