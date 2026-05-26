@@ -17,6 +17,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private readonly ValidationPanel     _validation  = new ValidationPanel();
         private readonly MultiSelectPanel    _multiSelect = new MultiSelectPanel();
         private readonly GeneratorModePanel  _generator   = new GeneratorModePanel();
+        private readonly AutofillPanel       _autofill    = new AutofillPanel();
         private TopSectionPanel _topSection    = new EmptyTopSectionPanel();
         private TopSectionPanel _bottomSection = new EmptyTopSectionPanel();
 
@@ -209,10 +210,16 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (botH > 0f)
                 HandleBottomSplitter(centerX, bodyY + innerH - botH, centerW, minBotH, maxBotH, bodyY, innerH);
 
-            // ── Right: validation (50%) + summary (50%) ──────────────────
-            float rightX   = w - RightW + 1f;
-            float validH   = Mathf.Floor(innerH * 0.50f);
-            float summaryH = innerH - validH;
+            // ── Right column: validation + summary [+ autofill] ──────────
+            float rightX = w - RightW + 1f;
+            bool  showAutofill = _profile?.LevelAnalyzer != null;
+
+            float validRatio   = showAutofill ? 0.40f : 0.50f;
+            float summaryRatio = showAutofill ? 0.30f : 0.50f;
+
+            float validH   = Mathf.Floor(innerH * validRatio);
+            float summaryH = Mathf.Floor(innerH * summaryRatio);
+            float autoH    = showAutofill ? innerH - validH - summaryH : 0f;
 
             var clicked = _validation.OnGUI(new Rect(rightX, bodyY, RightW, validH), _session.LastValidation);
             if (clicked.HasValue) _session.SelectedCell = clicked;
@@ -224,6 +231,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                 _multiSelect.OnGUI(summaryRect, _session);
             else
                 _summary.OnGUI(summaryRect, _session);
+
+            if (showAutofill)
+            {
+                float autoY = bodyY + validH + summaryH;
+                EditorGUI.DrawRect(new Rect(rightX, autoY, RightW, 1f), Divider);
+                _autofill.OnGUI(new Rect(rightX, autoY + 1f, RightW, autoH - 1f), _session, _profile);
+            }
 
             if (GUI.changed) Repaint();
         }
