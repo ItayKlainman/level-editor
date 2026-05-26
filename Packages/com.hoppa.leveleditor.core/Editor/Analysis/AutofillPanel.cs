@@ -154,8 +154,42 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void OnAutofill(LevelEditorSession session, GameProfile profile)
         {
-            // Implemented in Task 14.
-            _statusMessage = "(Auto-fill wiring lands in Task 14.)";
+            _statusMessage = null;
+            try
+            {
+                int seed = _seedLocked && _seed != 0
+                    ? _seed
+                    : new System.Random().Next(1, int.MaxValue);
+                if (!_seedLocked) _seed = seed;
+
+                _lastCompletion = profile.LevelCompleter.Complete(session.Document, profile, new CompletionRequest
+                {
+                    Difficulty = _difficulty,
+                    Seed = seed,
+                    ConveyorCapacityOverride = ResolveCapacity(),
+                });
+                _lastAnalysis = _lastCompletion?.Analysis;
+
+                if (_lastCompletion?.TopSection != null)
+                {
+                    session.PushUndoSnapshot();
+                    session.Document.TopSection = _lastCompletion.TopSection;
+                    session.MarkDirty();
+                    session.RunValidation();
+
+                    if (!_lastCompletion.Succeeded)
+                        _statusMessage = "Couldn't hit Difficulty band — best candidate applied (Ctrl-Z to revert).";
+                }
+                else
+                {
+                    _statusMessage = "Auto-fill failed: " + (_lastCompletion?.FailureReason ?? "no top section produced");
+                }
+            }
+            catch (Exception ex)
+            {
+                _statusMessage = "Auto-fill failed: " + ex.Message;
+                Debug.LogError("AutofillPanel.OnAutofill: " + ex);
+            }
         }
 
         private int ResolveCapacity() => _capacityChoice == 0 ? _customCapacity : _capacityChoice;
