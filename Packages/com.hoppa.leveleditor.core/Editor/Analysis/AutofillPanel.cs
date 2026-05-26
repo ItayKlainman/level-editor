@@ -126,6 +126,14 @@ namespace Hoppa.LevelEditor.Core.Editor
                     _lastAnalysis.ToString(),
                     EditorStyles.wordWrappedMiniLabel);
                 GUI.contentColor = savedColor;
+                y += RowH * 3f;
+
+                if (_lastCompletion != null)
+                {
+                    GUI.Label(new Rect(x, y, w, RowH),
+                        $"{_lastCompletion.CandidatesTried} candidate(s) · {_lastCompletion.ElapsedMs} ms total",
+                        EditorStyles.miniLabel);
+                }
             }
         }
 

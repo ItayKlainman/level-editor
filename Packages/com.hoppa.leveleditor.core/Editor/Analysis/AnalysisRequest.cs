@@ -1,5 +1,3 @@
-using System;
-
 namespace Hoppa.LevelEditor.Core.Editor
 {
     // Inputs to ILevelAnalyzer.Analyze. Created by the AutofillPanel for standalone

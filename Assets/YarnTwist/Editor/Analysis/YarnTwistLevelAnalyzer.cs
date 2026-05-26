@@ -17,8 +17,6 @@ namespace Hoppa.YarnTwist.Editor
     // State is hashed for memoization. The belt is modelled as a multiset of
     // colors (order on the belt is irrelevant for win-counting under the
     // continuous-circulation match rule).
-    //
-    // Task 4 supports basic boxes only. Arrow boxes and tunnels land in Tasks 5–6.
     [CreateAssetMenu(menuName = "Hoppa/Yarn Twist/Analysis/Yarn Twist Level Analyzer")]
     public sealed class YarnTwistLevelAnalyzer : LevelAnalyzerAsset
     {
@@ -288,6 +286,10 @@ namespace Hoppa.YarnTwist.Editor
             // Compact 64-bit state hash. NOT a perfect hash — collisions
             // possible but rare. For the small puzzles we care about
             // (typical 7×7 grids), the impact is acceptable.
+            // Note: uses string.GetHashCode() for color keys, which is stable
+            // in Unity 2022.3/Mono. A future port to .NET Core 5+ would need
+            // a deterministic hash (e.g. FNV over UTF-8 bytes) if memos ever
+            // outlive a single process.
             private ulong HashState()
             {
                 ulong h = 1469598103934665603UL; // FNV offset
