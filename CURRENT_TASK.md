@@ -8,6 +8,33 @@
 
 ## Active phase
 
+**Spool auto-fill + win-path analysis — YarnTwist v1 (2026-05-26)**
+
+New authoring flow on top of the editor: the designer paints the grid by
+hand, then the Spool Analysis side panel auto-completes the top section
+and reports exact win-path count so she has a concrete difficulty signal.
+
+Architecture (Layer 1): generic `ILevelAnalyzer` + `ILevelCompleter`
+contracts under `Packages/.../Editor/Analysis/`; `GameProfile` gains two
+typed fields (`_levelAnalyzer`, `_levelCompleter`) and a generic
+`_extensions: List<ScriptableObject>` slot for future per-profile data.
+`AutofillPanel` IMGUI side panel shown in the right column when an
+analyzer is wired.
+
+Layer 2 (YarnTwist): `YarnTwistLevelAnalyzer` (memoized DFS over tap
+orderings; Box / ArrowBox / Tunnel rules; multiset-on-belt
+abstraction; configurable conveyor capacity), `YarnTwistSpoolAutofiller`
+(reroll loop targeting a Difficulty-keyed win-path band),
+`YarnTwistSpoolAutofillConfig` (curves + caps + timeouts owned by the
+autofiller asset, NOT by the profile).
+
+Tests: `YarnTwistLevelAnalyzerTests` (9 fixtures) +
+`YarnTwistSpoolAutofillerTests` (7 fixtures), all green.
+
+Manual verification (must run in Unity) — see "Manual verification" below.
+
+---
+
 **Level generator framework — YarnTwist v1 (2026-05-25)**
 
 New initiative on top of the existing editor: a parameter-driven level
@@ -91,6 +118,22 @@ Data assets (`Assets/YAK/Data/Config/`):
 ---
 
 ## Open items / known gaps
+
+### Manual verification — spool auto-fill (must run in Unity)
+
+- [ ] Open Level Editor, select `YarnTwistProfile`; confirm the Spool
+      Analysis panel appears in the right column (Validation 40% /
+      Summary 30% / Analysis 30%).
+- [ ] Open `Assets/YarnTwist/Data/Levels/YT_001.json`; press Analyze;
+      confirm win-path count + elapsed time appear in the result block.
+- [ ] Paint a small 3-box grid; press Auto-fill; confirm the top section
+      populates with spool columns satisfying YarnColorBalanceRule.
+- [ ] Sweep Difficulty 1 / 5 / 10; confirm the auto-filled hidden-spool
+      count visibly tracks Difficulty (D=1: 0 hidden; D=10: ~40% hidden).
+- [ ] Lock seed 🔒 + press Auto-fill twice; confirm identical top section.
+- [ ] Press Ctrl-Z after Auto-fill; confirm prior top section restored.
+- [ ] Switch active profile to `YAKProfile`; confirm Spool Analysis panel
+      disappears (YAK has no analyzer wired — regression check).
 
 ### Generator framework — added this session (2026-05-25)
 
