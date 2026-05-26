@@ -107,6 +107,33 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(1L, r.WinPathCount);  // must be B then A — A first is not tappable
         }
 
+        // ── Fixture 5: tunnel queue=[pink, blue], matched spools → 1 path ──
+
+        [Test]
+        public void Analyze_TunnelQueue_DequeuesInOrder()
+        {
+            // 1 tunnel with queue [pink, blue] = 9 pink + 9 blue balls.
+            // 3 pink spools + 3 blue spools, in two columns.
+            var tunnel = new YarnTunnelCell {
+                OutputDirection = YarnDirection.Up,
+                Queue = new List<string> { "pink", "blue" },
+            };
+            var doc = MakeDoc(width: 1, height: 2,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,tunnel),
+                    (0,1,new YarnEmptyCell()),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("blue","blue","blue"),
+                    (null,null,null),
+                    (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1L, r.WinPathCount); // tunnel tapped twice in queue order
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         private static LevelDocument MakeDoc(int width, int height, IEnumerable<(int x, int y, ICellData cell)> cells, JObject topSection)

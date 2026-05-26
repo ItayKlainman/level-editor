@@ -76,10 +76,11 @@ namespace Hoppa.YarnTwist.Editor
 
         private struct Item
         {
-            public ItemKind Kind;
-            public string   ColorId;     // for Box / ArrowBox / single-queue-entry
-            public int      PrereqIndex; // for ArrowBox: index into items[] of the box that must be tapped first; -1 if none
-            public List<string> Queue;   // for Tunnel: queue of colors (in order). For Box/ArrowBox: null.
+            public ItemKind  Kind;
+            public string    ColorId;      // for Box / ArrowBox
+            public int       PrereqIndex;  // for ArrowBox: index into items[] of the box that must be tapped first; -1 if none
+            public List<string> Queue;     // for Tunnel
+            public int       QueueIndex;   // for Tunnel: next dequeue position (0-based)
         }
 
         private enum ItemKind { Box, ArrowBox, Tunnel }
@@ -107,30 +108,37 @@ namespace Hoppa.YarnTwist.Editor
                     idxAt[Key(x, y)] = items.Count;
                     items.Add(new Item { Kind = ItemKind.ArrowBox, ColorId = ab.ColorId, PrereqIndex = -1 });
                 }
+                else if (cell is YarnTunnelCell t && t.Queue != null && t.Queue.Count > 0)
+                {
+                    idxAt[Key(x, y)] = items.Count;
+                    items.Add(new Item {
+                        Kind = ItemKind.Tunnel,
+                        ColorId = null,
+                        PrereqIndex = -1,
+                        Queue = new List<string>(t.Queue),
+                        QueueIndex = 0,
+                    });
+                }
             }
 
             // Pass 2: resolve arrow-box prerequisites by direction → neighbor item.
-            int k = 0;
+            // Looks up self-index from idxAt to avoid a fragile parallel counter.
             for (int y = 0; y < grid.Height; y++)
             for (int x = 0; x < W;          x++)
             {
-                var cell = grid.Get(x, y);
-                if (cell is YarnArrowBoxCell ab)
+                if (grid.Get(x, y) is YarnArrowBoxCell ab)
                 {
+                    int selfIdx = idxAt[Key(x, y)]; // present from Pass 1
                     var (nx, ny) = NeighborOf(x, y, ab.Direction);
                     if (grid.InBounds(nx, ny) && idxAt.TryGetValue(Key(nx, ny), out var nIdx))
                     {
-                        var it = items[k];
+                        var it = items[selfIdx];
                         it.PrereqIndex = nIdx;
-                        items[k] = it;
+                        items[selfIdx] = it;
                     }
                     // else: arrow's neighbor isn't a tappable item — arrow is
-                    // permanently unreachable; PrereqIndex stays -1 and the
-                    // arrow will never become tappable. The level is broken;
-                    // YarnArrowBoxTargetRule should already flag this.
-                    k++;
+                    // permanently unreachable; PrereqIndex stays -1.
                 }
-                else if (cell is YarnBoxCell) k++;
             }
 
             return items;
@@ -168,11 +176,17 @@ namespace Hoppa.YarnTwist.Editor
             var spoolColors = new HashSet<string>();
             foreach (var c in cols) foreach (var s in c.SpoolColors) spoolColors.Add(s);
             foreach (var it in items)
-                if (!spoolColors.Contains(it.ColorId))
+            {
+                if (it.Kind == ItemKind.Tunnel)
                 {
-                    missing = it.ColorId;
-                    return false;
+                    foreach (var q in it.Queue)
+                        if (!spoolColors.Contains(q)) { missing = q; return false; }
                 }
+                else
+                {
+                    if (!spoolColors.Contains(it.ColorId)) { missing = it.ColorId; return false; }
+                }
+            }
             return true;
         }
 
@@ -220,41 +234,45 @@ namespace Hoppa.YarnTwist.Editor
                 foreach (var v in _bag.Values) bagSum += v;
                 if (bagSum > _capacity) return;
 
-                bool allTapped = true;
-                for (int i = 0; i < _items.Count; i++) if (!_tapped[i]) { allTapped = false; break; }
+                bool allConsumed = true;
+                for (int i = 0; i < _items.Count; i++)
+                {
+                    if (_items[i].Kind == ItemKind.Tunnel)
+                    {
+                        if (_items[i].QueueIndex < _items[i].Queue.Count) { allConsumed = false; break; }
+                    }
+                    else if (!_tapped[i]) { allConsumed = false; break; }
+                }
                 bool allSpoolsCleared = true;
                 for (int k = 0; k < Columns; k++)
                     if (_spoolHead[k] < _cols[k].SpoolColors.Count) { allSpoolsCleared = false; break; }
 
-                if (allTapped && allSpoolsCleared && bagSum == 0)
-                {
-                    PathCount++;
-                    return;
-                }
-                if (allTapped) return; // no producer left but state isn't winning
+                if (allConsumed && allSpoolsCleared && bagSum == 0) { PathCount++; return; }
+                if (allConsumed) return; // no producer left but state isn't winning
 
                 for (int i = 0; i < _items.Count; i++)
                 {
-                    if (_tapped[i]) continue;
                     if (!IsTappable(i)) continue;
                     if (PathCount >= _cap) return;
                     if (_mode == AnalysisMode.Solvable && PathCount >= 1) return;
 
-                    // Snapshot state.
+                    // Snapshot
                     var savedBag = new Dictionary<string, int>(_bag);
                     var savedHead = (int[])_spoolHead.Clone();
                     var savedFill = (int[])_spoolFill.Clone();
+                    bool savedTapped = _tapped[i];
+                    int savedQueueIdx = _items[i].QueueIndex;
 
                     ApplyTap(i);
-                    _tapped[i] = true;
 
                     Dfs();
 
-                    // Restore.
-                    _tapped[i] = false;
+                    // Restore
                     _bag.Clear(); foreach (var kv in savedBag) _bag[kv.Key] = kv.Value;
                     Array.Copy(savedHead, _spoolHead, Columns);
                     Array.Copy(savedFill, _spoolFill, Columns);
+                    _tapped[i] = savedTapped;
+                    var restored = _items[i]; restored.QueueIndex = savedQueueIdx; _items[i] = restored;
 
                     if (TimedOut) return;
                     if (PathCount >= _cap) return;
@@ -267,13 +285,9 @@ namespace Hoppa.YarnTwist.Editor
                 var it = _items[i];
                 switch (it.Kind)
                 {
-                    case ItemKind.Box: return true;
-                    case ItemKind.ArrowBox:
-                        // Locked until the prerequisite has been tapped. An
-                        // arrow box with no valid prerequisite (PrereqIndex
-                        // = -1) is permanently locked.
-                        return it.PrereqIndex >= 0 && _tapped[it.PrereqIndex];
-                    case ItemKind.Tunnel: return false; // Task 6
+                    case ItemKind.Box:      return !_tapped[i];
+                    case ItemKind.ArrowBox: return !_tapped[i] && it.PrereqIndex >= 0 && _tapped[it.PrereqIndex];
+                    case ItemKind.Tunnel:   return it.QueueIndex < it.Queue.Count;
                     default: return false;
                 }
             }
@@ -281,7 +295,18 @@ namespace Hoppa.YarnTwist.Editor
             private void ApplyTap(int i)
             {
                 var it = _items[i];
-                AddToBag(it.ColorId, BallsPerItem);
+                if (it.Kind == ItemKind.Tunnel)
+                {
+                    string color = it.Queue[it.QueueIndex];
+                    var bumped = it; bumped.QueueIndex = it.QueueIndex + 1;
+                    _items[i] = bumped;
+                    AddToBag(color, BallsPerItem);
+                }
+                else
+                {
+                    _tapped[i] = true;
+                    AddToBag(it.ColorId, BallsPerItem);
+                }
                 ResolveMatches();
             }
 
