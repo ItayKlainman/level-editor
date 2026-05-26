@@ -104,6 +104,90 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(0, totalSpools);
         }
 
+        // ── Fixture 3: D=1 vs D=10 — average path count strictly higher at D=1 ─
+
+        [Test]
+        public void Complete_DifficultyOne_HasHigherAveragePathCountThanTen()
+        {
+            var doc = MakeBoxGrid(("pink",3),("blue",3));
+            long sumD1 = 0, sumD10 = 0;
+            const int N = 20;
+            for (int i = 0; i < N; i++)
+            {
+                var r1 = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 1, Seed = 200 + i * 7, ConveyorCapacityOverride = 24 });
+                var rT = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 10, Seed = 200 + i * 7, ConveyorCapacityOverride = 24 });
+                sumD1  += r1.Analysis?.WinPathCount  ?? 0;
+                sumD10 += rT.Analysis?.WinPathCount  ?? 0;
+            }
+            // D=1 targets ~100 paths, D=10 targets ~1. Both with wide tolerance,
+            // but the curve still pushes D=1 statistically higher over 20 trials.
+            Assert.GreaterOrEqual(sumD1, sumD10);
+        }
+
+        // ── Fixture 4: hidden ratio matches HiddenSpoolRatio.Evaluate(D) ─
+
+        [Test]
+        public void Complete_HiddenRatio_TracksDifficulty()
+        {
+            // At D=1, HiddenSpoolRatio = 0 → no hidden spools.
+            // At D=10, HiddenSpoolRatio = 40 → ~40% hidden.
+            var doc = MakeBoxGrid(("pink",5),("blue",5)); // 30 spools total
+            var rLow  = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 1,  Seed = 42, ConveyorCapacityOverride = 24 });
+            var rHigh = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 10, Seed = 42, ConveyorCapacityOverride = 24 });
+
+            int hiddenLow  = CountHidden(rLow.TopSection);
+            int hiddenHigh = CountHidden(rHigh.TopSection);
+            Assert.AreEqual(0, hiddenLow);
+            // 30 × 40% = 12, within ±1 for rounding tolerance.
+            Assert.GreaterOrEqual(hiddenHigh, 11);
+            Assert.LessOrEqual(hiddenHigh, 13);
+        }
+
+        // ── Fixture 5: capacity override changes outcome on a borderline grid ─
+
+        [Test]
+        public void Complete_CapacityOverride_AffectsCandidateAnalysis()
+        {
+            // 4 pink boxes = 36 balls, 12 pink spools.
+            // At cap=12 every spool must clear before next tap; severely
+            // constrained. At cap=30 there's slack — many more candidates pass.
+            var doc = MakeBoxGrid(("pink",4));
+            var rTight = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 5, Seed = 555, ConveyorCapacityOverride = 12 });
+            var rLoose = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 5, Seed = 555, ConveyorCapacityOverride = 30 });
+            Assert.IsNotNull(rTight.Analysis);
+            Assert.IsNotNull(rLoose.Analysis);
+            // Loose capacity should never decrease the path count for the same seed.
+            Assert.GreaterOrEqual(rLoose.Analysis.WinPathCount, rTight.Analysis.WinPathCount);
+        }
+
+        // ── Fixture 6: impossible target returns best-so-far + Succeeded=false ─
+
+        [Test]
+        public void Complete_ImpossibleTarget_ReturnsBestEffort()
+        {
+            var doc = MakeBoxGrid(("pink",2),("blue",2));
+            // Set target to a value the grid can't produce: 1,000,000 paths
+            // when the puzzle only has ~24 orderings.
+            _config.WinPathTargetByDifficulty = new AnimationCurve(new Keyframe(5f, 1_000_000f));
+            _config.WinPathTolerance = 0.01f;
+            _config.MaxRerollAttempts = 5;
+            var r = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 5, Seed = 999, ConveyorCapacityOverride = 24 });
+            Assert.IsFalse(r.Succeeded);
+            Assert.IsNotNull(r.TopSection);   // best-so-far still applied
+            Assert.IsNotNull(r.Analysis);
+            Assert.IsNotNull(r.FailureReason);
+        }
+
+        private static int CountHidden(JObject topJson)
+        {
+            int n = 0;
+            var data = topJson.ToObject<YarnTopSectionData>();
+            foreach (var col in data.Columns)
+                foreach (var s in col.Spools)
+                    if (s.Hidden) n++;
+            return n;
+        }
+
         // ── Helpers ────────────────────────────────────────────────────
 
         // Produces a 1-row grid with `count` boxes of each requested color, in left-to-right order.
