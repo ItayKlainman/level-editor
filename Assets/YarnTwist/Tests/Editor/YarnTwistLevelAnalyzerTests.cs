@@ -82,6 +82,31 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(0L, r.WinPathCount);
         }
 
+        // ── Fixture 4: arrow box A points to box B → exactly 1 path ─────
+
+        [Test]
+        public void Analyze_ArrowBoxGating_OnlyOnePathWhenChained()
+        {
+            // Layout (1 row, 2 cells): [ArrowBox(pink, Direction=Right)] [Box(pink)]
+            // Arrow at (0,0) points to box at (1,0). Arrow only becomes
+            // tappable once the box at (1,0) is tapped.
+            // Total balls: 9 + 9 = 18 pink. Need 6 pink spools = 2 columns × 3.
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnArrowBoxCell{ColorId="pink", Direction=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="pink"}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    (null,null,null),
+                    (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1L, r.WinPathCount);  // must be B then A — A first is not tappable
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         private static LevelDocument MakeDoc(int width, int height, IEnumerable<(int x, int y, ICellData cell)> cells, JObject topSection)

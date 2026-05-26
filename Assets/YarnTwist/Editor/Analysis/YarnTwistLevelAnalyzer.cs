@@ -86,17 +86,64 @@ namespace Hoppa.YarnTwist.Editor
 
         private static List<Item> BuildItems(GridData<ICellData> grid)
         {
-            // Task 4: only boxes. Arrow boxes and tunnels land in Tasks 5 and 6.
+            // Pass 1: collect (x, y) → tappable index for boxes and arrow boxes.
             var items = new List<Item>();
+            var idxAt = new Dictionary<long, int>(); // y * width + x → items index
+
+            int W = grid.Width;
+            long Key(int x, int y) => (long)y * W + x;
+
             for (int y = 0; y < grid.Height; y++)
-            for (int x = 0; x < grid.Width;  x++)
+            for (int x = 0; x < W;          x++)
             {
                 var cell = grid.Get(x, y);
                 if (cell is YarnBoxCell b)
+                {
+                    idxAt[Key(x, y)] = items.Count;
                     items.Add(new Item { Kind = ItemKind.Box, ColorId = b.ColorId, PrereqIndex = -1 });
+                }
+                else if (cell is YarnArrowBoxCell ab)
+                {
+                    idxAt[Key(x, y)] = items.Count;
+                    items.Add(new Item { Kind = ItemKind.ArrowBox, ColorId = ab.ColorId, PrereqIndex = -1 });
+                }
             }
+
+            // Pass 2: resolve arrow-box prerequisites by direction → neighbor item.
+            int k = 0;
+            for (int y = 0; y < grid.Height; y++)
+            for (int x = 0; x < W;          x++)
+            {
+                var cell = grid.Get(x, y);
+                if (cell is YarnArrowBoxCell ab)
+                {
+                    var (nx, ny) = NeighborOf(x, y, ab.Direction);
+                    if (grid.InBounds(nx, ny) && idxAt.TryGetValue(Key(nx, ny), out var nIdx))
+                    {
+                        var it = items[k];
+                        it.PrereqIndex = nIdx;
+                        items[k] = it;
+                    }
+                    // else: arrow's neighbor isn't a tappable item — arrow is
+                    // permanently unreachable; PrereqIndex stays -1 and the
+                    // arrow will never become tappable. The level is broken;
+                    // YarnArrowBoxTargetRule should already flag this.
+                    k++;
+                }
+                else if (cell is YarnBoxCell) k++;
+            }
+
             return items;
         }
+
+        private static (int x, int y) NeighborOf(int x, int y, YarnDirection d) => d switch
+        {
+            YarnDirection.Up    => (x, y + 1),
+            YarnDirection.Down  => (x, y - 1),
+            YarnDirection.Left  => (x - 1, y),
+            YarnDirection.Right => (x + 1, y),
+            _                   => (x, y),
+        };
 
         // ── Top section ─────────────────────────────────────────────────
 
@@ -217,8 +264,18 @@ namespace Hoppa.YarnTwist.Editor
 
             private bool IsTappable(int i)
             {
-                // Task 4: only boxes. Arrow / tunnel land in Tasks 5–6.
-                return _items[i].Kind == ItemKind.Box;
+                var it = _items[i];
+                switch (it.Kind)
+                {
+                    case ItemKind.Box: return true;
+                    case ItemKind.ArrowBox:
+                        // Locked until the prerequisite has been tapped. An
+                        // arrow box with no valid prerequisite (PrereqIndex
+                        // = -1) is permanently locked.
+                        return it.PrereqIndex >= 0 && _tapped[it.PrereqIndex];
+                    case ItemKind.Tunnel: return false; // Task 6
+                    default: return false;
+                }
             }
 
             private void ApplyTap(int i)
