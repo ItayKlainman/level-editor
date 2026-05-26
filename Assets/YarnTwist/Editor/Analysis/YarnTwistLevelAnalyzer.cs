@@ -207,6 +207,7 @@ namespace Hoppa.YarnTwist.Editor
             private readonly int[]  _spoolHead;       // [Columns]
             private readonly int[]  _spoolFill;       // [Columns]
             private readonly Dictionary<string, int> _bag = new Dictionary<string, int>();
+            private readonly Dictionary<ulong, long> _memo = new Dictionary<ulong, long>();
 
             public long PathCount;
             public long StatesExplored;
@@ -222,17 +223,17 @@ namespace Hoppa.YarnTwist.Editor
                 _spoolFill = new int[Columns];
             }
 
-            public void Run() => Dfs();
+            public void Run() => PathCount = DfsMemo();
 
-            private void Dfs()
+            private long DfsMemo()
             {
-                if (TimedOut) return;
-                if (_sw.ElapsedMilliseconds > _timeoutMs) { TimedOut = true; return; }
+                if (TimedOut) return 0;
+                if (_sw.ElapsedMilliseconds > _timeoutMs) { TimedOut = true; return 0; }
                 StatesExplored++;
 
                 int bagSum = 0;
                 foreach (var v in _bag.Values) bagSum += v;
-                if (bagSum > _capacity) return;
+                if (bagSum > _capacity) return 0;
 
                 bool allConsumed = true;
                 for (int i = 0; i < _items.Count; i++)
@@ -247,16 +248,20 @@ namespace Hoppa.YarnTwist.Editor
                 for (int k = 0; k < Columns; k++)
                     if (_spoolHead[k] < _cols[k].SpoolColors.Count) { allSpoolsCleared = false; break; }
 
-                if (allConsumed && allSpoolsCleared && bagSum == 0) { PathCount++; return; }
-                if (allConsumed) return; // no producer left but state isn't winning
+                if (allConsumed && allSpoolsCleared && bagSum == 0) return 1;
+                if (allConsumed) return 0;
+
+                ulong stateKey = HashState();
+                if (_memo.TryGetValue(stateKey, out var cached)) return cached;
+
+                long total = 0;
 
                 for (int i = 0; i < _items.Count; i++)
                 {
                     if (!IsTappable(i)) continue;
-                    if (PathCount >= _cap) return;
-                    if (_mode == AnalysisMode.Solvable && PathCount >= 1) return;
+                    if (total >= _cap) break;
+                    if (_mode == AnalysisMode.Solvable && total >= 1) break;
 
-                    // Snapshot
                     var savedBag = new Dictionary<string, int>(_bag);
                     var savedHead = (int[])_spoolHead.Clone();
                     var savedFill = (int[])_spoolFill.Clone();
@@ -264,20 +269,50 @@ namespace Hoppa.YarnTwist.Editor
                     int savedQueueIdx = _items[i].QueueIndex;
 
                     ApplyTap(i);
+                    long sub = DfsMemo();
+                    total = Math.Min(_cap, total + sub);
 
-                    Dfs();
-
-                    // Restore
                     _bag.Clear(); foreach (var kv in savedBag) _bag[kv.Key] = kv.Value;
                     Array.Copy(savedHead, _spoolHead, Columns);
                     Array.Copy(savedFill, _spoolFill, Columns);
                     _tapped[i] = savedTapped;
                     var restored = _items[i]; restored.QueueIndex = savedQueueIdx; _items[i] = restored;
 
-                    if (TimedOut) return;
-                    if (PathCount >= _cap) return;
-                    if (_mode == AnalysisMode.Solvable && PathCount >= 1) return;
+                    if (TimedOut) break;
                 }
+
+                _memo[stateKey] = total;
+                return total;
+            }
+
+            // Compact 64-bit state hash. NOT a perfect hash — collisions
+            // possible but rare. For the small puzzles we care about
+            // (typical 7×7 grids), the impact is acceptable.
+            private ulong HashState()
+            {
+                ulong h = 1469598103934665603UL; // FNV offset
+                const ulong P = 1099511628211UL;
+
+                for (int i = 0; i < _items.Count; i++)
+                {
+                    int v = _items[i].Kind == ItemKind.Tunnel
+                        ? _items[i].QueueIndex
+                        : (_tapped[i] ? 1 : 0);
+                    h = (h ^ (ulong)v) * P;
+                }
+                for (int k = 0; k < Columns; k++)
+                {
+                    h = (h ^ (ulong)_spoolHead[k]) * P;
+                    h = (h ^ (ulong)_spoolFill[k]) * P;
+                }
+                var keys = new List<string>(_bag.Keys);
+                keys.Sort(StringComparer.Ordinal);
+                foreach (var key in keys)
+                {
+                    h = (h ^ (ulong)key.GetHashCode()) * P;
+                    h = (h ^ (ulong)_bag[key]) * P;
+                }
+                return h;
             }
 
             private bool IsTappable(int i)

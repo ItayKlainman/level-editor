@@ -134,6 +134,103 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(1L, r.WinPathCount); // tunnel tapped twice in queue order
         }
 
+        // ── Fixture 6: 2 independent matched boxes → exactly 2 paths ────
+
+        [Test]
+        public void Analyze_TwoIndependentBoxes_ReportsTwoPaths()
+        {
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("blue","blue","blue"),
+                    (null,null,null),
+                    (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable);
+            Assert.AreEqual(2L, r.WinPathCount);
+        }
+
+        // ── Fixture 7: many independent matched boxes → hits cap ────────
+
+        [Test]
+        public void Analyze_HighBranching_HitsCap()
+        {
+            // 6 boxes of 6 distinct colors: 6! = 720 orderings. Cap at 100.
+            string[] colors = { "pink", "blue", "teal", "green", "yellow", "purple" };
+            var cells = new List<(int, int, ICellData)>();
+            for (int i = 0; i < colors.Length; i++)
+                cells.Add((i, 0, new YarnBoxCell { ColorId = colors[i] }));
+
+            var data = new YarnTopSectionData();
+            for (int i = 0; i < 4; i++) data.Columns.Add(new YarnSpoolColumn());
+            // 18 spools distributed across the 4 columns.
+            int spoolIdx = 0;
+            foreach (var c in colors)
+                for (int s = 0; s < 3; s++)
+                {
+                    data.Columns[spoolIdx % 4].Spools.Add(new YarnSpoolData { ColorId = c });
+                    spoolIdx++;
+                }
+
+            var doc = MakeDoc(width: colors.Length, height: 1, cells: cells, topSection: JObject.FromObject(data));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, WinPathCap = 100, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable);
+            Assert.AreEqual(100L, r.WinPathCount);
+            Assert.IsTrue(r.CountWasCapped);
+        }
+
+        // ── Fixture 8: determinism ──────────────────────────────────────
+
+        [Test]
+        public void Analyze_SameFixture_ReturnsIdenticalCount()
+        {
+            var doc1 = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+            var doc2 = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+
+            var r1 = _analyzer.Analyze(doc1, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            var r2 = _analyzer.Analyze(doc2, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.AreEqual(r1.WinPathCount, r2.WinPathCount);
+            Assert.AreEqual(r1.Solvable, r2.Solvable);
+        }
+
+        // ── Fixture 9: two columns same active color → greedy multi-clear ─
+
+        [Test]
+        public void Analyze_TwoColumnsSameActiveColor_OneTapMultiClears()
+        {
+            // 2 pink boxes (18 balls) and 2 columns × 3 pink spools (18 ball capacity).
+            // The two boxes are independent — the only ordering choice is which goes first.
+            // Expected: 2 win paths (tap order between the two boxes).
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="pink"}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    (null,null,null), (null,null,null)));
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable);
+            Assert.AreEqual(2L, r.WinPathCount); // tap order between the two boxes
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         private static LevelDocument MakeDoc(int width, int height, IEnumerable<(int x, int y, ICellData cell)> cells, JObject topSection)
