@@ -136,7 +136,8 @@ namespace Hoppa.YarnTwist.Editor
                 BumpHist(result.CandidatePathCountHistogram, analysis.WinPathCount);
                 result.CandidatesTried++;
 
-                if (analysis.Solvable && analysis.WinPathCount >= bandLow && analysis.WinPathCount <= bandHigh)
+                if (analysis.Solvable && !analysis.CountWasCapped
+                    && analysis.WinPathCount >= bandLow && analysis.WinPathCount <= bandHigh)
                 {
                     result.TopSection = topJson;
                     result.Analysis = analysis;
