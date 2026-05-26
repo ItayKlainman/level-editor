@@ -45,6 +45,15 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: tuning ScriptableObject for the assigned LevelGenerator. The generator panel's Advanced foldout renders this asset's default inspector.\nExample: YarnTwistGeneratorConfig")]
         [SerializeField] private ScriptableObject _generatorConfig;
 
+        [Tooltip("Optional: assign a LevelAnalyzerAsset subclass to enable the Spool Analysis side panel and report win-path counts for the current document.\nExample: YarnTwistLevelAnalyzer")]
+        [SerializeField] private LevelAnalyzerAsset _levelAnalyzer;
+
+        [Tooltip("Optional: assign a LevelCompleterAsset subclass to enable the 'Auto-fill' button in the Spool Analysis panel. Generates parts of the level (e.g. the top section) from the hand-painted grid + a Difficulty knob.\nExample: YarnTwistSpoolAutofiller")]
+        [SerializeField] private LevelCompleterAsset _levelCompleter;
+
+        [Tooltip("Generic per-profile extension data. Used by Layer 2 implementations that need profile-scoped configuration outside the typed fields above. Look up by type via GetExtension<T>().")]
+        [SerializeField] private List<ScriptableObject> _extensions = new List<ScriptableObject>();
+
         public string SchemaId => _schemaId;
         public ColorPaletteAsset ColorPalette => _colorPalette;
         public int GridWidth => _gridWidth;
@@ -55,6 +64,19 @@ namespace Hoppa.LevelEditor.Core.Editor
         public IEditorPanel OrderPanel => _orderPanel;
         public ILevelGenerator LevelGenerator => _levelGenerator;
         public ScriptableObject GeneratorConfig => _generatorConfig;
+        public LevelAnalyzerAsset  LevelAnalyzer  => _levelAnalyzer;
+        public LevelCompleterAsset LevelCompleter => _levelCompleter;
+
+        // Generic typed-lookup over the _extensions list. Returns the first
+        // ScriptableObject that is assignable to T, or null. Use for Layer 2
+        // configuration data that should be attached to the profile itself
+        // (not to a Layer 2 asset).
+        public T GetExtension<T>() where T : ScriptableObject
+        {
+            foreach (var e in _extensions)
+                if (e is T t) return t;
+            return null;
+        }
 
         public CellTypeRegistry BuildRegistry()
         {
