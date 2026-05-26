@@ -131,8 +131,25 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void OnAnalyze(LevelEditorSession session, GameProfile profile)
         {
-            // Implemented in Task 13.
-            _statusMessage = "(Analyze wiring lands in Task 13.)";
+            _statusMessage = null;
+            _lastCompletion = null;
+
+            try
+            {
+                _lastAnalysis = profile.LevelAnalyzer.Analyze(session.Document, profile, new AnalysisRequest
+                {
+                    Mode = AnalysisMode.Count,
+                    WinPathCap = 10_000,
+                    TimeoutMs  = 5_000,
+                    ConveyorCapacityOverride = ResolveCapacity(),
+                });
+            }
+            catch (Exception ex)
+            {
+                _lastAnalysis = null;
+                _statusMessage = "Analyze failed: " + ex.Message;
+                Debug.LogError("AutofillPanel.OnAnalyze: " + ex);
+            }
         }
 
         private void OnAutofill(LevelEditorSession session, GameProfile profile)
