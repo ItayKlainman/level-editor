@@ -22,6 +22,9 @@ namespace Hoppa.YarnTwist.Editor
 
         private const string LastCoinRewardPrefKey = "Hoppa.YarnTwist.LastCoinReward";
 
+        // Mirrors the game's YATLevelType enum; written to LevelConfig.LevelType as the enum name.
+        private static readonly string[] LevelTypeOptions = { "None", "Hard", "SuperHard" };
+
         // Cached order key — re-read only when the level file path changes.
         private string _orderCacheForPath;
         private string _cachedOrder = "—";
@@ -83,28 +86,46 @@ namespace Hoppa.YarnTwist.Editor
             yield return ("Layout", minX == int.MaxValue ? "—" : $"{maxX - minX + 1} × {maxY - minY + 1}");
         }
 
-        public override int ExtraSummaryRowCount => 1;
+        public override int ExtraSummaryRowCount => 2;
 
         public override void DrawExtraSummaryRows(Rect rect, LevelEditorSession session)
         {
             var doc = session.Document;
-            float lh = rect.height; // rect is exactly 1 row tall
+            float lh = rect.height / ExtraSummaryRowCount; // one row per metadata field
+            const float LabelW = 60f;
 
+            // Row 0 — coin reward
+            float fieldX = rect.x + LabelW + 2f;
+            float fieldW = rect.width - LabelW - 2f;
             int current = doc.GameData?["coinReward"]?.Value<int>()
                 ?? EditorPrefs.GetInt(LastCoinRewardPrefKey, _defaultRewardAmount);
 
-            const float LabelW = 46f;
             GUI.Label(new Rect(rect.x, rect.y, LabelW, lh), "Coins", EditorStyles.miniLabel);
-
             EditorGUI.BeginChangeCheck();
             int newVal = EditorGUI.IntField(
-                new Rect(rect.x + LabelW + 2f, rect.y, rect.width - LabelW - 2f, lh),
-                current, EditorStyles.miniTextField);
+                new Rect(fieldX, rect.y, fieldW, lh), current, EditorStyles.miniTextField);
             if (EditorGUI.EndChangeCheck())
             {
                 if (doc.GameData == null) doc.GameData = new JObject();
                 doc.GameData["coinReward"] = newVal;
                 EditorPrefs.SetInt(LastCoinRewardPrefKey, newVal);
+                session.MarkDirty();
+            }
+
+            // Row 1 — difficulty type
+            float diffY = rect.y + lh;
+            string currentType = doc.GameData?["levelType"]?.ToString() ?? LevelTypeOptions[0];
+            int currentIdx = Array.IndexOf(LevelTypeOptions, currentType);
+            if (currentIdx < 0) currentIdx = 0;
+
+            GUI.Label(new Rect(rect.x, diffY, LabelW, lh), "Difficulty", EditorStyles.miniLabel);
+            EditorGUI.BeginChangeCheck();
+            int newIdx = EditorGUI.Popup(
+                new Rect(fieldX, diffY, fieldW, lh), currentIdx, LevelTypeOptions);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (doc.GameData == null) doc.GameData = new JObject();
+                doc.GameData["levelType"] = LevelTypeOptions[newIdx];
                 session.MarkDirty();
             }
         }
@@ -199,9 +220,15 @@ namespace Hoppa.YarnTwist.Editor
                 { existingKey = kvp.Key; break; }
             }
             string writeKey = existingKey ?? levelKey;
+
+            string levelType = document.GameData?["levelType"]?.ToString();
+            if (string.IsNullOrEmpty(levelType) || Array.IndexOf(LevelTypeOptions, levelType) < 0)
+                levelType = LevelTypeOptions[0];
+
             levelConfigsObj[writeKey] = new JObject
             {
                 ["levelId"]       = fileNameNoExt,
+                ["LevelType"]     = levelType,
                 ["BottomConfigs"] = bottomConfigs,
                 ["TopConfigs"]    = topConfigs
             };

@@ -8,6 +8,28 @@
 
 ## Active phase
 
+**Per-level Difficulty Type — YarnTwist (2026-05-28)**
+
+Small Layer-2 feature. The game's `LevelConfig` gained `YATLevelType LevelType`
+(`None` / `Hard` / `SuperHard`). Editor now lets the designer pick a difficulty
+per level via a dropdown in the Summary panel (second row, under Coins), stored
+as `doc.GameData["levelType"]` and exported as `LevelConfigs[key].LevelType`
+(enum-name string, matching how `Direction` is written).
+
+- Spec: `docs/superpowers/specs/2026-05-28-yarntwist-level-difficulty-type-design.md`
+- Code: `Assets/YarnTwist/Editor/YarnMasterLevelExporter.cs`
+  (`ExtraSummaryRowCount` 1→2, dropdown in `DrawExtraSummaryRows`, `LevelType`
+  added to the level entry in `Export`).
+- Tests: `Assets/YarnTwist/Tests/Editor/YarnMasterLevelExporterTests.cs`
+  (+2: set→writes "Hard"; unset→defaults "None").
+- **Verification blocked in this session** — `unity-mcp-cli` returns HTTP 401
+  (no valid bearer token), so EditMode tests + manual check must run in the
+  user's Unity. Run `YarnMasterLevelExporterTests` (EditMode); then in the Level
+  Editor pick a Difficulty, Save/reopen (persists), Export, confirm
+  `"LevelType"` in `level_config.json`.
+
+---
+
 **Spool auto-fill + win-path analysis — YarnTwist v1 (2026-05-26)**
 
 New authoring flow on top of the editor: the designer paints the grid by

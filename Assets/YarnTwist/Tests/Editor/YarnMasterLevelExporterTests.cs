@@ -191,6 +191,23 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(3, (int)BottomConfigAt(0)["BottomType"]);
         }
 
+        [Test]
+        public void Export_LevelType_Set_WritesEnumNameString()
+        {
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            doc.GameData = new JObject { ["levelType"] = "Hard" };
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+            Assert.AreEqual("Hard", (string)ReadOutput()["LevelConfigs"]["1"]["LevelType"]);
+        }
+
+        [Test]
+        public void Export_LevelType_Unset_DefaultsToNone()
+        {
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+            Assert.AreEqual("None", (string)ReadOutput()["LevelConfigs"]["1"]["LevelType"]);
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static ICellData EmptyCell()  => new YarnEmptyCell();
