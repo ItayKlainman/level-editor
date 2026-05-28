@@ -5,7 +5,7 @@
 
 ---
 
-## Current status (as of 2026-05-26)
+## Current status (as of 2026-05-28)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
 - **Active branch**: `master` — YarnTwist editor was complete at tag `v0.5.14`, then **unparked for the level-generator initiative (v1 ships YarnTwist-only, 2026-05-25)**. YAK Layer 2 onboarding still in progress in parallel — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). The next Layer 1 tag bumps for both the v0.5.15/16 changes that already shipped and the new generator framework added 2026-05-25.
@@ -17,6 +17,11 @@
   loop targeting a Difficulty-keyed win-path band) wired and passing
   edit-mode tests. `GameProfile` gains an `_extensions` slot for future
   per-profile data (Layer 1 stays generic — no game-specific vocabulary).
+- **Per-level difficulty type (2026-05-28)**: YarnTwist Layer-2 only. A
+  Difficulty dropdown (None/Hard/SuperHard) in the Summary panel, stored per
+  level in `gameData.levelType` and exported as `LevelConfig.LevelType`
+  (enum-name string). Mirrors the `coinReward` pattern. No Layer 1 / UPM change,
+  so no tag bump. Synced to YarnTwist (`Assets/_YAT/Scripts/Editor/`).
 
 ---
 
@@ -77,7 +82,9 @@
 - Cell definitions: `YarnEmptyCellDefinition`, `YarnWallCellDefinition`, `YarnBoxCellDefinition`, `YarnArrowBoxCellDefinition`, `YarnTunnelCellDefinition` (all use color swatches in `DrawInspector`)
 - `YarnTopSectionPanel` — 4-column spool editor with drag-and-drop reorder, per-row delete, grid-filtered color picker, smart `+` default color, dynamic height
 - Validation rules: `YarnColorBalanceRule` (emits Info table + Error for imbalances), `YarnArrowBoxTargetRule`, `YarnTunnelOutputRule`
-- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button. On export, scans existing `LevelConfigs` for an entry matching the current `levelId` and updates it in-place (preserves the slot assigned by Apply Order). Only falls back to the filename-derived key (`level_005.json` → `"5"`) for brand-new levels. Exposes `OutputPath` getter for use by `YarnLevelOrderPanel`.
+- `YarnMasterLevelExporter` — transforms `LevelDocument` → `level_config.json` (game schema) on every Save and on the explicit Export ▸ button. On export, scans existing `LevelConfigs` for an entry matching the current `levelId` and updates it in-place (preserves the slot assigned by Apply Order). Only falls back to the filename-derived key (`level_005.json` → `"5"`) for brand-new levels. Exposes `OutputPath` getter for use by `YarnLevelOrderPanel`. Summary panel now
+  has two editable rows — Coins (`gameData.coinReward`) and Difficulty
+  (`gameData.levelType`); the latter is exported as `LevelConfig.LevelType`.
 - `YarnLevelOrderPanel` — `EditorPanelAsset` shown in the ⇅ Order tab. Reads `level_config.json`, displays levels as a draggable `ReorderableList` with `#N` index labels, supports reordering (Apply Order) and per-level deletion (with confirmation dialog). Assigned to `YarnTwistProfile.asset`'s Order Panel field.
 - `StringIntMapping` assets: `YarnColorMapping.asset` (10 colors), `YarnCellTypeMapping.asset` (5 types)
 - **Generator** (`Editor/Generator/`): `YarnTwistGeneratorConfig` — `ScriptableObject` with 9 Difficulty-keyed `AnimationCurve` knobs (GridWidth/Height, WallDensity, BoxRatio, ArrowBoxRatio, TunnelCount, ColorCount, HiddenSpoolRatio, CoinReward) + `MaxRerollAttempts` / `MaxTunnelQueueLength` + 3 numeric overrides (GridWidth/Height/ColorCount; 0 = use curve). `OnEnable` defensively populates default linear curves. `YarnTwistLevelGenerator : LevelGeneratorAsset` — Option A from the design: layout-first placement (walls → tunnels with forced-empty neighbor → boxes/arrowboxes → arrow-direction repair) then derive spool distribution from per-color grid totals (every colored grid item = 9 balls = exactly 3 spools, so YarnColorBalanceRule passes by construction). Reroll loop uses `LevelGeneratorRunner.Evaluate` against `profile.Rules`. Tests in `Assets/YarnTwist/Tests/Editor/YarnTwistLevelGeneratorTests.cs` (determinism, Difficulty sweep 1/3/5/8/10, override propagation, diagnostics, APS recording) — all green.
