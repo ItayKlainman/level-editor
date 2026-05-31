@@ -8,7 +8,67 @@
 
 ## Active phase
 
-**Per-level Difficulty Type — YarnTwist (2026-05-28)**
+**Spool auto-fill v2 — scale to harder/bigger levels (2026-05-31) — CODE COMPLETE; awaiting user test run**
+
+Expanded the auto-complete/validation system so it handles bigger grids instead of
+always falling to best-effort. Plan: `C:\Users\itay0\.claude\plans\look-at-the-last-logical-lollipop.md`.
+
+What changed (all in this editor-core repo):
+- **Phase A — alloc-free DFS** (`Assets/YarnTwist/Editor/Analysis/YarnTwistLevelAnalyzer.cs`):
+  colors interned to `int[]` bag, per-node state snapshotted on the stack and
+  undone (no per-node `Dictionary`/array clone), running `_bagSum`, alloc-free
+  FNV hash over interned ints. Counts are identical to v1 (regression-locked by
+  existing fixtures) — just far faster, so the analyzer finishes within budget
+  on bigger grids.
+- **Phase D — Monte-Carlo WinRate** (same file + `AnalysisRequest`/`LevelAnalysisResult`):
+  new `AnalysisMode.WinRate` + `RolloutCount`/`PlayerLookahead`. Simulates a myopic
+  player who only learns a hidden spool's color when it reaches its column head
+  ("covered-until-head", per user's reveal-rule choice). Never caps; hidden spools
+  now genuinely lower measured difficulty. `LevelAnalysisResult` gained
+  `WinRate` + `RolloutsRun`.
+- **Phase B+C — parallel + smarter acceptance + guided search**
+  (`YarnTwistSpoolAutofiller.cs`): stage-1 `Parallel.For` sweep with pre-derived
+  per-candidate seeds → deterministic (lowest-index in-band hit wins regardless of
+  thread timing). Stops hard-rejecting capped candidates: uses exact win-path band
+  when uncapped, win-rate band when capped. Stage-2 sequential hill-climbing (color
+  swaps preserving balance + hidden mask) when stage-1 misses.
+- **Phase E — config** (`YarnTwistSpoolAutofillConfig.cs` + `.asset`): raised caps
+  (MaxRerollAttempts 100→400, WinPathCap 10k→100k, PerCandidate 500→1500ms, Total
+  30k→60k) and new knobs (`MaxDegreeOfParallelism`, `WinRateTargetByDifficulty`,
+  `WinRateTolerance`, `RolloutCount`, `PlayerLookahead`, `GuidedSteps`). **The
+  `.asset` was updated too** — Unity loads existing YAML values, so absent int
+  fields would have defaulted to 0 and disabled rollouts.
+- **Phase F — UI + tests**: `AutofillPanel` Analyze now requests rollouts so the
+  result line shows win-rate. Added analyzer tests (WinRate range, both-metrics,
+  easy-level=1.0, hidden-never-raises-winrate) and autofiller tests (determinism
+  across degree-of-parallelism, larger 6-color grid stays balanced).
+
+NEXT: **user runs EditMode tests in Unity** (agent can't — unity-mcp-cli 401).
+Watch points if anything fails: (1) `Span`/`stackalloc` support in the target
+Unity; (2) the noise-tolerant `hidden ≤ visible + 0.05` win-rate assertion;
+(3) the pre-existing probabilistic autofiller fixtures (`CapacityOverride`,
+`DifficultyOne_HasHigherAveragePathCount`) under the new candidate RNG.
+
+**Follow-up batch (2026-05-31, same session) — CODE COMPLETE:**
+1. **Unsolvable indicator** — `AutofillPanel` now draws a full-width red banner
+   `⚠ NO SOLVABLE PATH FOUND` + FailureReason whenever `_lastAnalysis.Solvable`
+   is false (covers Analyze, Auto-fill best-effort, and Save Solution). `BannerBg`
+   color added; `PreferredHeight` 220→300.
+2. **Exportable solution steps** — new `AnalysisRequest.RecordSolution` +
+   `LevelAnalysisResult.SolutionSteps` (Layer-1 generic, list of game-formatted
+   strings). `YarnTwistLevelAnalyzer` now carries `(x,y)` per item through the
+   interned `Model` (+`ColorNames`), and a **record-mode** `SearchContext` (memo
+   bypassed, stops at first winning leaf) captures one guaranteed win sequence;
+   `FormatSolution` renders tap-order lines. New panel **"Save Solution…"** button
+   runs Solvable+RecordSolution, then `EditorUtility.SaveFilePanel` →
+   `File.WriteAllText` `<levelId>.solution.txt` → `RevealInFinder`. Format chosen
+   by user: tap-order only, text file only.
+   Tests: arrow-box order, tunnel queue order, unsolvable→no steps, step-count ==
+   taps + Count unaffected (`YarnTwistLevelAnalyzerTests` fixtures 14–17).
+
+---
+
+### Parked — Per-level Difficulty Type — YarnTwist (2026-05-28) — FEATURE DONE; game-project editor BLOCKED
 
 Small Layer-2 feature. The game's `LevelConfig` gained `YATLevelType LevelType`
 (`None` / `Hard` / `SuperHard`). Editor now lets the designer pick a difficulty
@@ -16,17 +76,69 @@ per level via a dropdown in the Summary panel (second row, under Coins), stored
 as `doc.GameData["levelType"]` and exported as `LevelConfigs[key].LevelType`
 (enum-name string, matching how `Direction` is written).
 
+Feature status: **complete, committed, pushed, deployed.**
 - Spec: `docs/superpowers/specs/2026-05-28-yarntwist-level-difficulty-type-design.md`
-- Code: `Assets/YarnTwist/Editor/YarnMasterLevelExporter.cs`
-  (`ExtraSummaryRowCount` 1→2, dropdown in `DrawExtraSummaryRows`, `LevelType`
-  added to the level entry in `Export`).
-- Tests: `Assets/YarnTwist/Tests/Editor/YarnMasterLevelExporterTests.cs`
-  (+2: set→writes "Hard"; unset→defaults "None").
-- **Verification blocked in this session** — `unity-mcp-cli` returns HTTP 401
-  (no valid bearer token), so EditMode tests + manual check must run in the
-  user's Unity. Run `YarnMasterLevelExporterTests` (EditMode); then in the Level
-  Editor pick a Difficulty, Save/reopen (persists), Export, confirm
-  `"LevelType"` in `level_config.json`.
+- Code: `Assets/YarnTwist/Editor/YarnMasterLevelExporter.cs` (`ExtraSummaryRowCount`
+  1→2, dropdown in `DrawExtraSummaryRows`, `LevelType` in `Export`).
+- Tests: `Assets/YarnTwist/Tests/Editor/YarnMasterLevelExporterTests.cs` (+2;
+  user confirmed they pass).
+- editor-core commit `e9136c1` pushed to `origin/master`; game repo commit
+  `5fb4707` pushed to `origin/itay-main`. Layer-2 only → no UPM tag bump.
+- **Verified working in editor-core** (Unity 6): dropdown shows "None" under
+  Coins in the Summary panel.
+
+### BLOCKER — Level Editor broken in the YarnTwist GAME project (`E:/Projects/Hoppa/YarnTwist`)
+
+Pre-existing, **not caused by the feature**. Opening any level NREs and the
+Difficulty dropdown never renders.
+
+- Symptom: `NullReferenceException` in package code
+  `LevelEditorWindow.AutoActivateCellType()` at `LevelEditorWindow.cs:534`
+  (`def.CreateDefault()` where `def = _profile.CellTypes[1]` is **null**), then
+  `EndLayoutGroup`/`Stack empty` IMGUI cascade. Palette is empty; Summary shows
+  no Coins/Difficulty rows. Root: the profile's cell-type definitions resolve
+  to **null** (missing-script binding) at runtime.
+- Environment: game project is **Unity 2022.3.62f2**; editor-core is Unity 6.
+  Game consumes package via git UPM pinned `#v0.5.18` (= commit `bc7477a`,
+  confirmed by `git tag --contains`). Lock hash matches. Package is NOT stale.
+
+What was VERIFIED on disk (all correct — none is the cause):
+- Profile `_cellTypes`/`_exporters` GUIDs all resolve to existing assets.
+- Cell-def `.asset` `m_Script` GUIDs match their `.cs.meta` GUIDs.
+- v0.5.17 sync (`3197cef`) did NOT touch cell-def assets — only added
+  generator/analyzer fields to the profile. Cell-def scripts/metas stable
+  since original import.
+- No duplicate `YarnWallCellDefinition` type; no duplicate Layer-1 framework
+  copy in `Assets`.
+
+What was TRIED (none fixed it):
+- **Added 2 asmdefs to the game project** (NEW, uncommitted, unverified-as-fix):
+  `Assets/_YAT/Scripts/Runtime/Hoppa.YarnTwist.Runtime.asmdef` and
+  `Assets/_YAT/Scripts/Editor/Hoppa.YarnTwist.Editor.asmdef`. Rationale: the
+  cell-def assets record `m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::…`
+  but the game had NO such assembly (scripts compiled into
+  `Assembly-CSharp-Editor`). After adding them, `Hoppa.YarnTwist.Editor.dll`
+  builds and contains `YarnWallCellDefinition` (verified) — but the NRE
+  PERSISTS. **Consider reverting these two files if they turn out irrelevant.**
+- Reimport All, folder Reimport, full Unity restart — NRE persists.
+- NOTE: the game has NEVER had a `Hoppa.YarnTwist.Editor` asmdef in git history
+  (only `YAT.Editor`/`YAT.Gamelogic`, added at init). User says the editor
+  "worked before with a simple version bump" — so binding worked previously
+  with types in `Assembly-CSharp-Editor`. That contradicts the assembly-name
+  theory and is unresolved.
+
+### RESUME HERE (next session)
+The one decisive datapoint never gathered: **in the game Unity, click
+`Assets/_YAT/LevelEditor/Config/CellDefs/YarnWallCellDef.asset` and read the
+Inspector.**
+- If it shows "script can not be loaded" / Script = `None` → asset genuinely
+  can't bind (re-assign the script / re-create the asset; the GUID link is the
+  issue regardless of YAML).
+- If it shows normal fields (Script=`YarnWallCellDefinition`, `yt.wall`, `Wall`)
+  → cell-defs are fine; the null is in the **profile's** `_cellTypes` reference
+  list → re-assign cell types on `YarnTwistProfile.asset`.
+This single answer splits the problem; pick the matching fix. Also worth a
+fresh look from the "package version bump" angle the user raised.
 
 ---
 
