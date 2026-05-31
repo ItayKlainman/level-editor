@@ -17,6 +17,23 @@ namespace Hoppa.LevelEditor.Core.Editor
         // Game-specific override for the conveyor / belt / queue capacity.
         // Null = analyzer uses its own default.
         public int? ConveyorCapacityOverride;
+
+        // Number of Monte-Carlo playouts to run for the imperfect-information
+        // WinRate metric. 0 = skip rollouts. When Mode == WinRate this is the
+        // primary signal; under Mode == Count any positive value also populates
+        // WinRate alongside the exact count (one analyzer call, two metrics).
+        public int RolloutCount = 0;
+
+        // How many spools past each column's head the simulated player is
+        // allowed to "plan against". Hidden spools inside this window are
+        // unknown (covered-until-head), so a larger window only helps when
+        // spools are visible — this is what makes the hidden ratio bite.
+        public int PlayerLookahead = 4;
+
+        // When true the analyzer records one concrete winning tap-ordering (the
+        // first the exact solver finds) into LevelAnalysisResult.SolutionSteps.
+        // Runs a fast first-solution search; does not affect the win-path count.
+        public bool RecordSolution = false;
     }
 
     public enum AnalysisMode
@@ -26,5 +43,10 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         // Exhaustive count of winning sequences up to WinPathCap.
         Count,
+
+        // Imperfect-information difficulty: fraction of myopic-player playouts
+        // that win. Never caps and scales to arbitrarily large grids. Skips the
+        // exhaustive DFS entirely.
+        WinRate,
     }
 }

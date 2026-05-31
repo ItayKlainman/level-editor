@@ -231,7 +231,196 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(2L, r.WinPathCount); // tap order between the two boxes
         }
 
+        // ── Fixture 10: WinRate metric is well-formed ───────────────────
+
+        [Test]
+        public void Analyze_WinRate_InRangeAndReportsRollouts()
+        {
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest
+            {
+                Mode = AnalysisMode.WinRate, RolloutCount = 200, ConveyorCapacityOverride = 24,
+            });
+            Assert.AreEqual(200L, r.RolloutsRun);
+            Assert.GreaterOrEqual(r.WinRate, 0.0);
+            Assert.LessOrEqual(r.WinRate, 1.0);
+        }
+
+        // ── Fixture 11: Count mode with rollouts populates both signals ──
+
+        [Test]
+        public void Analyze_CountWithRollouts_PopulatesBothMetrics()
+        {
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest
+            {
+                Mode = AnalysisMode.Count, RolloutCount = 100, ConveyorCapacityOverride = 24,
+            });
+            Assert.AreEqual(2L, r.WinPathCount);   // exact count still correct
+            Assert.AreEqual(100L, r.RolloutsRun);  // rollouts layered on top
+        }
+
+        // ── Fixture 12: easy single-color level wins every playout ──────
+
+        [Test]
+        public void Analyze_WinRate_EasyLevelAlwaysWins()
+        {
+            // 2 pink boxes (18 balls), 6 pink spools, slack capacity. Every tap
+            // order wins, hidden or not, so win-rate is exactly 1.
+            var visible = TopWithHidden(allHidden: false,
+                new[] { "pink","pink","pink" }, new[] { "pink","pink","pink" });
+            var hidden  = TopWithHidden(allHidden: true,
+                new[] { "pink","pink","pink" }, new[] { "pink","pink","pink" });
+
+            var docV = MakeDoc(2, 1, TwoPink(), visible);
+            var docH = MakeDoc(2, 1, TwoPink(), hidden);
+
+            var rV = _analyzer.Analyze(docV, _profile, new AnalysisRequest { Mode = AnalysisMode.WinRate, RolloutCount = 200, ConveyorCapacityOverride = 24 });
+            var rH = _analyzer.Analyze(docH, _profile, new AnalysisRequest { Mode = AnalysisMode.WinRate, RolloutCount = 200, ConveyorCapacityOverride = 24 });
+            Assert.AreEqual(1.0, rV.WinRate, 1e-9);
+            Assert.AreEqual(1.0, rH.WinRate, 1e-9);
+        }
+
+        // ── Fixture 13: hiding spools never raises the win-rate ─────────
+
+        [Test]
+        public void Analyze_WinRate_HiddenDoesNotIncreaseWinRate()
+        {
+            // Tight capacity, two colors: foresight helps avoid overflow, so
+            // covering spools can only keep or lower the measured win-rate.
+            var cells = new (int, int, ICellData)[] {
+                (0,0,new YarnBoxCell{ColorId="pink"}),
+                (1,0,new YarnBoxCell{ColorId="blue"}),
+                (2,0,new YarnBoxCell{ColorId="pink"}),
+                (3,0,new YarnBoxCell{ColorId="blue"}),
+            };
+            var visible = TopWithHidden(allHidden: false,
+                new[] { "pink","pink","pink" }, new[] { "blue","blue","blue" },
+                new[] { "pink","pink","pink" }, new[] { "blue","blue","blue" });
+            var hidden  = TopWithHidden(allHidden: true,
+                new[] { "pink","pink","pink" }, new[] { "blue","blue","blue" },
+                new[] { "pink","pink","pink" }, new[] { "blue","blue","blue" });
+
+            var rV = _analyzer.Analyze(MakeDoc(4,1,cells,visible), _profile,
+                new AnalysisRequest { Mode = AnalysisMode.WinRate, RolloutCount = 800, PlayerLookahead = 6, ConveyorCapacityOverride = 12 });
+            var rH = _analyzer.Analyze(MakeDoc(4,1,cells,hidden), _profile,
+                new AnalysisRequest { Mode = AnalysisMode.WinRate, RolloutCount = 800, PlayerLookahead = 6, ConveyorCapacityOverride = 12 });
+
+            // Hiding removes information the player could use; with 800 rollouts
+            // the estimate is steady enough that hidden never exceeds visible
+            // (small epsilon absorbs residual sampling noise).
+            Assert.LessOrEqual(rH.WinRate, rV.WinRate + 0.05);
+        }
+
+        // ── Fixture 14: record solution — arrow-box gating order ────────
+
+        [Test]
+        public void Analyze_RecordSolution_ArrowBox_RecordsBoxThenArrowInOrder()
+        {
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnArrowBoxCell{ColorId="pink", Direction=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="pink"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("pink","pink","pink"),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.IsNotNull(r.SolutionSteps);
+            Assert.AreEqual(2, r.SolutionSteps.Count);                  // box + arrow = 2 taps
+            StringAssert.Contains("Box", r.SolutionSteps[0]);           // box must come first
+            StringAssert.Contains("(1,0)", r.SolutionSteps[0]);
+            StringAssert.Contains("Arrow-box", r.SolutionSteps[1]);     // arrow only after box
+            StringAssert.Contains("(0,0)", r.SolutionSteps[1]);
+        }
+
+        // ── Fixture 15: record solution — tunnel queue order ────────────
+
+        [Test]
+        public void Analyze_RecordSolution_Tunnel_RecordsQueueColorsInOrder()
+        {
+            var tunnel = new YarnTunnelCell {
+                OutputDirection = YarnDirection.Up,
+                Queue = new List<string> { "pink", "blue" },
+            };
+            var doc = MakeDoc(width: 1, height: 2,
+                cells: new (int, int, ICellData)[] { (0,0,tunnel), (0,1,new YarnEmptyCell()) },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(2, r.SolutionSteps.Count);                  // tunnel tapped twice
+            StringAssert.Contains("pink (1/2)", r.SolutionSteps[0]);
+            StringAssert.Contains("blue (2/2)", r.SolutionSteps[1]);
+        }
+
+        // ── Fixture 16: record solution — unsolvable yields no steps ────
+
+        [Test]
+        public void Analyze_RecordSolution_Unsolvable_ReportsNoSteps()
+        {
+            var doc = MakeDoc(width: 1, height: 1,
+                cells: new (int, int, ICellData)[] { (0,0,new YarnBoxCell { ColorId = "pink" }) },
+                topSection: SpoolColumns(("blue","blue","blue"),(null,null,null),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.IsFalse(r.Solvable);
+            Assert.IsTrue(r.SolutionSteps == null || r.SolutionSteps.Count == 0);
+            Assert.IsNotNull(r.FailureReason);
+        }
+
+        // ── Fixture 17: recorded step count == total taps, count unaffected ─
+
+        [Test]
+        public void Analyze_RecordSolution_StepCountMatchesTaps_AndCountStillExact()
+        {
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),("blue","blue","blue"),(null,null,null),(null,null,null)));
+
+            var rSol = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.AreEqual(2, rSol.SolutionSteps.Count);  // two boxes = two taps
+
+            // Count mode (no recording) still returns the exact path count.
+            var rCount = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.AreEqual(2L, rCount.WinPathCount);
+            Assert.IsNull(rCount.SolutionSteps);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
+
+        private static (int, int, ICellData)[] TwoPink() => new (int, int, ICellData)[] {
+            (0,0,new YarnBoxCell{ColorId="pink"}),
+            (1,0,new YarnBoxCell{ColorId="pink"}),
+        };
+
+        // Builds a top section from explicit per-column color lists, with every
+        // spool's Hidden flag set to `allHidden`.
+        private static JObject TopWithHidden(bool allHidden, params string[][] columns)
+        {
+            var data = new YarnTopSectionData();
+            for (int i = 0; i < 4; i++) data.Columns.Add(new YarnSpoolColumn());
+            for (int i = 0; i < columns.Length && i < 4; i++)
+                foreach (var c in columns[i])
+                    if (!string.IsNullOrEmpty(c))
+                        data.Columns[i].Spools.Add(new YarnSpoolData { ColorId = c, Hidden = allHidden });
+            return JObject.FromObject(data);
+        }
 
         private static LevelDocument MakeDoc(int width, int height, IEnumerable<(int x, int y, ICellData cell)> cells, JObject topSection)
         {

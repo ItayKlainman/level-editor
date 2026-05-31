@@ -178,6 +178,59 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.IsNotNull(r.FailureReason);
         }
 
+        // ── Fixture 8: result is identical regardless of parallelism ───
+
+        [Test]
+        public void Complete_DeterministicAcrossDegreeOfParallelism()
+        {
+            // Same seed must produce the same top section whether stage-1 runs
+            // single-threaded or across many workers (lowest-index hit wins).
+            var doc = MakeBoxGrid(("pink",3),("blue",3));
+            _config.MaxRerollAttempts = 12;
+            _config.RolloutCount = 50;       // keep the sweep fast
+            _config.GuidedSteps = 50;
+            var req = new CompletionRequest { Difficulty = 5, Seed = 24680, ConveyorCapacityOverride = 24 };
+
+            _config.MaxDegreeOfParallelism = 1;
+            var r1 = _autofiller.Complete(doc, _profile, req);
+            _config.MaxDegreeOfParallelism = 8;
+            var r8 = _autofiller.Complete(doc, _profile, req);
+
+            Assert.IsNotNull(r1.TopSection);
+            Assert.IsNotNull(r8.TopSection);
+            Assert.AreEqual(r1.TopSection.ToString(Newtonsoft.Json.Formatting.None),
+                            r8.TopSection.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        // ── Fixture 9: bigger multi-color grid stays robust ────────────
+
+        [Test]
+        public void Complete_LargerGrid_ReturnsBalancedResultWithoutThrowing()
+        {
+            // 6 colors × 3 boxes exercises the parallel sweep, the rollout
+            // fallback and (likely) guided refinement together.
+            var doc = MakeBoxGrid(("pink",3),("blue",3),("green",3),("teal",3),("yellow",3),("purple",3));
+            _config.MaxRerollAttempts = 16;
+            _config.RolloutCount = 50;
+            _config.GuidedSteps = 30;
+
+            var r = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 6, Seed = 13579, ConveyorCapacityOverride = 24 });
+
+            Assert.IsNotNull(r.TopSection);
+            Assert.IsNotNull(r.Analysis);
+            // Color balance is guaranteed by construction: 3 spools per box.
+            var counts = new Dictionary<string, int>();
+            var data = r.TopSection.ToObject<YarnTopSectionData>();
+            foreach (var col in data.Columns)
+                foreach (var s in col.Spools)
+                {
+                    counts.TryGetValue(s.ColorId, out var n);
+                    counts[s.ColorId] = n + 1;
+                }
+            foreach (var c in new[] { "pink","blue","green","teal","yellow","purple" })
+                Assert.AreEqual(9, counts[c], $"color {c} should have 18 balls = 9 spools");
+        }
+
         private static int CountHidden(JObject topJson)
         {
             int n = 0;

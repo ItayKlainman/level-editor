@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+using System.Threading.Tasks;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using Newtonsoft.Json.Linq;
@@ -11,7 +11,20 @@ namespace Hoppa.YarnTwist.Editor
 {
     // Auto-fills the top section of a partially-painted YarnTwist level so
     // that color balance is satisfied by construction and the resulting
-    // puzzle's win-path count lands in a Difficulty-targeted band.
+    // puzzle's measured difficulty lands in a Difficulty-targeted band.
+    //
+    // Search strategy:
+    //  • Stage 1 — a parallel sweep of random spool arrangements (deterministic:
+    //    per-candidate seeds are pre-derived from the root seed and the lowest-
+    //    index in-band hit always wins, regardless of thread timing).
+    //  • Stage 2 — if no arrangement hits the band, sequential hill-climbing
+    //    (color swaps that preserve balance and the hidden mask) from the best
+    //    candidate, nudging it toward the band far faster than blind rerolls.
+    //
+    // Difficulty signal is metric-aware: the exact win-path count when it is
+    // available (uncapped, small levels), falling back to the never-capping
+    // Monte-Carlo win-rate when the count caps (big levels) — which is also how
+    // the hidden-spool ratio earns its effect on measured difficulty.
     [CreateAssetMenu(menuName = "Hoppa/Yarn Twist/Analysis/Yarn Twist Spool Auto-fill")]
     public sealed class YarnTwistSpoolAutofiller : LevelCompleterAsset
     {
@@ -25,6 +38,10 @@ namespace Hoppa.YarnTwist.Editor
         // Tests inject an analyzer instance via reflection; production code reads
         // _profile.LevelAnalyzer. Both code paths land here.
         [NonSerialized] private LevelAnalyzerAsset _analyzerOverride;
+
+        // Resolved per-Complete band parameters, shared by the accept/distance helpers.
+        private float _winPathTarget, _winPathLow, _winPathHigh;
+        private float _winRateTarget, _winRateLow, _winRateHigh;
 
         public override LevelCompletionResult Complete(LevelDocument doc, GameProfile profile, CompletionRequest req)
         {
@@ -90,79 +107,226 @@ namespace Hoppa.YarnTwist.Editor
                 for (int i = 0; i < kv.Value * BallsPerItem / BallsPerSpool; i++)
                     flatColors.Add(kv.Key);
 
-            // ── Reroll loop ─────────────────────────────────────────────
-            var rng = new System.Random(rootSeed);
+            // ── Resolve target bands ────────────────────────────────────
             float hiddenPct = Mathf.Clamp01(_config.HiddenSpoolRatio.Evaluate(difficulty) / 100f);
             int hiddenN = Mathf.RoundToInt(flatColors.Count * hiddenPct);
-            float target = _config.WinPathTargetByDifficulty.Evaluate(difficulty);
-            float bandLow = target * (1f - _config.WinPathTolerance);
-            float bandHigh = target * (1f + _config.WinPathTolerance);
 
-            JObject bestTop = null;
-            LevelAnalysisResult bestAnalysis = null;
-            double bestDist = double.PositiveInfinity;
+            _winPathTarget = _config.WinPathTargetByDifficulty.Evaluate(difficulty);
+            _winPathLow    = _winPathTarget * (1f - _config.WinPathTolerance);
+            _winPathHigh   = _winPathTarget * (1f + _config.WinPathTolerance);
 
-            for (int attempt = 0; attempt < _config.MaxRerollAttempts; attempt++)
+            _winRateTarget = Mathf.Clamp01(_config.WinRateTargetByDifficulty.Evaluate(difficulty));
+            _winRateLow    = Mathf.Clamp01(_winRateTarget - _config.WinRateTolerance);
+            _winRateHigh   = Mathf.Clamp01(_winRateTarget + _config.WinRateTolerance);
+
+            // ── Stage 1: parallel random sampling ───────────────────────
+            int attempts = Math.Max(1, _config.MaxRerollAttempts);
+            var rootRng = new System.Random(rootSeed);
+            var seeds = new int[attempts];
+            for (int a = 0; a < attempts; a++) seeds[a] = rootRng.Next(1, int.MaxValue);
+
+            var evaluated = new CandResult[attempts];
+            int dop = _config.MaxDegreeOfParallelism > 0
+                ? _config.MaxDegreeOfParallelism
+                : Math.Max(1, Environment.ProcessorCount);
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = dop };
+            try
             {
-                if (sw.ElapsedMilliseconds > _config.TotalTimeoutMs) break;
-
-                var working = new List<string>(flatColors);
-                Shuffle(working, rng);
-                var hiddenMask = new bool[working.Count];
-                var idxs = Enumerable.Range(0, working.Count).ToList();
-                Shuffle(idxs, rng);
-                for (int i = 0; i < Math.Min(hiddenN, idxs.Count); i++) hiddenMask[idxs[i]] = true;
-
-                var data = new YarnTopSectionData();
-                for (int i = 0; i < Columns; i++) data.Columns.Add(new YarnSpoolColumn());
-                for (int i = 0; i < working.Count; i++)
-                    data.Columns[i % Columns].Spools.Add(new YarnSpoolData
-                    {
-                        ColorId = working[i],
-                        Hidden  = hiddenMask[i],
-                    });
-
-                var topJson = JObject.FromObject(data);
-                var candDoc = ShallowCopyWithTop(doc, topJson);
-
-                var analysis = analyzer.Analyze(candDoc, profile, new AnalysisRequest
+                Parallel.For(0, attempts, options, (a, state) =>
                 {
-                    Mode = AnalysisMode.Count,
-                    WinPathCap = _config.WinPathCap,
-                    TimeoutMs  = _config.PerCandidateTimeoutMs,
-                    ConveyorCapacityOverride = capacity,
+                    if (sw.ElapsedMilliseconds > _config.TotalTimeoutMs) { state.Stop(); return; }
+                    BuildCandidate(seeds[a], flatColors, hiddenN, out var colors, out var hidden);
+                    var top = BuildTop(colors, hidden);
+                    var analysis = Analyze(analyzer, doc, profile, top, capacity);
+                    evaluated[a] = new CandResult { Colors = colors, Hidden = hidden, Top = top, Analysis = analysis };
                 });
+            }
+            catch (AggregateException ex)
+            {
+                // Surface analyzer faults without losing the whole sweep.
+                UnityEngine.Debug.LogError("YarnTwistSpoolAutofiller stage-1 fault: " + ex.Flatten());
+            }
 
-                BumpHist(result.CandidatePathCountHistogram, analysis.WinPathCount);
+            // Deterministic reduction over the evaluated candidates (index order).
+            CandResult best = null;
+            double bestDist = double.PositiveInfinity;
+            for (int a = 0; a < attempts; a++)
+            {
+                var c = evaluated[a];
+                if (c == null) continue; // not evaluated (timed out)
+                BumpHist(result.CandidatePathCountHistogram, c.Analysis.WinPathCount);
                 result.CandidatesTried++;
 
-                if (analysis.Solvable && !analysis.CountWasCapped
-                    && analysis.WinPathCount >= bandLow && analysis.WinPathCount <= bandHigh)
+                if (InBand(c.Analysis))
                 {
-                    result.TopSection = topJson;
-                    result.Analysis = analysis;
-                    result.Succeeded = true;
+                    result.TopSection = c.Top;
+                    result.Analysis   = c.Analysis;
+                    result.Succeeded  = true;
                     sw.Stop(); result.ElapsedMs = sw.ElapsedMilliseconds;
                     return result;
                 }
 
-                double dist = Math.Abs(analysis.WinPathCount - target);
-                if (dist < bestDist)
+                double d = Distance(c.Analysis);
+                if (d < bestDist) { bestDist = d; best = c; }
+                // Guarantee a best-effort layout even if every candidate is
+                // unsolvable (Distance == +inf): keep the first one seen.
+                if (best == null) { best = c; bestDist = d; }
+            }
+
+            // ── Stage 2: guided hill-climbing from the best candidate ───
+            if (best != null && _config.GuidedSteps > 0
+                && sw.ElapsedMilliseconds <= _config.TotalTimeoutMs)
+            {
+                var climbed = GuidedRefine(analyzer, doc, profile, best, bestDist, capacity, rootSeed, sw, result);
+                if (climbed != null)
                 {
-                    bestDist = dist;
-                    bestTop = topJson;
-                    bestAnalysis = analysis;
+                    if (InBand(climbed.Analysis))
+                    {
+                        result.TopSection = climbed.Top;
+                        result.Analysis   = climbed.Analysis;
+                        result.Succeeded  = true;
+                        sw.Stop(); result.ElapsedMs = sw.ElapsedMilliseconds;
+                        return result;
+                    }
+                    best = climbed; // improved best-so-far
                 }
             }
 
-            // Out of attempts — return best-so-far with Succeeded=false.
-            result.TopSection = bestTop;
-            result.Analysis   = bestAnalysis;
-            result.Succeeded  = false;
+            // ── Out of budget — return best-so-far with Succeeded=false ──
+            if (best != null)
+            {
+                result.TopSection = best.Top;
+                result.Analysis   = best.Analysis;
+            }
+            result.Succeeded = false;
             if (string.IsNullOrEmpty(result.FailureReason))
                 result.FailureReason = "no candidate landed in Difficulty band; best-effort returned";
             sw.Stop(); result.ElapsedMs = sw.ElapsedMilliseconds;
             return result;
+        }
+
+        // ── Acceptance & distance (metric-aware) ────────────────────────
+
+        // A candidate is in-band when its precise win-path count lands in the
+        // win-path band (small levels), or — when that count caps — when its
+        // win-rate lands in the win-rate band (big levels).
+        private bool InBand(LevelAnalysisResult a)
+        {
+            if (a == null || !a.Solvable) return false;
+            if (!a.CountWasCapped)
+                return a.WinPathCount >= _winPathLow && a.WinPathCount <= _winPathHigh;
+            return _config.RolloutCount > 0 && a.RolloutsRun > 0
+                && a.WinRate >= _winRateLow && a.WinRate <= _winRateHigh;
+        }
+
+        // Normalized 0..N distance to the applicable target. Capped candidates
+        // get a +1 penalty so an exact (uncapped) candidate is always preferred
+        // when one exists — exact control beats the imperfect-info fallback.
+        private double Distance(LevelAnalysisResult a)
+        {
+            if (a == null || !a.Solvable) return double.PositiveInfinity;
+            if (!a.CountWasCapped)
+                return Math.Abs(a.WinPathCount - _winPathTarget) / Math.Max(1f, _winPathTarget);
+            double wr = a.RolloutsRun > 0 ? a.WinRate : 0.0;
+            return 1.0 + Math.Abs(wr - _winRateTarget);
+        }
+
+        // ── Stage 2 guided refinement ───────────────────────────────────
+
+        // Hill-climb from `start`: repeatedly swap two differently-colored
+        // spools (preserving color balance and the hidden mask by position),
+        // keep the mutation only if it reduces distance to the band. Sequential
+        // and deterministic (mutation rng derived from the root seed).
+        private CandResult GuidedRefine(
+            LevelAnalyzerAsset analyzer, LevelDocument doc, GameProfile profile,
+            CandResult start, double startDist, int capacity, int rootSeed,
+            Stopwatch sw, LevelCompletionResult result)
+        {
+            var rng = new System.Random(unchecked(rootSeed ^ 0x5EED5EED));
+            var curColors = (string[])start.Colors.Clone();
+            var hidden    = start.Hidden; // fixed throughout (preserves hidden ratio)
+            var cur = start;
+            double curDist = startDist;
+            int n = curColors.Length;
+            if (n < 2) return cur;
+
+            for (int step = 0; step < _config.GuidedSteps; step++)
+            {
+                if (sw.ElapsedMilliseconds > _config.TotalTimeoutMs) break;
+
+                // Pick two positions with different colors to swap.
+                int p = rng.Next(n);
+                int q = rng.Next(n);
+                if (curColors[p] == curColors[q]) continue;
+
+                (curColors[p], curColors[q]) = (curColors[q], curColors[p]);
+
+                var top = BuildTop(curColors, hidden);
+                var analysis = Analyze(analyzer, doc, profile, top, capacity);
+                result.CandidatesTried++;
+                BumpHist(result.CandidatePathCountHistogram, analysis.WinPathCount);
+
+                double d = Distance(analysis);
+                if (d <= curDist)
+                {
+                    curDist = d;
+                    cur = new CandResult { Colors = (string[])curColors.Clone(), Hidden = hidden, Top = top, Analysis = analysis };
+                    if (InBand(analysis)) return cur;
+                }
+                else
+                {
+                    // Reject: undo the swap.
+                    (curColors[p], curColors[q]) = (curColors[q], curColors[p]);
+                }
+            }
+            return cur;
+        }
+
+        // ── Candidate construction ──────────────────────────────────────
+
+        private static void BuildCandidate(int seed, List<string> flatColors, int hiddenN,
+            out string[] colors, out bool[] hidden)
+        {
+            var rng = new System.Random(seed);
+            colors = flatColors.ToArray();
+            Shuffle(colors, rng);
+            hidden = new bool[colors.Length];
+            var idxs = new int[colors.Length];
+            for (int i = 0; i < idxs.Length; i++) idxs[i] = i;
+            Shuffle(idxs, rng);
+            for (int i = 0; i < Math.Min(hiddenN, idxs.Length); i++) hidden[idxs[i]] = true;
+        }
+
+        private static JObject BuildTop(string[] colors, bool[] hidden)
+        {
+            var data = new YarnTopSectionData();
+            for (int i = 0; i < Columns; i++) data.Columns.Add(new YarnSpoolColumn());
+            for (int i = 0; i < colors.Length; i++)
+                data.Columns[i % Columns].Spools.Add(new YarnSpoolData { ColorId = colors[i], Hidden = hidden[i] });
+            return JObject.FromObject(data);
+        }
+
+        private LevelAnalysisResult Analyze(LevelAnalyzerAsset analyzer, LevelDocument doc, GameProfile profile, JObject top, int capacity)
+        {
+            var candDoc = ShallowCopyWithTop(doc, top);
+            return analyzer.Analyze(candDoc, profile, new AnalysisRequest
+            {
+                Mode = AnalysisMode.Count,
+                WinPathCap = _config.WinPathCap,
+                TimeoutMs  = _config.PerCandidateTimeoutMs,
+                ConveyorCapacityOverride = capacity,
+                RolloutCount = _config.RolloutCount,
+                PlayerLookahead = _config.PlayerLookahead,
+            });
+        }
+
+        private sealed class CandResult
+        {
+            public string[]            Colors;
+            public bool[]              Hidden;
+            public JObject             Top;
+            public LevelAnalysisResult Analysis;
         }
 
         // ── Helpers ────────────────────────────────────────────────────

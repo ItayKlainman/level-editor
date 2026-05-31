@@ -23,6 +23,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color SubtleText  = new Color(0.70f, 0.75f, 0.85f);
         private static readonly Color OkText      = new Color(0.55f, 0.85f, 0.55f);
         private static readonly Color ErrText     = new Color(1.00f, 0.45f, 0.40f);
+        private static readonly Color BannerBg    = new Color(0.45f, 0.12f, 0.10f);
 
         private int    _difficulty = 5;
         private int    _seed;
@@ -34,7 +35,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private LevelCompletionResult _lastCompletion;
         private string                _statusMessage;
 
-        public float PreferredHeight => 220f;
+        public float PreferredHeight => 300f;
 
         public void OnGUI(Rect rect, LevelEditorSession session, GameProfile profile)
         {
@@ -110,11 +111,36 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
             y += ButtonH + 6f;
 
+            // Save Solution — find a winning sequence and write it to a text file.
+            using (new EditorGUI.DisabledGroupScope(profile?.LevelAnalyzer == null || session?.Document == null))
+            {
+                if (GUI.Button(new Rect(x, y, w, ButtonH), new GUIContent("Save Solution…",
+                        "Find a guaranteed winning tap sequence for the current level and save it to a .txt file.")))
+                {
+                    OnSaveSolution(session, profile);
+                }
+            }
+            y += ButtonH + 6f;
+
             // Status / result
             if (!string.IsNullOrEmpty(_statusMessage))
             {
                 GUI.Label(new Rect(x, y, w, RowH * 2f), _statusMessage, EditorStyles.wordWrappedMiniLabel);
                 y += RowH * 2f;
+            }
+
+            // Prominent unsolvable banner.
+            if (_lastAnalysis != null && !_lastAnalysis.Solvable)
+            {
+                float bh = RowH * 2.4f;
+                EditorGUI.DrawRect(new Rect(x, y, w, bh), BannerBg);
+                var savedC = GUI.contentColor;
+                GUI.contentColor = Color.white;
+                GUI.Label(new Rect(x + 6f, y + 3f, w - 12f, RowH), "⚠  NO SOLVABLE PATH FOUND", EditorStyles.boldLabel);
+                if (!string.IsNullOrEmpty(_lastAnalysis.FailureReason))
+                    GUI.Label(new Rect(x + 6f, y + RowH + 1f, w - 12f, RowH * 1.4f), _lastAnalysis.FailureReason, EditorStyles.wordWrappedMiniLabel);
+                GUI.contentColor = savedC;
+                y += bh + 4f;
             }
 
             if (_lastAnalysis != null)
@@ -147,9 +173,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                 _lastAnalysis = profile.LevelAnalyzer.Analyze(session.Document, profile, new AnalysisRequest
                 {
                     Mode = AnalysisMode.Count,
-                    WinPathCap = 10_000,
+                    WinPathCap = 100_000,
                     TimeoutMs  = 5_000,
                     ConveyorCapacityOverride = ResolveCapacity(),
+                    // Layer the imperfect-information win-rate onto the exact count so
+                    // the result line reports a difficulty signal even when the count caps.
+                    RolloutCount = 200,
+                    PlayerLookahead = 4,
                 });
             }
             catch (Exception ex)
@@ -197,6 +227,61 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 _statusMessage = "Auto-fill failed: " + ex.Message;
                 Debug.LogError("AutofillPanel.OnAutofill: " + ex);
+            }
+        }
+
+        private void OnSaveSolution(LevelEditorSession session, GameProfile profile)
+        {
+            _statusMessage = null;
+            _lastCompletion = null;
+            try
+            {
+                _lastAnalysis = profile.LevelAnalyzer.Analyze(session.Document, profile, new AnalysisRequest
+                {
+                    Mode = AnalysisMode.Solvable,
+                    RecordSolution = true,
+                    TimeoutMs = 10_000,
+                    ConveyorCapacityOverride = ResolveCapacity(),
+                });
+
+                if (_lastAnalysis == null || !_lastAnalysis.Solvable
+                    || _lastAnalysis.SolutionSteps == null || _lastAnalysis.SolutionSteps.Count == 0)
+                {
+                    // The red "no solvable path" banner renders automatically from _lastAnalysis.
+                    _statusMessage = "No solvable path — nothing to save.";
+                    return;
+                }
+
+                // Default filename matches the Summary panel: the saved level's
+                // filename (doc.LevelId can be a stale template id like "level_001").
+                string defaultId = !string.IsNullOrEmpty(session.FilePath)
+                    ? System.IO.Path.GetFileNameWithoutExtension(session.FilePath)
+                    : (string.IsNullOrEmpty(session.Document.LevelId) ? "level" : session.Document.LevelId);
+                string path = EditorUtility.SaveFilePanel("Save Solution", Application.dataPath,
+                    defaultId + ".solution.txt", "txt");
+                if (string.IsNullOrEmpty(path)) return; // cancelled
+
+                // Header level name comes from the file actually chosen, so it can
+                // never disagree with its own filename (handles dialog renames too).
+                string levelId = System.IO.Path.GetFileNameWithoutExtension(path); // e.g. "level_044.solution"
+                const string solutionSuffix = ".solution";
+                if (levelId.EndsWith(solutionSuffix, StringComparison.OrdinalIgnoreCase))
+                    levelId = levelId.Substring(0, levelId.Length - solutionSuffix.Length);
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"Level {levelId} — solution ({_lastAnalysis.SolutionSteps.Count} steps)");
+                sb.AppendLine();
+                foreach (var step in _lastAnalysis.SolutionSteps) sb.AppendLine(step);
+                System.IO.File.WriteAllText(path, sb.ToString());
+                AssetDatabase.Refresh();
+
+                _statusMessage = $"Saved {_lastAnalysis.SolutionSteps.Count}-step solution to {System.IO.Path.GetFileName(path)}.";
+                EditorUtility.RevealInFinder(path);
+            }
+            catch (Exception ex)
+            {
+                _statusMessage = "Save Solution failed: " + ex.Message;
+                Debug.LogError("AutofillPanel.OnSaveSolution: " + ex);
             }
         }
 

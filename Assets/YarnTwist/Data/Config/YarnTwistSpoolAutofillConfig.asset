@@ -37,6 +37,33 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   WinPathTolerance: 0.5
+  WinRateTargetByDifficulty:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 1
+      value: 0.92
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 10
+      value: 0.12
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  WinRateTolerance: 0.15
+  RolloutCount: 300
+  PlayerLookahead: 4
   HiddenSpoolRatio:
     serializedVersion: 2
     m_Curve:
@@ -61,8 +88,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  MaxRerollAttempts: 100
-  WinPathCap: 10000
-  PerCandidateTimeoutMs: 500
-  TotalTimeoutMs: 30000
+  MaxRerollAttempts: 400
+  MaxDegreeOfParallelism: 0
+  GuidedSteps: 300
+  WinPathCap: 100000
+  PerCandidateTimeoutMs: 1500
+  TotalTimeoutMs: 60000
   DefaultConveyorCapacity: 24
