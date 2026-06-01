@@ -81,11 +81,15 @@ validate reverse links → the editor must guarantee reciprocity. Full schema in
             connect→undo restores (also covers ConnectedDir serialization round-trip).
       - [x] autofiller (`YarnTwistSpoolAutofillerTests` fixture 10): connected pair grid →
             balanced (6 pink spools) + solvable.
-- [ ] **Rollout (awaiting user)** — needs: (1) **user runs EditMode tests in Unity** (agent
-      can't — mcp 401); (2) **user approval** for the outward-facing steps: tag `v0.5.20`, bump
-      YarnTwist `manifest.json` pin to `#v0.5.20`. NOTE: YAK sync is NOT needed (YarnKingdom does
-      not implement `ICellContextActions`). Also decide on the unrelated staged NuGet `.dll`
-      deletions before committing.
+- [x] **Tests verified** — user ran EditMode tests in Unity: all pass.
+- [x] **Committed + tagged locally** — commit `bfc0752` on `master` (25 files; Connected Boxes
+      only, no unrelated working-tree changes); lightweight tag `v0.5.20` points at it.
+- [ ] **Rollout (push pending — awaiting user)** — `git push origin master --tags` (or push
+      `v0.5.20`) so GitHub serves the tag, THEN bump YarnTwist `manifest.json` pin to `#v0.5.20`
+      in `E:/Projects/Hoppa/YarnTwist`. NOTE: YAK sync is NOT needed (YarnKingdom does not
+      implement `ICellContextActions`). Unrelated working-tree changes (NuGet deletions,
+      `Playground/`, solution `.txt`s, `manifest.json`, `bash.exe.stackdump`) were left untouched —
+      handle separately.
       Watch-if-tests-fail: (a) hand-written `.meta` GUIDs for `CellActionContext`,
       `YarnConnectedBoxRule` (.cs+.asset), `YarnConnectedBoxTests` must be unique & importable;
       (b) the `CellContextAction` Func/Action ctor overload resolves by the named `create:`/

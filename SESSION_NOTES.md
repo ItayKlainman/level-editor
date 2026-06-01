@@ -158,14 +158,16 @@ hoppa-level-editor-core/
 ```
 
 Consumer games reference this package via private GitHub Git URL (production):
-- `YarnTwist` (`E:/Projects/Hoppa/YarnTwist`) — pinned at `v0.5.19` (auto-fill v2 + solution export).
+- `YarnTwist` (`E:/Projects/Hoppa/YarnTwist`) — pinned at `v0.5.20` (connected boxes + context-action extension).
 - `YarnKingdom` (`E:/Projects/Hoppa/YarnKingdom`) — currently pinned at `v0.5.16`.
 
 ```
-"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.19"
+"com.hoppa.leveleditor.core": "https://github.com/ItayKlainman/level-editor.git?path=Packages/com.hoppa.leveleditor.core#v0.5.20"
 ```
 
-Latest tag: `v0.5.19` (2026-05-31) — spool auto-fill v2 (alloc-free DFS, Monte-Carlo
+Latest tag: `v0.5.20` (2026-06-01) — Connected Boxes mechanic (Layer-2 YarnTwist)
++ Layer-1 cell context-action extension (`CellActionContext`, free-form apply actions).
+Prior: `v0.5.19` (2026-05-31) — spool auto-fill v2 (alloc-free DFS, Monte-Carlo
 win-rate, parallel/guided search), exportable solution steps, unsolvable banner.
 
 Layer 2 files live in both repos and must be kept in sync manually when changed.
