@@ -283,6 +283,13 @@ namespace Hoppa.YarnTwist.Editor
                     {
                         entry["ColorType"] = _colorMapping.Get(boxCell.ColorId, 0);
                         entry["Hidden"]    = boxCell.Hidden;
+                        if (boxCell.ConnectedDir.HasValue)
+                        {
+                            // Connected box → game's BottomType.ConnectedBox (6) + reciprocal
+                            // Direction string. The partner cell emits its own reciprocal entry.
+                            entry["BottomType"] = _cellTypeMapping.Get("yt.connectedbox", 6);
+                            entry["Direction"]  = boxCell.ConnectedDir.Value.ToString();
+                        }
                     }
                     else if (cell is YarnArrowBoxCell arrowBoxCell)
                     {

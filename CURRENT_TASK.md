@@ -8,63 +8,110 @@
 
 ## Active phase
 
-**Spool auto-fill v2 — scale to harder/bigger levels (2026-05-31) — CODE COMPLETE; awaiting user test run**
+**New game mechanics — week of 2026-06-01 — 3 mechanics, one per spec.**
+Mechanic 1 = **Connected Boxes** (design approved, spec written, NOT yet implemented).
+Mechanics 2 & 3 = TBD, to be pulled from the game project as we get to them.
 
-Expanded the auto-complete/validation system so it handles bigger grids instead of
-always falling to best-effort. Plan: `C:\Users\itay0\.claude\plans\look-at-the-last-logical-lollipop.md`.
+> **Source-of-truth rule for every new mechanic this week:** the YarnTwist GAME
+> project (`E:/Projects/Hoppa/YarnTwist`, Layer-2 under `Assets/_YAT/`, branch
+> `itay-main`) defines the Layer-2 data structure. Eliran implements game-side first;
+> we mirror his `level_config.json` shape EXACTLY (field names, enum ordinals, key
+> casing) — do **not** invent an editor-side schema. Workflow per mechanic: dispatch a
+> read-only agent into the game project → find the `BottomConfig`/enum/runtime classes
+> + a sample `level_config.json` → adopt identifiers → brainstorm editor side → write a
+> per-mechanic spec. See memory `feedback_eliran_game_code_is_schema_source_of_truth`.
 
-What changed (all in this editor-core repo):
-- **Phase A — alloc-free DFS** (`Assets/YarnTwist/Editor/Analysis/YarnTwistLevelAnalyzer.cs`):
-  colors interned to `int[]` bag, per-node state snapshotted on the stack and
-  undone (no per-node `Dictionary`/array clone), running `_bagSum`, alloc-free
-  FNV hash over interned ints. Counts are identical to v1 (regression-locked by
-  existing fixtures) — just far faster, so the analyzer finishes within budget
-  on bigger grids.
-- **Phase D — Monte-Carlo WinRate** (same file + `AnalysisRequest`/`LevelAnalysisResult`):
-  new `AnalysisMode.WinRate` + `RolloutCount`/`PlayerLookahead`. Simulates a myopic
-  player who only learns a hidden spool's color when it reaches its column head
-  ("covered-until-head", per user's reveal-rule choice). Never caps; hidden spools
-  now genuinely lower measured difficulty. `LevelAnalysisResult` gained
-  `WinRate` + `RolloutsRun`.
-- **Phase B+C — parallel + smarter acceptance + guided search**
-  (`YarnTwistSpoolAutofiller.cs`): stage-1 `Parallel.For` sweep with pre-derived
-  per-candidate seeds → deterministic (lowest-index in-band hit wins regardless of
-  thread timing). Stops hard-rejecting capped candidates: uses exact win-path band
-  when uncapped, win-rate band when capped. Stage-2 sequential hill-climbing (color
-  swaps preserving balance + hidden mask) when stage-1 misses.
-- **Phase E — config** (`YarnTwistSpoolAutofillConfig.cs` + `.asset`): raised caps
-  (MaxRerollAttempts 100→400, WinPathCap 10k→100k, PerCandidate 500→1500ms, Total
-  30k→60k) and new knobs (`MaxDegreeOfParallelism`, `WinRateTargetByDifficulty`,
-  `WinRateTolerance`, `RolloutCount`, `PlayerLookahead`, `GuidedSteps`). **The
-  `.asset` was updated too** — Unity loads existing YAML values, so absent int
-  fields would have defaulted to 0 and disabled rollouts.
-- **Phase F — UI + tests**: `AutofillPanel` Analyze now requests rollouts so the
-  result line shows win-rate. Added analyzer tests (WinRate range, both-metrics,
-  easy-level=1.0, hidden-never-raises-winrate) and autofiller tests (determinism
-  across degree-of-parallelism, larger 6-color grid stays balanced).
+### Mechanic 1 — Connected Boxes (2026-06-01) — CODE COMPLETE; awaiting user EditMode test run + rollout approval
 
-NEXT: **user runs EditMode tests in Unity** (agent can't — unity-mcp-cli 401).
-Watch points if anything fails: (1) `Span`/`stackalloc` support in the target
-Unity; (2) the noise-tolerant `hidden ≤ visible + 0.05` win-rate assertion;
-(3) the pre-existing probabilistic autofiller fixtures (`CapacityOverride`,
-`DifficultyOne_HasHigherAveragePathCount`) under the new candidate RNG.
+Spec: `docs/superpowers/specs/2026-06-01-yarntwist-connected-boxes-design.md` (read it first).
 
-**Follow-up batch (2026-05-31, same session) — CODE COMPLETE:**
-1. **Unsolvable indicator** — `AutofillPanel` now draws a full-width red banner
-   `⚠ NO SOLVABLE PATH FOUND` + FailureReason whenever `_lastAnalysis.Solvable`
-   is false (covers Analyze, Auto-fill best-effort, and Save Solution). `BannerBg`
-   color added; `PreferredHeight` 220→300.
-2. **Exportable solution steps** — new `AnalysisRequest.RecordSolution` +
-   `LevelAnalysisResult.SolutionSteps` (Layer-1 generic, list of game-formatted
-   strings). `YarnTwistLevelAnalyzer` now carries `(x,y)` per item through the
-   interned `Model` (+`ColorNames`), and a **record-mode** `SearchContext` (memo
-   bypassed, stops at first winning leaf) captures one guaranteed win sequence;
-   `FormatSolution` renders tap-order lines. New panel **"Save Solution…"** button
-   runs Solvable+RecordSolution, then `EditorUtility.SaveFilePanel` →
-   `File.WriteAllText` `<levelId>.solution.txt` → `RevealInFinder`. Format chosen
-   by user: tap-order only, text file only.
-   Tests: arrow-box order, tunnel queue order, unsolvable→no steps, step-count ==
-   taps + Count unaffected (`YarnTwistLevelAnalyzerTests` fixtures 14–17).
+**What it is:** two orthogonally-adjacent regular boxes are linked; tap either → both
+release balls & clear together. Colors independent. Authored via right-click
+Connect/Un-connect, shown with a white outline.
+
+**Game schema (Eliran, commit `56608a5`) — there is NO connection object.** A connected
+box is a normal `BottomConfig` with `BottomType = 6` (ConnectedBox) + a PascalCase string
+`Direction` pointing at its partner. Pair = two boxes with reciprocal Direction
+(`(2,4)"Right"` ↔ `(3,4)"Left"`). Each keeps its own `ColorType`. The game does NOT
+validate reverse links → the editor must guarantee reciprocity. Full schema in the spec
++ memory `reference_connected_boxes_game_schema`.
+
+**Implementation checklist (resume here next session):**
+- [x] **Layer 1 (UPM → tag `v0.5.20`)** — extended the context-action system:
+      `CellActionContext` struct (Cell/Registry/Session/CellRef) + `.meta` (guid
+      `7d3f9b2a1c8e4f06b5a09d2e4c6f8a1b`) passed to `GetContextActions`; `CellContextAction`
+      gained a free-form `Action<LevelEditorSession>` apply ctor; `GridCellPopup` runs apply
+      under one `PushUndoSnapshot`. Updated implementers `YarnBoxCellDefinition` +
+      `YarnArrowBoxCellDefinition`. **NOTE: YAK does NOT implement `ICellContextActions`
+      (verified by grep) → no YarnKingdom sync needed for this signature change.**
+- [x] **Data model** — `YarnBoxCell.ConnectedDir` (`YarnDirection?`, null = unconnected),
+      `[JsonProperty("connectedDir", NullValueHandling=Ignore)]`. Done.
+- [x] **Authoring** — `YarnBoxCellDefinition`: `Connect Pair: <Dir>` actions filtered to
+      valid unconnected-box neighbors; `Un-connect` when connected; both mutate BOTH boxes
+      reciprocally in one undo step (`Connect`/`Disconnect` helpers). White border +
+      shared-edge seam via `DrawConnectionOutline`. Convert-to-arrowbox now gated to
+      unconnected boxes only (avoids orphaning a partner). Done.
+- [x] **Validation** — `YarnConnectedBoxRule` (Error on out-of-bounds / non-box / non-
+      reciprocal). Created `.cs` (guid `c1a2b3d4e5f60718293a4b5c6d7e8f90`) + `.asset`
+      (guid `d2b3c4e5f6071829304a5b6c7d8e9f01`, `_id: yt.connected_box`); wired into
+      `YarnTwistProfile.asset` `_rules`. Done.
+- [x] **Export** — `YarnMasterLevelExporter.BuildBottomConfigs`: connected box overrides
+      `BottomType → 6` + adds `Direction` string (keeps own ColorType/Hidden). Added
+      `yt.connectedbox → 6` to `YarnCellTypeMapping.asset`. Done.
+- [x] **Analyzer** — `YarnTwistLevelAnalyzer`: added `int[] Partner` to `Model`; `Item.PartnerIndex`
+      + `BuildItems` Pass 3 links reciprocal pairs (degrades to independent box if non-reciprocal);
+      `Partner` in intern + StructHash; `IsTappable` Box case skips the non-canonical (higher-index)
+      member; `ApplyTap` co-taps partner (both colors' balls, both tapped, one ResolveMatches) in
+      BOTH SearchContext + RolloutContext; DFS undo restores the co-tapped partner; rollout
+      `FeedDemand` scores the canonical member by summed demand of both colors. Done.
+- [x] **Auto-fill** — confirmed **correct-by-delegation**; no structural change. Added the
+      inventory comment (connected box still = 9 balls = 3 spools of its color; analyzer owns the
+      clear-together effect). Connected-box autofiller test still to add (see Tests).
+      Tuning watch: difficulty curves were tuned connection-free; revisit retune later, not now.
+- [x] **Tests (EditMode)** — COMPLETE:
+      - [x] analyzer (`YarnTwistLevelAnalyzerTests` fixtures 18–21): same-color pair = 1 path,
+            distinct-color pair = 1 path, arrow-prereq satisfied by co-tap, non-reciprocal =
+            2 independent paths.
+      - [x] exporter (`YarnMasterLevelExporterTests` +3): connected → BottomType 6 + Direction
+            string + own ColorType; reciprocal pair; unconnected box has no Direction key.
+      - [x] validation + context actions (new `YarnConnectedBoxTests.cs`, +meta guid
+            `e3c4d5f60718293a4b5c6d7e8f901a2b`): rule errors on dangling/non-box/out-of-bounds
+            & passes reciprocal; connect sets reciprocal dirs; direction filter; neighbour-already-
+            connected excluded; connected box offers Un-connect only; un-connect clears both;
+            connect→undo restores (also covers ConnectedDir serialization round-trip).
+      - [x] autofiller (`YarnTwistSpoolAutofillerTests` fixture 10): connected pair grid →
+            balanced (6 pink spools) + solvable.
+- [ ] **Rollout (awaiting user)** — needs: (1) **user runs EditMode tests in Unity** (agent
+      can't — mcp 401); (2) **user approval** for the outward-facing steps: tag `v0.5.20`, bump
+      YarnTwist `manifest.json` pin to `#v0.5.20`. NOTE: YAK sync is NOT needed (YarnKingdom does
+      not implement `ICellContextActions`). Also decide on the unrelated staged NuGet `.dll`
+      deletions before committing.
+      Watch-if-tests-fail: (a) hand-written `.meta` GUIDs for `CellActionContext`,
+      `YarnConnectedBoxRule` (.cs+.asset), `YarnConnectedBoxTests` must be unique & importable;
+      (b) the `CellContextAction` Func/Action ctor overload resolves by the named `create:`/
+      `apply:` argument at every call site.
+
+### Mechanic 2 — TBD (pull from game project when starting)
+### Mechanic 3 — TBD (pull from game project when starting)
+
+---
+
+### Awaiting verification — Spool auto-fill v2 + follow-ups (2026-05-31) — CODE COMPLETE, shipped as `v0.5.19`
+
+Tagged & pushed (`v0.5.19`); still **pending the user's EditMode test run** (agent can't —
+unity-mcp-cli 401). Summary kept for context:
+- **Alloc-free DFS** + **Monte-Carlo WinRate** (hidden spools lower measured difficulty) in
+  `YarnTwistLevelAnalyzer.cs`; **parallel sweep + win-rate-band acceptance + guided
+  hill-climbing** in `YarnTwistSpoolAutofiller.cs`; raised caps + new knobs in
+  `YarnTwistSpoolAutofillConfig`; AutofillPanel win-rate line.
+- Follow-ups: **unsolvable red banner** in `AutofillPanel`; **exportable solution steps**
+  (`RecordSolution` → `SolutionSteps`, "Save Solution…" button writing `<levelId>.solution.txt`).
+- Watch points if a test fails: (1) `Span`/`stackalloc` in target Unity; (2) noise-tolerant
+  `hidden ≤ visible + 0.05` assertion; (3) probabilistic fixtures (`CapacityOverride`,
+  `DifficultyOne_HasHigherAveragePathCount`) under the candidate RNG.
+
+> **Connected Boxes touches the same analyzer/autofiller files** — when implementing it,
+> fold its changes in carefully so as not to disturb the v0.5.19 alloc-free hot path.
 
 ---
 

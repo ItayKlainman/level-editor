@@ -23,3 +23,5 @@ MonoBehaviour:
     Value: 4
   - Key: yt.tunnel
     Value: 5
+  - Key: yt.connectedbox
+    Value: 6

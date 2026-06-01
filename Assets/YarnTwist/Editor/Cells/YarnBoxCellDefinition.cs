@@ -11,6 +11,10 @@ namespace Hoppa.YarnTwist.Editor
     {
         [SerializeField] private ColorPaletteAsset _palette;
 
+        private static readonly Color OutlineColor = Color.white;
+        private static readonly YarnDirection[] AllDirs =
+            { YarnDirection.Up, YarnDirection.Down, YarnDirection.Left, YarnDirection.Right };
+
         public override float InspectorPreferredHeight => 70f;
 
         public override ICellData CreateDefault() => new YarnBoxCell();
@@ -28,6 +32,9 @@ namespace Hoppa.YarnTwist.Editor
                 GUI.Label(rect, "?", new GUIStyle(EditorStyles.boldLabel)
                     { alignment = TextAnchor.MiddleCenter, fontSize = 14, normal = { textColor = Color.white } });
             }
+
+            if (box.ConnectedDir.HasValue)
+                DrawConnectionOutline(rect, box.ConnectedDir.Value);
         }
 
         public override void DrawInspector(Rect rect, ref ICellData data)
@@ -43,24 +50,119 @@ namespace Hoppa.YarnTwist.Editor
                 new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), "Hidden", box.Hidden);
         }
 
-        public IEnumerable<CellContextAction> GetContextActions(ICellData cell, CellTypeRegistry registry)
+        // ── White outline showing the connection ─────────────────────────
+        // Thin border around the whole box + a thicker bar on the edge facing the
+        // partner, so a connected pair reads as a continuous white seam between them.
+        private static void DrawConnectionOutline(Rect rect, YarnDirection dir)
         {
-            if (!registry.TryGetDefinition("yt.arrowbox", out _)) yield break;
+            const float thin = 2f;
+            const float bar  = 4f;
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, thin), OutlineColor);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - thin, rect.width, thin), OutlineColor);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, thin, rect.height), OutlineColor);
+            EditorGUI.DrawRect(new Rect(rect.xMax - thin, rect.y, thin, rect.height), OutlineColor);
 
-            var colorId = (cell as YarnBoxCell)?.ColorId ?? "pink";
-            // Mutable holder — captures across OnGUI calls via closure
-            var dir = new[] { YarnDirection.Right };
-
-            yield return new CellContextAction(
-                label: "→ Convert to Arrow Box",
-                create: () => new YarnArrowBoxCell { ColorId = colorId, Direction = dir[0] },
-                optionsHeight: 22f,
-                drawOptions: rect =>
-                {
-                    GUI.Label(new Rect(rect.x, rect.y, 64f, 18f), "Direction", EditorStyles.miniLabel);
-                    dir[0] = (YarnDirection)EditorGUI.EnumPopup(
-                        new Rect(rect.x + 66f, rect.y, rect.width - 66f, 18f), dir[0]);
-                });
+            switch (dir)
+            {
+                case YarnDirection.Up:
+                    EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, bar), OutlineColor); break;
+                case YarnDirection.Down:
+                    EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - bar, rect.width, bar), OutlineColor); break;
+                case YarnDirection.Left:
+                    EditorGUI.DrawRect(new Rect(rect.x, rect.y, bar, rect.height), OutlineColor); break;
+                case YarnDirection.Right:
+                    EditorGUI.DrawRect(new Rect(rect.xMax - bar, rect.y, bar, rect.height), OutlineColor); break;
+            }
         }
+
+        // ── Right-click actions: Connect / Un-connect + Convert ──────────
+        public IEnumerable<CellContextAction> GetContextActions(CellActionContext context)
+        {
+            if (context.Cell is not YarnBoxCell box) yield break;
+
+            var grid = context.Session?.Document?.Grid;
+            if (grid == null) yield break;
+
+            int x = context.CellRef.X;
+            int y = context.CellRef.Y;
+
+            if (box.ConnectedDir.HasValue)
+            {
+                // Already connected — only offer to break the link (clears both halves).
+                yield return new CellContextAction(
+                    label: "Un-connect",
+                    apply: session => Disconnect(session.Document.Grid, x, y));
+                yield break;
+            }
+
+            // Unconnected: offer a connect action per direction with a valid free box neighbour.
+            foreach (var dir in AllDirs)
+            {
+                var (nx, ny) = Neighbor(x, y, dir);
+                if (!grid.InBounds(nx, ny)) continue;
+                if (grid.Get(nx, ny) is not YarnBoxCell neighbor) continue;
+                if (neighbor.ConnectedDir.HasValue) continue; // target already connected
+
+                var d  = dir;              // capture per-iteration
+                int tx = nx, ty = ny;
+                yield return new CellContextAction(
+                    label: $"Connect Pair: {d}",
+                    apply: session => Connect(session.Document.Grid, x, y, tx, ty, d));
+            }
+
+            // Existing convert action (unconnected boxes only — converting a connected
+            // box would orphan its partner).
+            if (context.Registry.TryGetDefinition("yt.arrowbox", out _))
+            {
+                var colorId = box.ColorId;
+                var arrowDir = new[] { YarnDirection.Right };
+                yield return new CellContextAction(
+                    label: "→ Convert to Arrow Box",
+                    create: () => new YarnArrowBoxCell { ColorId = colorId, Direction = arrowDir[0] },
+                    optionsHeight: 22f,
+                    drawOptions: rect =>
+                    {
+                        GUI.Label(new Rect(rect.x, rect.y, 64f, 18f), "Direction", EditorStyles.miniLabel);
+                        arrowDir[0] = (YarnDirection)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 66f, rect.y, rect.width - 66f, 18f), arrowDir[0]);
+                    });
+            }
+        }
+
+        private static void Connect(GridData<ICellData> grid, int sx, int sy, int tx, int ty, YarnDirection dir)
+        {
+            if (grid.Get(sx, sy) is YarnBoxCell src && grid.Get(tx, ty) is YarnBoxCell dst)
+            {
+                src.ConnectedDir = dir;
+                dst.ConnectedDir = Opposite(dir);
+            }
+        }
+
+        private static void Disconnect(GridData<ICellData> grid, int x, int y)
+        {
+            if (grid.Get(x, y) is not YarnBoxCell src || !src.ConnectedDir.HasValue) return;
+            var (px, py) = Neighbor(x, y, src.ConnectedDir.Value);
+            if (grid.InBounds(px, py) && grid.Get(px, py) is YarnBoxCell partner && partner.ConnectedDir.HasValue)
+                partner.ConnectedDir = null;
+            src.ConnectedDir = null;
+        }
+
+        private static (int x, int y) Neighbor(int x, int y, YarnDirection d) => d switch
+        {
+            YarnDirection.Up    => (x, y + 1),
+            YarnDirection.Down  => (x, y - 1),
+            YarnDirection.Left  => (x - 1, y),
+            YarnDirection.Right => (x + 1, y),
+            _                   => (x, y),
+        };
+
+        private static YarnDirection Opposite(YarnDirection d) => d switch
+        {
+            YarnDirection.Up    => YarnDirection.Down,
+            YarnDirection.Down  => YarnDirection.Up,
+            YarnDirection.Left  => YarnDirection.Right,
+            YarnDirection.Right => YarnDirection.Left,
+            _                   => d,
+        };
     }
 }

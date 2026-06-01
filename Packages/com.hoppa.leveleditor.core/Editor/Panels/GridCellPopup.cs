@@ -43,8 +43,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 {
                     _actions = new List<CellContextAction>();
                     if (_def is ICellContextActions ca)
-                        foreach (var a in ca.GetContextActions(_cell, _session.CellTypes))
+                    {
+                        var context = new CellActionContext(_cell, _session.CellTypes, _session, _cellRef);
+                        foreach (var a in ca.GetContextActions(context))
                             _actions.Add(a);
+                    }
                 }
                 return _actions;
             }
@@ -108,7 +111,17 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (GUI.Button(new Rect(Pad, y, rect.width - Pad * 2f, BtnH),
                     action.Label, EditorStyles.miniButton))
                 {
-                    _session.SetCell(_cellRef.X, _cellRef.Y, action.Create());
+                    if (action.IsApply)
+                    {
+                        // Free-form, possibly multi-cell mutation — one undo step covers it.
+                        _session.PushUndoSnapshot();
+                        action.Apply(_session);
+                        _session.MarkDirty();
+                    }
+                    else
+                    {
+                        _session.SetCell(_cellRef.X, _cellRef.Y, action.Create());
+                    }
                     _session.RunValidation();
                     editorWindow?.Close();
                 }

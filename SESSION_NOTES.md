@@ -5,7 +5,7 @@
 
 ---
 
-## Current status (as of 2026-05-28)
+## Current status (as of 2026-06-01)
 
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
 - **Active branch**: `master` — YarnTwist editor was complete at tag `v0.5.14`, then **unparked for the level-generator initiative (v1 ships YarnTwist-only, 2026-05-25)**. YAK Layer 2 onboarding still in progress in parallel — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). The next Layer 1 tag bumps for both the v0.5.15/16 changes that already shipped and the new generator framework added 2026-05-25.
@@ -22,6 +22,28 @@
   level in `gameData.levelType` and exported as `LevelConfig.LevelType`
   (enum-name string). Mirrors the `coinReward` pattern. No Layer 1 / UPM change,
   so no tag bump. Synced to YarnTwist (`Assets/_YAT/Scripts/Editor/`).
+- **New game mechanics — week of 2026-06-01 (in flight)**: 3 new YarnTwist
+  mechanics, one spec each. **Source-of-truth rule:** the GAME project
+  (`E:/Projects/Hoppa/YarnTwist`, branch `itay-main`) defines the Layer-2 data
+  structure — Eliran implements game-side first, we mirror his `level_config.json`
+  shape exactly (no invented editor schema). Per-mechanic workflow: read-only agent
+  into the game project → find `BottomConfig`/enum/runtime classes + sample config →
+  adopt identifiers → brainstorm editor side → spec. Recurring editor extension
+  points: analyzer `BuildItems`/`ApplyTap`, exporter `BuildBottomConfigs`; the
+  autofiller stays correct-by-delegation. See memories
+  `feedback_eliran_game_code_is_schema_source_of_truth` +
+  `reference_connected_boxes_game_schema`.
+  - **Mechanic 1 — Connected Boxes** (design approved, not yet implemented):
+    two adjacent regular boxes linked; tap either → both clear together; colors
+    independent. Game stores it as a `BottomConfig` with `BottomType=6`
+    (ConnectedBox) + reciprocal PascalCase `Direction` string (NO connection-id
+    object). Editor: `yt.box` gains nullable `ConnectedDir`; right-click
+    Connect/Un-connect (needs a Layer-1 context-action extension → tag `v0.5.20`);
+    white outline; `YarnConnectedBoxRule` validates reciprocity; export branches to
+    `BottomType:6`; analyzer gets a `Partner[]` atomic co-tap. Spec:
+    `docs/superpowers/specs/2026-06-01-yarntwist-connected-boxes-design.md`. Live
+    checklist in `CURRENT_TASK.md`.
+  - **Mechanics 2 & 3 — TBD**: pull from the game project when starting each.
 
 ---
 

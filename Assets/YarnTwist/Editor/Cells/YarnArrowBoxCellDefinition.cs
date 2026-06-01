@@ -45,10 +45,10 @@ namespace Hoppa.YarnTwist.Editor
                 new Rect(rect.x, rect.y + swatchAreaH + 2f, rect.width, lh), arrow.Direction);
         }
 
-        public IEnumerable<CellContextAction> GetContextActions(ICellData cell, CellTypeRegistry registry)
+        public IEnumerable<CellContextAction> GetContextActions(CellActionContext context)
         {
-            if (!registry.TryGetDefinition("yt.box", out _)) yield break;
-            var colorId = (cell as YarnArrowBoxCell)?.ColorId ?? "pink";
+            if (!context.Registry.TryGetDefinition("yt.box", out _)) yield break;
+            var colorId = (context.Cell as YarnArrowBoxCell)?.ColorId ?? "pink";
             yield return new CellContextAction(
                 label:  "→ Convert to Box",
                 create: () => new YarnBoxCell { ColorId = colorId });

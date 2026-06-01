@@ -231,6 +231,36 @@ namespace Hoppa.YarnTwist.Editor.Tests
                 Assert.AreEqual(9, counts[c], $"color {c} should have 18 balls = 9 spools");
         }
 
+        // ── Fixture 10: grid with a connected pair → balanced + solvable ─
+
+        [Test]
+        public void Complete_ConnectedPairGrid_BalancedAndSolvable()
+        {
+            // Connected boxes are ordinary boxes for inventory (2 pink = 6 pink spools);
+            // the analyzer (which the autofiller delegates to) models the clear-together
+            // effect, so the returned candidate must still be solvable and balanced.
+            var grid = new GridData<ICellData>(2, 1);
+            grid.Set(0, 0, new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Right });
+            grid.Set(1, 0, new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Left });
+            var doc = new LevelDocument
+            {
+                SchemaVersion = "yarn-twist.v1", LevelId = "test", Grid = grid, TopSection = new JObject(),
+            };
+
+            var r = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 5, Seed = 4242, ConveyorCapacityOverride = 24 });
+
+            Assert.IsNotNull(r.TopSection);
+            Assert.IsNotNull(r.Analysis);
+            Assert.IsTrue(r.Analysis.Solvable, r.FailureReason);
+
+            int pink = 0;
+            var data = r.TopSection.ToObject<YarnTopSectionData>();
+            foreach (var col in data.Columns)
+                foreach (var s in col.Spools)
+                    if (s.ColorId == "pink") pink++;
+            Assert.AreEqual(6, pink); // 2 boxes × 3 spools — connection doesn't change inventory
+        }
+
         private static int CountHidden(JObject topJson)
         {
             int n = 0;

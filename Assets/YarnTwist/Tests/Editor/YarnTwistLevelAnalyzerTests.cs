@@ -402,6 +402,100 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.IsNull(rCount.SolutionSteps);
         }
 
+        // ── Fixture 18: connected same-color pair → ONE tap, ONE path ───
+
+        [Test]
+        public void Analyze_ConnectedSameColorPair_ClearsAsOneTap()
+        {
+            // Two pink boxes connected (0,0)→Right ↔ (1,0)→Left. Independent boxes
+            // would give 2 orderings (see Fixture 9); connected, the pair is a single
+            // atomic tap, so exactly 1 win path (no double-count).
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Left}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    (null,null,null), (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1L, r.WinPathCount);
+        }
+
+        // ── Fixture 19: connected distinct-color pair → both colors at once ─
+
+        [Test]
+        public void Analyze_ConnectedDistinctColorPair_ReleasesBothColorsInOneTap()
+        {
+            // pink+blue connected. Independent would give 2 paths (Fixture 6); connected,
+            // one tap releases both colors together → 1 path, and both spool columns clear.
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="blue", ConnectedDir=YarnDirection.Left}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("blue","blue","blue"),
+                    (null,null,null), (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1L, r.WinPathCount);
+        }
+
+        // ── Fixture 20: arrow-box prereq satisfied via partner co-tap ───
+
+        [Test]
+        public void Analyze_ArrowPrereqOnConnectedBox_SatisfiedByCoTap()
+        {
+            // [Arrow(pink,Right)] [Box pink ↔Right] [Box pink ↔Left].
+            // The arrow's prereq is the box at (1,0), which is the canonical half of the
+            // pair. Tapping the pair co-taps (1,0), satisfying the arrow. If co-tap did
+            // NOT mark the partner tapped, the arrow could never fire → unsolvable.
+            // 27 pink balls = 9 spools (3 columns × 3). Only order: pair, then arrow.
+            var doc = MakeDoc(width: 3, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnArrowBoxCell{ColorId="pink", Direction=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Right}),
+                    (2,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Left}),
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1L, r.WinPathCount);
+        }
+
+        // ── Fixture 21: non-reciprocal link degrades to independent boxes ─
+
+        [Test]
+        public void Analyze_NonReciprocalConnection_TreatedAsIndependent()
+        {
+            // (0,0) points Right but (1,0) does not point back → not a valid pair.
+            // The analyzer must treat them as two independent boxes → 2 orderings.
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="pink", ConnectedDir=YarnDirection.Right}),
+                    (1,0,new YarnBoxCell{ColorId="pink"}), // no ConnectedDir → dangling
+                },
+                topSection: SpoolColumns(
+                    ("pink","pink","pink"),
+                    ("pink","pink","pink"),
+                    (null,null,null), (null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(2L, r.WinPathCount);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         private static (int, int, ICellData)[] TwoPink() => new (int, int, ICellData)[] {

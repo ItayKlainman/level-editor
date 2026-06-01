@@ -208,6 +208,56 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual("None", (string)ReadOutput()["LevelConfigs"]["1"]["LevelType"]);
         }
 
+        // ── Connected Boxes ─────────────────────────────────────────────
+
+        [Test]
+        public void Export_ConnectedBox_ProducesBottomType6_AndDirectionString()
+        {
+            var doc = MakeDoc("level_001",
+                new[] { new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Right } },
+                MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var bottom = BottomConfigAt(0);
+            Assert.AreEqual(6, (int)bottom["BottomType"]);      // ConnectedBox ordinal
+            Assert.AreEqual(7, (int)bottom["ColorType"]);       // keeps its own color
+            Assert.AreEqual("Right", (string)bottom["Direction"]); // PascalCase string
+        }
+
+        [Test]
+        public void Export_ConnectedPair_WritesReciprocalDirections()
+        {
+            // (0,0) pink →Right ↔ (1,0) blue →Left. Each half exports its own colour and
+            // the reciprocal Direction (matches Eliran's game schema exactly).
+            var cells = new ICellData[]
+            {
+                new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Right },
+                new YarnBoxCell { ColorId = "blue", ConnectedDir = YarnDirection.Left },
+            };
+            var doc = MakeDoc("level_001", cells, MakeTopSection(), width: 2, height: 1);
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var b0 = BottomConfigAt(0);
+            var b1 = BottomConfigAt(1);
+            Assert.AreEqual(6, (int)b0["BottomType"]);
+            Assert.AreEqual("Right", (string)b0["Direction"]);
+            Assert.AreEqual(7, (int)b0["ColorType"]);
+            Assert.AreEqual(6, (int)b1["BottomType"]);
+            Assert.AreEqual("Left", (string)b1["Direction"]);
+            Assert.AreEqual(1, (int)b1["ColorType"]);
+        }
+
+        [Test]
+        public void Export_UnconnectedBox_HasNoDirectionKey_AndBottomType3()
+        {
+            var doc = MakeDoc("level_001", new[] { BoxCell("pink") }, MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var bottom = BottomConfigAt(0);
+            Assert.AreEqual(3, (int)bottom["BottomType"]);  // plain Color box
+            Assert.IsNull(bottom["Direction"]);             // no Direction emitted
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static ICellData EmptyCell()  => new YarnEmptyCell();

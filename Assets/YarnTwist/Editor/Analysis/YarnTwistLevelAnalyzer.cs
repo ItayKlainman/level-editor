@@ -133,6 +133,7 @@ namespace Hoppa.YarnTwist.Editor
             public ItemKind  Kind;
             public string    ColorId;      // for Box / ArrowBox
             public int       PrereqIndex;  // for ArrowBox: index into items[] of the box that must be tapped first; -1 if none
+            public int       PartnerIndex; // for connected Box: index of the reciprocally-linked box; -1 if none
             public List<string> Queue;     // for Tunnel
             public int       X, Y;         // grid coordinates (for solution display)
         }
@@ -155,12 +156,12 @@ namespace Hoppa.YarnTwist.Editor
                 if (cell is YarnBoxCell b)
                 {
                     idxAt[Key(x, y)] = items.Count;
-                    items.Add(new Item { Kind = ItemKind.Box, ColorId = b.ColorId, PrereqIndex = -1, X = x, Y = y });
+                    items.Add(new Item { Kind = ItemKind.Box, ColorId = b.ColorId, PrereqIndex = -1, PartnerIndex = -1, X = x, Y = y });
                 }
                 else if (cell is YarnArrowBoxCell ab)
                 {
                     idxAt[Key(x, y)] = items.Count;
-                    items.Add(new Item { Kind = ItemKind.ArrowBox, ColorId = ab.ColorId, PrereqIndex = -1, X = x, Y = y });
+                    items.Add(new Item { Kind = ItemKind.ArrowBox, ColorId = ab.ColorId, PrereqIndex = -1, PartnerIndex = -1, X = x, Y = y });
                 }
                 else if (cell is YarnTunnelCell t && t.Queue != null && t.Queue.Count > 0)
                 {
@@ -169,6 +170,7 @@ namespace Hoppa.YarnTwist.Editor
                         Kind = ItemKind.Tunnel,
                         ColorId = null,
                         PrereqIndex = -1,
+                        PartnerIndex = -1,
                         Queue = new List<string>(t.Queue),
                         X = x, Y = y,
                     });
@@ -192,6 +194,27 @@ namespace Hoppa.YarnTwist.Editor
                     // else: arrow's neighbor isn't a tappable item — arrow is
                     // permanently unreachable; PrereqIndex stays -1.
                 }
+            }
+
+            // Pass 3: resolve connected-box partners. Honoured only when the link is
+            // reciprocal (the neighbour is a box that points back) — a dangling or
+            // non-reciprocal ConnectedDir is treated as an independent box, matching
+            // YarnConnectedBoxRule's contract.
+            for (int y = 0; y < grid.Height; y++)
+            for (int x = 0; x < W;          x++)
+            {
+                if (grid.Get(x, y) is not YarnBoxCell box || !box.ConnectedDir.HasValue) continue;
+                var (nx, ny) = NeighborOf(x, y, box.ConnectedDir.Value);
+                if (!grid.InBounds(nx, ny)) continue;
+                if (grid.Get(nx, ny) is not YarnBoxCell partner || !partner.ConnectedDir.HasValue) continue;
+                var (bx, by) = NeighborOf(nx, ny, partner.ConnectedDir.Value);
+                if (bx != x || by != y) continue; // partner doesn't point back → not reciprocal
+                if (!idxAt.TryGetValue(Key(nx, ny), out var nIdx)) continue;
+
+                int selfIdx = idxAt[Key(x, y)];
+                var it = items[selfIdx];
+                it.PartnerIndex = nIdx;
+                items[selfIdx] = it;
             }
 
             return items;
@@ -261,6 +284,7 @@ namespace Hoppa.YarnTwist.Editor
             public ItemKind[]  Kind;
             public int[]       Color;     // Box/ArrowBox color index; -1 for tunnel
             public int[]       Prereq;    // ArrowBox prereq item index; -1 otherwise
+            public int[]       Partner;   // connected-box reciprocal partner item index; -1 otherwise
             public int[][]     Queue;     // Tunnel queue (interned); null otherwise
             public int[]       X, Y;      // grid coordinates per item (for solution display)
             public int[][]     ColSpool;  // [Columns][] interned spool colors, head→back
@@ -296,18 +320,20 @@ namespace Hoppa.YarnTwist.Editor
             }
 
             int m = items.Count;
-            var kind   = new ItemKind[m];
-            var color  = new int[m];
-            var prereq = new int[m];
-            var queue  = new int[m][];
-            var xs     = new int[m];
-            var ys     = new int[m];
+            var kind    = new ItemKind[m];
+            var color   = new int[m];
+            var prereq  = new int[m];
+            var partner = new int[m];
+            var queue   = new int[m][];
+            var xs      = new int[m];
+            var ys      = new int[m];
             for (int i = 0; i < m; i++)
             {
-                kind[i]   = items[i].Kind;
-                prereq[i] = items[i].PrereqIndex;
-                xs[i]     = items[i].X;
-                ys[i]     = items[i].Y;
+                kind[i]    = items[i].Kind;
+                prereq[i]  = items[i].PrereqIndex;
+                partner[i] = items[i].PartnerIndex;
+                xs[i]      = items[i].X;
+                ys[i]      = items[i].Y;
                 if (items[i].Kind == ItemKind.Tunnel)
                 {
                     color[i] = -1;
@@ -330,7 +356,7 @@ namespace Hoppa.YarnTwist.Editor
             var model = new Model
             {
                 ItemCount = m,
-                Kind = kind, Color = color, Prereq = prereq, Queue = queue,
+                Kind = kind, Color = color, Prereq = prereq, Partner = partner, Queue = queue,
                 X = xs, Y = ys,
                 ColSpool = colSpool, ColHidden = colHidden,
                 NumColors = map.Count,
@@ -348,6 +374,7 @@ namespace Hoppa.YarnTwist.Editor
                 h = (h ^ (ulong)(int)md.Kind[i]) * P;
                 h = (h ^ (ulong)(md.Color[i] + 2)) * P;
                 h = (h ^ (ulong)(md.Prereq[i] + 2)) * P;
+                h = (h ^ (ulong)(md.Partner[i] + 2)) * P;
                 if (md.Queue[i] != null)
                     foreach (var q in md.Queue[i]) h = (h ^ (ulong)(q + 2)) * P;
             }
@@ -479,8 +506,10 @@ namespace Hoppa.YarnTwist.Editor
                     if (total >= _cap) break;
                     if (_mode == AnalysisMode.Solvable && total >= 1) break;
 
-                    bool savedTapped = _tapped[i];
-                    int  savedQueue  = _queueIdx[i];
+                    bool savedTapped  = _tapped[i];
+                    int  savedQueue   = _queueIdx[i];
+                    int  partner      = _md.Partner[i];
+                    bool savedPartner = partner >= 0 && _tapped[partner];
 
                     if (_record) _path.Add(i);
                     ApplyTap(i);
@@ -492,6 +521,7 @@ namespace Hoppa.YarnTwist.Editor
                     for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
                     _bagSum      = savedBagSum;
                     _tapped[i]   = savedTapped;
+                    if (partner >= 0) _tapped[partner] = savedPartner; // restore co-tapped partner
                     _queueIdx[i] = savedQueue;
                     if (_record) _path.RemoveAt(_path.Count - 1);
 
@@ -550,7 +580,13 @@ namespace Hoppa.YarnTwist.Editor
             {
                 switch (_md.Kind[i])
                 {
-                    case ItemKind.Box:      return !_tapped[i];
+                    case ItemKind.Box:
+                        if (_tapped[i]) return false;
+                        // Only the canonical (lower-index) half of a connected pair is a
+                        // move; tapping it co-activates the partner, so offering the partner
+                        // too would double-count and split the search.
+                        if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
+                        return true;
                     case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
                     case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
                     default: return false;
@@ -569,6 +605,14 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     _tapped[i] = true;
                     _bag[_md.Color[i]] += BallsPerItem; _bagSum += BallsPerItem;
+                    int p = _md.Partner[i];
+                    if (p >= 0 && !_tapped[p])
+                    {
+                        // Connected pair: tapping one activates both — both release their
+                        // balls and clear together (then a single ResolveMatches below).
+                        _tapped[p] = true;
+                        _bag[_md.Color[p]] += BallsPerItem; _bagSum += BallsPerItem;
+                    }
                 }
                 ResolveMatches(_md, _bag, ref _bagSum, _spoolHead, _spoolFill);
             }
@@ -714,8 +758,7 @@ namespace Hoppa.YarnTwist.Editor
                 for (int j = 0; j < nc; j++)
                 {
                     int i = _candidates[j];
-                    int col = _md.Kind[i] == ItemKind.Tunnel ? _md.Queue[i][_queueIdx[i]] : _md.Color[i];
-                    double d = _demand[col];
+                    double d = FeedDemand(i);
                     if (d > best) { best = d; bestCount = 1; }
                     else if (d == best) bestCount++;
                 }
@@ -731,10 +774,20 @@ namespace Hoppa.YarnTwist.Editor
                 for (int j = 0; j < nc; j++)
                 {
                     int i = _candidates[j];
-                    int col = _md.Kind[i] == ItemKind.Tunnel ? _md.Queue[i][_queueIdx[i]] : _md.Color[i];
-                    if (_demand[col] == best && pick-- == 0) return i;
+                    if (FeedDemand(i) == best && pick-- == 0) return i;
                 }
                 return _candidates[0]; // unreachable
+            }
+
+            // Visible demand a tap would feed: its own head/box color plus, for a connected
+            // box, its partner's color — the pair releases both colors in one tap.
+            private double FeedDemand(int i)
+            {
+                int col = _md.Kind[i] == ItemKind.Tunnel ? _md.Queue[i][_queueIdx[i]] : _md.Color[i];
+                double d = _demand[col];
+                int p = _md.Partner[i];
+                if (p >= 0) d += _demand[_md.Color[p]];
+                return d;
             }
 
             private bool AllConsumed()
@@ -759,7 +812,13 @@ namespace Hoppa.YarnTwist.Editor
             {
                 switch (_md.Kind[i])
                 {
-                    case ItemKind.Box:      return !_tapped[i];
+                    case ItemKind.Box:
+                        if (_tapped[i]) return false;
+                        // Only the canonical (lower-index) half of a connected pair is a
+                        // move; tapping it co-activates the partner, so offering the partner
+                        // too would double-count and split the search.
+                        if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
+                        return true;
                     case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
                     case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
                     default: return false;
@@ -778,6 +837,14 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     _tapped[i] = true;
                     _bag[_md.Color[i]] += BallsPerItem; _bagSum += BallsPerItem;
+                    int p = _md.Partner[i];
+                    if (p >= 0 && !_tapped[p])
+                    {
+                        // Connected pair: tapping one activates both — both release their
+                        // balls and clear together (then a single ResolveMatches below).
+                        _tapped[p] = true;
+                        _bag[_md.Color[p]] += BallsPerItem; _bagSum += BallsPerItem;
+                    }
                 }
                 ResolveMatches(_md, _bag, ref _bagSum, _spoolHead, _spoolFill);
             }

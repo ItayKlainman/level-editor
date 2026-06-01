@@ -72,6 +72,12 @@ namespace Hoppa.YarnTwist.Editor
             int capacity = req?.ConveyorCapacityOverride ?? _config.DefaultConveyorCapacity;
 
             // ── Inventory: per-color item count from grid ────────────────
+            // Connected boxes are ordinary YarnBoxCells — each still contributes its own
+            // 9 balls (= 3 spools) of its own color, so color balance is unchanged by the
+            // connection. The pair's "clear together" effect on solvability/difficulty is
+            // handled entirely by the analyzer (see YarnTwistLevelAnalyzer.Partner); this
+            // autofiller scores candidates via analyzer.Analyze on the real grid, so it
+            // stays correct by delegation — do NOT special-case connected boxes here.
             var perColor = new Dictionary<string, int>();
             if (doc?.Grid != null)
             {
