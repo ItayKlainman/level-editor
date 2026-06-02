@@ -75,6 +75,13 @@ namespace Hoppa.LevelEditor.Core.Editor
             _hoverCell = ScreenToCell(Event.current.mousePosition, grid, _gridOffsetX, _gridOffsetY, _cellStep);
 
             DrawCells(grid, session);
+
+            // Game-specific overlay (e.g. multi-cell region annotations) drawn on top
+            // of the cells, in the same scroll-content coordinate space.
+            session.Profile?.CanvasOverlay?.DrawOverlay(
+                session,
+                r => CellRect(r.X, r.Y, grid.Height, _gridOffsetX, _gridOffsetY, _cellSize, _cellStep));
+
             HandleEvents(rect, grid, session);
 
             GUI.EndScrollView();

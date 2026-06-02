@@ -207,7 +207,7 @@ namespace Hoppa.YarnTwist.Editor
             if (root["LevelRewardConfigs"] == null) root["LevelRewardConfigs"] = new JObject();
             if (root["LevelConfigs"]       == null) root["LevelConfigs"]       = new JObject();
 
-            var bottomConfigs = BuildBottomConfigs(document.Grid);
+            var bottomConfigs = BuildBottomConfigs(document.Grid, document);
             var topConfigs    = BuildTopConfigs(document.TopSection);
 
             // Upsert LevelConfigs — preserve the key assigned by Apply Order if this levelId
@@ -261,10 +261,16 @@ namespace Hoppa.YarnTwist.Editor
             return true;
         }
 
-        private JArray BuildBottomConfigs(GridData<ICellData> grid)
+        private JArray BuildBottomConfigs(GridData<ICellData> grid, LevelDocument document)
         {
             var array = new JArray();
             if (grid == null) return array;
+
+            // Palette centers → the game derives the 3x3 cover and hides those boxes.
+            // We mark only the center cell with ExtraFeatureBottomType = Palette.
+            var paletteCenters = new System.Collections.Generic.HashSet<(int, int)>();
+            foreach (var p in YarnPalettes.All(document))
+                paletteCenters.Add((p.CenterX, p.CenterY));
 
             for (int y = 0; y < grid.Height; y++)
             {
@@ -278,6 +284,9 @@ namespace Hoppa.YarnTwist.Editor
 
                     int bottomType = _cellTypeMapping.Get(cell.CellTypeId, 0);
                     entry["BottomType"] = bottomType;
+
+                    if (paletteCenters.Contains((x, y)))
+                        entry["ExtraFeatureBottomType"] = "Palette";
 
                     if (cell is YarnBoxCell boxCell)
                     {

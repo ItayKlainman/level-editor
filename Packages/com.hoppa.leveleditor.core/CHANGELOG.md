@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.21] - 2026-06-02
+
+### Added
+
+- `CanvasOverlayAsset`: abstract ScriptableObject base letting a Layer-2 game draw a custom overlay on top of the grid canvas (multi-cell region annotations no single cell could render). `GridCanvasPanel` calls `GameProfile.CanvasOverlay?.DrawOverlay(session, cellRect)` after drawing cells, inside the canvas scroll view. Additive and optional — profiles without an overlay are unaffected. (Enables the YarnTwist Palette mechanic.)
+
 ## [0.4.1] - 2026-05-05
 
 ### Added

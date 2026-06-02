@@ -86,6 +86,33 @@ namespace Hoppa.YarnTwist.Editor
             int x = context.CellRef.X;
             int y = context.CellRef.Y;
 
+            // ── Palette: add a 3x3 cover here, or edit/remove the one covering this box ──
+            var cellRef = context.CellRef;
+            var doc     = context.Session.Document;
+            if (YarnPalettes.TryPaletteAt(doc, cellRef, out var pal))
+            {
+                int[] amt = { pal.Amount };
+                yield return new CellContextAction(
+                    label: "Set Palette Requirement",
+                    apply: session => YarnPalettes.SetAmount(session.Document, cellRef, amt[0]),
+                    optionsHeight: 22f,
+                    drawOptions: r =>
+                    {
+                        GUI.Label(new Rect(r.x, r.y, 96f, 18f), "Required opens", EditorStyles.miniLabel);
+                        amt[0] = Mathf.Max(1, EditorGUI.IntField(
+                            new Rect(r.x + 98f, r.y, r.width - 98f, 18f), amt[0]));
+                    });
+                yield return new CellContextAction(
+                    label: "Remove Palette",
+                    apply: session => YarnPalettes.Remove(session.Document, cellRef));
+            }
+            else if (YarnPalettes.CanPlace(grid, cellRef, YarnPalettes.All(doc)))
+            {
+                yield return new CellContextAction(
+                    label: "Add Palette (3×3 here)",
+                    apply: session => YarnPalettes.Add(session.Document, cellRef));
+            }
+
             if (box.ConnectedDir.HasValue)
             {
                 // Already connected — only offer to break the link (clears both halves).

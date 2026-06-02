@@ -155,6 +155,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
         public void Export_NewLevel_StubsRewardEntry()
         {
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            doc.GameData = new JObject { ["coinReward"] = 10 }; // deterministic — don't rely on EditorPrefs
             _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
             var rewards = ReadOutput()["LevelRewardConfigs"]["1"];
             Assert.IsNotNull(rewards);
@@ -163,8 +164,10 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         [Test]
-        public void Export_ExistingReward_IsPreserved()
+        public void Export_AlwaysWritesReward_OverwritingExisting()
         {
+            // The exporter always (re)writes the reward from the level's coinReward, so an
+            // existing reward of a different type/amount is overwritten on every export.
             var existing = JObject.Parse(@"{
                 ""LevelRewardConfigs"": { ""1"": { ""WinReward"": [{""ScoreType"":""Gem"",""ScoreAmount"":5}] } },
                 ""LevelConfigs"": {}
@@ -172,11 +175,12 @@ namespace Hoppa.YarnTwist.Editor.Tests
             File.WriteAllText(_tempFile, existing.ToString());
 
             var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            doc.GameData = new JObject { ["coinReward"] = 25 };
             _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
 
             var reward = ReadOutput()["LevelRewardConfigs"]["1"]["WinReward"][0];
-            Assert.AreEqual("Gem", (string)reward["ScoreType"]);
-            Assert.AreEqual(5,     (int)reward["ScoreAmount"]);
+            Assert.AreEqual("Coin", (string)reward["ScoreType"]); // overwritten with the default type
+            Assert.AreEqual(25,     (int)reward["ScoreAmount"]);
         }
 
         [Test]
@@ -299,6 +303,34 @@ namespace Hoppa.YarnTwist.Editor.Tests
 
             var w = TopConfigs()[0]["WinderConfigs"][0];
             Assert.IsNull(w["WinderType"]);
+        }
+
+        // ── Palette ─────────────────────────────────────────────────────
+
+        [Test]
+        public void Export_PaletteCenter_GetsExtraFeatureBottomType()
+        {
+            // 3x3 grid of boxes, palette centered at (1,1). Only the center cell gets
+            // ExtraFeatureBottomType=Palette; the game derives the 3x3 cover.
+            var cells = new ICellData[9];
+            for (int i = 0; i < 9; i++) cells[i] = new YarnBoxCell { ColorId = "pink" };
+            var doc = MakeDoc("level_001", cells, MakeTopSection(col0Spool: "pink"), width: 3, height: 3);
+            YarnPalettes.Add(doc, new CellRef(1, 1));
+
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var center = BottomConfigAt(4); // (x=1,y=1) → y*width+x = 4
+            var corner = BottomConfigAt(0); // (0,0)
+            Assert.AreEqual("Palette", (string)center["ExtraFeatureBottomType"]);
+            Assert.IsNull(corner["ExtraFeatureBottomType"]);
+        }
+
+        [Test]
+        public void Export_NoPalette_HasNoExtraFeatureKey()
+        {
+            var doc = MakeDoc("level_001", new[] { BoxCell("pink") }, MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+            Assert.IsNull(BottomConfigAt(0)["ExtraFeatureBottomType"]);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────

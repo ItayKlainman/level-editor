@@ -51,6 +51,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a LevelCompleterAsset subclass to enable the 'Auto-fill' button in the Spool Analysis panel. Generates parts of the level (e.g. the top section) from the hand-painted grid + a Difficulty knob.\nExample: YarnTwistSpoolAutofiller")]
         [SerializeField] private LevelCompleterAsset _levelCompleter;
 
+        [Tooltip("Optional: assign a CanvasOverlayAsset subclass to draw a game-specific overlay on top of the grid canvas (e.g. multi-cell region annotations).\nExample: YarnPaletteOverlay")]
+        [SerializeField] private CanvasOverlayAsset _canvasOverlay;
+
         [Tooltip("Generic per-profile extension data. Used by Layer 2 implementations that need profile-scoped configuration outside the typed fields above. Look up by type via GetExtension<T>().")]
         [SerializeField] private List<ScriptableObject> _extensions = new List<ScriptableObject>();
 
@@ -66,6 +69,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public ScriptableObject GeneratorConfig => _generatorConfig;
         public LevelAnalyzerAsset  LevelAnalyzer  => _levelAnalyzer;
         public LevelCompleterAsset LevelCompleter => _levelCompleter;
+        public CanvasOverlayAsset  CanvasOverlay  => _canvasOverlay;
 
         // Generic typed-lookup over the _extensions list. Returns the first
         // ScriptableObject that is assignable to T, or null. Use for Layer 2
