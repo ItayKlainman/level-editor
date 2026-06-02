@@ -158,15 +158,19 @@ connections — connect AFTER auto-filling).
       baseline [relational, cap 12]; mutual lock → unsolvable); new `YarnConnectedSpoolTests.cs`
       (.meta `e4c5d6f70819203a4b5c6d7e8f901a2c`): validation + authoring (two-step connect, adjacency
       gate, disable clears both, connect→undo round-trip, pending detection).
-- [ ] **Tests verified** — user runs EditMode tests in Unity.
-- [ ] **Rollout** — Layer-2 only → **no UPM tag bump** (manifest stays `#v0.5.20`). After tests pass:
-      commit on `master`; sync touched files to the YarnTwist game repo (`itay-main`): `YarnTopSectionData.cs`,
-      `TopSection/YarnTopSectionPanel.cs` + new `TopSection/YarnSpoolConnection.cs`, `YarnMasterLevelExporter.cs`,
-      `Analysis/YarnTwistLevelAnalyzer.cs`, `Analysis/YarnTwistSpoolAutofiller.cs`, new
-      `Validation/YarnConnectedSpoolRule.cs` (+`.asset`). Game `WinderConfig` already has the fields →
-      consumes the export immediately; wiring the rule into the game `GameProfile` is optional (defer).
-      Watch-if-tests-fail: hand-written `.meta` GUIDs must be unique/importable; `Handles.DrawAAPolyLine`
-      renders in the IMGUI panel; ValueTuple comparison in the exporter pre-pass.
+- [x] **Tests verified** — user ran EditMode tests in Unity: all green (incl. soft-lock suite).
+- [x] **Rollout — editor-core SHIPPED (2026-06-02).** `master` commit `ebaddc8` pushed to `origin`
+      (18 files, Connected Spools only; spec at `docs/superpowers/specs/2026-06-02-yarntwist-connected-spools-design.md`).
+      Layer-2 only → **no UPM tag bump** (manifest stays `#v0.5.20`).
+- [x] **Rollout — game-repo sync SHIPPED (2026-06-02).** YarnTwist game (`itay-main`, commit `d711bcb`,
+      repo `hoppa-cloppa/YAT---Yarn-Twist`) pushed. 9 files mirrored under `Assets/_YAT/Scripts/`:
+      `Runtime/YarnTopSectionData.cs`, `Editor/TopSection/YarnTopSectionPanel.cs` + new
+      `Editor/TopSection/YarnSpoolConnection.cs`, `Editor/YarnMasterLevelExporter.cs`,
+      `Editor/Analysis/YarnTwistLevelAnalyzer.cs`, `Editor/Analysis/YarnTwistSpoolAutofiller.cs`, new
+      `Editor/Validation/YarnConnectedSpoolRule.cs` (+metas, reusing editor-core GUIDs). Pre-sync divergence
+      was only a missing comment in the autofiller (applied my hunk, didn't overwrite). Rule `.asset` NOT
+      created / NOT wired into game `GameProfile` — deferred, mirroring `YarnConnectedBoxRule`. Manifest pin
+      unchanged (`#v0.5.20`). **User to confirm the game compiles in Unity 2022.3** (agent can't compile-verify).
 
 ### Mechanic 3 — TBD (pull from game project when starting)
 
