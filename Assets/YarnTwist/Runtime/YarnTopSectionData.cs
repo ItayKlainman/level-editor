@@ -10,6 +10,14 @@ namespace Hoppa.YarnTwist
 
         [JsonProperty("hidden")]
         public bool Hidden { get; set; }
+
+        // Connected Spools: two spools in adjacent columns that share the same
+        // ConnectionId are a linked pair — each stays locked until BOTH reach
+        // their column's bottom active row. Null = unconnected. The id is a
+        // stable authoring handle (survives reorder/move); the exporter
+        // translates it to the game's partner (column, index) pointers.
+        [JsonProperty("connId", NullValueHandling = NullValueHandling.Ignore)]
+        public int? ConnectionId { get; set; }
     }
 
     public sealed class YarnSpoolColumn

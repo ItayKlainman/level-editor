@@ -306,6 +306,11 @@ namespace Hoppa.YarnTwist.Editor
 
         private static JObject BuildTop(string[] colors, bool[] hidden)
         {
+            // Auto-fill rebuilds the spool list from scratch, so it does NOT carry
+            // over any Connected-Spool links (ConnectionId) — the designer authors
+            // connections AFTER auto-filling. The win-path/win-rate accuracy for a
+            // connected level comes from the analyzer's lock modelling (via Analyze),
+            // not from generating connections here.
             var data = new YarnTopSectionData();
             for (int i = 0; i < Columns; i++) data.Columns.Add(new YarnSpoolColumn());
             for (int i = 0; i < colors.Length; i++)

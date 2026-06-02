@@ -235,22 +235,55 @@ namespace Hoppa.YarnTwist.Editor
         {
             public List<string> SpoolColors;
             public List<bool>   Hidden;
+            // Connected spool partner pointers, parallel to SpoolColors.
+            // PartnerCol[s] >= 0 means spool s is locked until spoolHead[PartnerCol[s]]
+            // reaches PartnerPos[s]; -1 = unconnected (or an incomplete/corrupt pair,
+            // which is degraded to independent — mirrors the connected-box analyzer).
+            public List<int>    PartnerCol;
+            public List<int>    PartnerPos;
         }
 
         private static Column[] ParseTopSection(JObject topJson)
         {
             var cols = new Column[Columns];
             for (int i = 0; i < Columns; i++)
-                cols[i] = new Column { SpoolColors = new List<string>(), Hidden = new List<bool>() };
+                cols[i] = new Column {
+                    SpoolColors = new List<string>(), Hidden = new List<bool>(),
+                    PartnerCol  = new List<int>(),     PartnerPos = new List<int>(),
+                };
             if (topJson == null) return cols;
             var data = topJson.ToObject<YarnTopSectionData>();
             if (data?.Columns == null) return cols;
+
+            // id → member (col, pos) positions, to resolve reciprocal partner pointers.
+            var members = new Dictionary<int, List<(int col, int pos)>>();
             for (int i = 0; i < Math.Min(data.Columns.Count, Columns); i++)
                 foreach (var s in data.Columns[i].Spools)
                 {
+                    int pos = cols[i].SpoolColors.Count;
                     cols[i].SpoolColors.Add(s.ColorId);
                     cols[i].Hidden.Add(s.Hidden);
+                    cols[i].PartnerCol.Add(-1);
+                    cols[i].PartnerPos.Add(-1);
+                    if (s.ConnectionId.HasValue)
+                    {
+                        if (!members.TryGetValue(s.ConnectionId.Value, out var list))
+                            members[s.ConnectionId.Value] = list = new List<(int, int)>();
+                        list.Add((i, pos));
+                    }
                 }
+
+            // Only a complete pair (exactly two members) in different columns links;
+            // anything else stays unconnected so a half-finished pair never affects play.
+            foreach (var kv in members)
+            {
+                if (kv.Value.Count != 2) continue;
+                var a = kv.Value[0];
+                var b = kv.Value[1];
+                if (a.col == b.col) continue;
+                cols[a.col].PartnerCol[a.pos] = b.col; cols[a.col].PartnerPos[a.pos] = b.pos;
+                cols[b.col].PartnerCol[b.pos] = a.col; cols[b.col].PartnerPos[b.pos] = a.pos;
+            }
             return cols;
         }
 
@@ -289,6 +322,8 @@ namespace Hoppa.YarnTwist.Editor
             public int[]       X, Y;      // grid coordinates per item (for solution display)
             public int[][]     ColSpool;  // [Columns][] interned spool colors, head→back
             public bool[][]    ColHidden; // [Columns][] hidden flags, head→back
+            public int[][]     ColPartnerCol; // [Columns][] connected-spool partner column; -1 if none
+            public int[][]     ColPartnerPos; // [Columns][] connected-spool partner data index; -1 if none
             public int         NumColors;
             public string[]    ColorNames; // index → original ColorId (for solution display)
             public ulong       StructHash; // deterministic seed source for rollouts
@@ -305,17 +340,23 @@ namespace Hoppa.YarnTwist.Editor
             }
 
             // Intern spool colors first so column arrays are valid.
-            var colSpool  = new int[Columns][];
-            var colHidden = new bool[Columns][];
+            var colSpool      = new int[Columns][];
+            var colHidden     = new bool[Columns][];
+            var colPartnerCol = new int[Columns][];
+            var colPartnerPos = new int[Columns][];
             for (int k = 0; k < Columns; k++)
             {
                 int n = cols[k].SpoolColors.Count;
-                colSpool[k]  = new int[n];
-                colHidden[k] = new bool[n];
+                colSpool[k]      = new int[n];
+                colHidden[k]     = new bool[n];
+                colPartnerCol[k] = new int[n];
+                colPartnerPos[k] = new int[n];
                 for (int s = 0; s < n; s++)
                 {
-                    colSpool[k][s]  = Id(cols[k].SpoolColors[s]);
-                    colHidden[k][s] = cols[k].Hidden[s];
+                    colSpool[k][s]      = Id(cols[k].SpoolColors[s]);
+                    colHidden[k][s]     = cols[k].Hidden[s];
+                    colPartnerCol[k][s] = cols[k].PartnerCol[s];
+                    colPartnerPos[k][s] = cols[k].PartnerPos[s];
                 }
             }
 
@@ -359,6 +400,7 @@ namespace Hoppa.YarnTwist.Editor
                 Kind = kind, Color = color, Prereq = prereq, Partner = partner, Queue = queue,
                 X = xs, Y = ys,
                 ColSpool = colSpool, ColHidden = colHidden,
+                ColPartnerCol = colPartnerCol, ColPartnerPos = colPartnerPos,
                 NumColors = map.Count,
                 ColorNames = names,
             };
@@ -383,6 +425,8 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     h = (h ^ (ulong)(md.ColSpool[k][s] + 2)) * P;
                     h = (h ^ (ulong)(md.ColHidden[k][s] ? 1u : 0u)) * P;
+                    h = (h ^ (ulong)(md.ColPartnerCol[k][s] + 2)) * P;
+                    h = (h ^ (ulong)(md.ColPartnerPos[k][s] + 2)) * P;
                 }
             return h;
         }
@@ -633,7 +677,18 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     while (spoolHead[k] < md.ColSpool[k].Length)
                     {
-                        int color = md.ColSpool[k][spoolHead[k]];
+                        int head = spoolHead[k];
+
+                        // Connected spool: locked until its partner column's head
+                        // reaches the partner spool's position. spoolHead is monotonic,
+                        // so once the partner has reached (>=) its position the chain
+                        // stays broken — the lock is a pure, latching function of
+                        // spoolHead, which keeps memoisation correct and alloc-free.
+                        int pc = md.ColPartnerCol[k][head];
+                        if (pc >= 0 && spoolHead[pc] < md.ColPartnerPos[k][head])
+                            break;
+
+                        int color = md.ColSpool[k][head];
                         int have  = bag[color];
                         if (have <= 0) break;
                         int need = BallsPerSpool - spoolFill[k];

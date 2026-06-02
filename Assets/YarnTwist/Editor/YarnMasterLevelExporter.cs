@@ -343,6 +343,24 @@ namespace Hoppa.YarnTwist.Editor
             if (topData.Columns.Count > 4)
                 Debug.LogWarning($"[YarnMasterLevelExporter] TopSection has {topData.Columns.Count} columns; only first 4 will be exported.");
 
+            // Pre-pass: map each ConnectionId to its member positions. Only ids with
+            // exactly two members are emitted as connected (an incomplete/corrupt pair
+            // exports as unconnected; validation already errors on it).
+            var connMembers = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<(int col, int idx)>>();
+            for (int i = 0; i < 4 && i < topData.Columns.Count; i++)
+            {
+                var spools = topData.Columns[i]?.Spools;
+                if (spools == null) continue;
+                for (int s = 0; s < spools.Count; s++)
+                {
+                    int? id = spools[s].ConnectionId;
+                    if (id == null) continue;
+                    if (!connMembers.TryGetValue(id.Value, out var list))
+                        connMembers[id.Value] = list = new System.Collections.Generic.List<(int, int)>();
+                    list.Add((i, s));
+                }
+            }
+
             for (int i = 0; i < 4; i++)
             {
                 YarnSpoolColumn column      = (i < topData.Columns.Count) ? topData.Columns[i] : null;
@@ -350,13 +368,29 @@ namespace Hoppa.YarnTwist.Editor
 
                 if (column?.Spools != null)
                 {
-                    foreach (var spool in column.Spools)
+                    for (int s = 0; s < column.Spools.Count; s++)
                     {
-                        winderConfigs.Add(new JObject
+                        var spool  = column.Spools[s];
+                        var winder = new JObject
                         {
                             ["ColorType"] = _colorMapping.Get(spool.ColorId ?? string.Empty, 0),
                             ["Hidden"]    = spool.Hidden
-                        });
+                        };
+
+                        // Connected spool → emit the game's WinderType + reciprocal
+                        // partner pointer (column index + winder index = partner's data
+                        // index within its column's WinderConfigs array).
+                        if (spool.ConnectionId.HasValue
+                            && connMembers.TryGetValue(spool.ConnectionId.Value, out var members)
+                            && members.Count == 2)
+                        {
+                            var partner = members[0] == (i, s) ? members[1] : members[0];
+                            winder["WinderType"]           = "ConnectedWinders";
+                            winder["ConnectedColumnIndex"] = partner.col;
+                            winder["ConnectedWinderIndex"] = partner.idx;
+                        }
+
+                        winderConfigs.Add(winder);
                     }
                 }
 

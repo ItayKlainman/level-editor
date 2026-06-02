@@ -258,7 +258,68 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.IsNull(bottom["Direction"]);             // no Direction emitted
         }
 
+        // ── Connected Spools ────────────────────────────────────────────
+
+        [Test]
+        public void Export_ConnectedSpoolPair_WritesReciprocalWinderPointers()
+        {
+            // col0 pink ↔ col1 blue (shared ConnectionId 1). Each winder points at the
+            // other's (column, data index) — exactly Eliran's WinderConfig schema.
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, ConnectedTop(1, 1));
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var w0 = TopConfigs()[0]["WinderConfigs"][0];
+            var w1 = TopConfigs()[1]["WinderConfigs"][0];
+            Assert.AreEqual("ConnectedWinders", (string)w0["WinderType"]);
+            Assert.AreEqual(1, (int)w0["ConnectedColumnIndex"]);
+            Assert.AreEqual(0, (int)w0["ConnectedWinderIndex"]);
+            Assert.AreEqual("ConnectedWinders", (string)w1["WinderType"]);
+            Assert.AreEqual(0, (int)w1["ConnectedColumnIndex"]);
+            Assert.AreEqual(0, (int)w1["ConnectedWinderIndex"]);
+        }
+
+        [Test]
+        public void Export_UnconnectedSpool_HasNoWinderTypeKey()
+        {
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection(col0Spool: "pink"));
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var w = TopConfigs()[0]["WinderConfigs"][0];
+            Assert.IsNull(w["WinderType"]);
+            Assert.IsNull(w["ConnectedColumnIndex"]);
+            Assert.IsNull(w["ConnectedWinderIndex"]);
+        }
+
+        [Test]
+        public void Export_IncompleteConnection_ExportsAsUnconnected()
+        {
+            // Only col0's spool carries the id → no partner → never emitted as connected.
+            var doc = MakeDoc("level_001", new[] { EmptyCell() }, ConnectedTop(1, null));
+            _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
+
+            var w = TopConfigs()[0]["WinderConfigs"][0];
+            Assert.IsNull(w["WinderType"]);
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
+
+        // col0 = pink spool, col1 = blue spool, each carrying the given ConnectionId.
+        private static JObject ConnectedTop(int? c0, int? c1)
+        {
+            var data = new YarnTopSectionData
+            {
+                Columns = new List<YarnSpoolColumn>
+                {
+                    new YarnSpoolColumn { Spools = new List<YarnSpoolData>
+                        { new YarnSpoolData { ColorId = "pink", ConnectionId = c0 } } },
+                    new YarnSpoolColumn { Spools = new List<YarnSpoolData>
+                        { new YarnSpoolData { ColorId = "blue", ConnectionId = c1 } } },
+                    new YarnSpoolColumn { Spools = new List<YarnSpoolData>() },
+                    new YarnSpoolColumn { Spools = new List<YarnSpoolData>() }
+                }
+            };
+            return JObject.FromObject(data);
+        }
 
         private static ICellData EmptyCell()  => new YarnEmptyCell();
         private static ICellData WallCell()   => new YarnWallCell();

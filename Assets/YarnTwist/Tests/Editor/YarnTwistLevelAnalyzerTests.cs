@@ -496,7 +496,70 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(2L, r.WinPathCount);
         }
 
+        // ── Fixture 22: connected lock removes orderings vs unconnected ─
+
+        [Test]
+        public void Analyze_ConnectedSpoolLock_RemovesSomeOrderingsVsUnconnected()
+        {
+            // col0 (6 pink spools, head linked to col1's top spool) + col1 (3 blue).
+            // 2 pink boxes + 1 blue box on a tight belt. Connected, col0's pink head
+            // can't drain until col1 is consumed, so any ordering that taps BOTH pink
+            // boxes before the blue box leaves the belt over capacity at the next node
+            // → strictly fewer winning orderings than the same spools unconnected.
+            var cells = new (int, int, ICellData)[] {
+                (0,0,new YarnBoxCell{ColorId="pink"}),
+                (1,0,new YarnBoxCell{ColorId="pink"}),
+                (2,0,new YarnBoxCell{ColorId="blue"}),
+            };
+            var connected = ConnTop(
+                new (string, int?)[] { ("pink",1),("pink",null),("pink",null),("pink",null),("pink",null),("pink",null) },
+                new (string, int?)[] { ("blue",null),("blue",null),("blue",1) });
+            var unconnected = ConnTop(
+                new (string, int?)[] { ("pink",null),("pink",null),("pink",null),("pink",null),("pink",null),("pink",null) },
+                new (string, int?)[] { ("blue",null),("blue",null),("blue",null) });
+
+            var rc = _analyzer.Analyze(MakeDoc(3, 1, cells, connected),   _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 12 });
+            var ru = _analyzer.Analyze(MakeDoc(3, 1, cells, unconnected), _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 12 });
+
+            Assert.IsTrue(rc.Solvable, rc.FailureReason);
+            Assert.IsTrue(ru.Solvable, ru.FailureReason);
+            Assert.Less(rc.WinPathCount, ru.WinPathCount);
+        }
+
+        // ── Fixture 23: mutual lock → deadlock → unsolvable ─────────────
+
+        [Test]
+        public void Analyze_ConnectedSpoolsMutualLock_Unsolvable()
+        {
+            // conn1: col0 pos0 ↔ col1 pos2 ; conn2: col0 pos2 ↔ col1 pos0.
+            // Each column's bottom spool waits for the other column to reach its top,
+            // but neither column can start → deadlock → unsolvable.
+            var top = ConnTop(
+                new (string, int?)[] { ("pink", 1), ("pink", null), ("pink", 2) },
+                new (string, int?)[] { ("blue", 2), ("blue", null), ("blue", 1) });
+            var doc = MakeDoc(2, 1, new (int, int, ICellData)[] {
+                (0,0,new YarnBoxCell{ColorId="pink"}),
+                (1,0,new YarnBoxCell{ColorId="blue"}),
+            }, top);
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsFalse(r.Solvable);
+            Assert.AreEqual(0L, r.WinPathCount);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
+
+        // Builds a top section from explicit per-column (color, connectionId) lists;
+        // spools sharing a connectionId across two columns form a connected pair.
+        private static JObject ConnTop(params (string color, int? conn)[][] columns)
+        {
+            var data = new YarnTopSectionData();
+            for (int i = 0; i < 4; i++) data.Columns.Add(new YarnSpoolColumn());
+            for (int i = 0; i < columns.Length && i < 4; i++)
+                foreach (var (color, conn) in columns[i])
+                    data.Columns[i].Spools.Add(new YarnSpoolData { ColorId = color, ConnectionId = conn });
+            return JObject.FromObject(data);
+        }
 
         private static (int, int, ICellData)[] TwoPink() => new (int, int, ICellData)[] {
             (0,0,new YarnBoxCell{ColorId="pink"}),

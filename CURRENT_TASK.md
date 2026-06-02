@@ -84,18 +84,90 @@ validate reverse links → the editor must guarantee reciprocity. Full schema in
 - [x] **Tests verified** — user ran EditMode tests in Unity: all pass.
 - [x] **Committed + tagged locally** — commit `bfc0752` on `master` (25 files; Connected Boxes
       only, no unrelated working-tree changes); lightweight tag `v0.5.20` points at it.
-- [ ] **Rollout (push pending — awaiting user)** — `git push origin master --tags` (or push
-      `v0.5.20`) so GitHub serves the tag, THEN bump YarnTwist `manifest.json` pin to `#v0.5.20`
-      in `E:/Projects/Hoppa/YarnTwist`. NOTE: YAK sync is NOT needed (YarnKingdom does not
-      implement `ICellContextActions`). Unrelated working-tree changes (NuGet deletions,
-      `Playground/`, solution `.txt`s, `manifest.json`, `bash.exe.stackdump`) were left untouched —
-      handle separately.
+- [x] **Rollout — SHIPPED (2026-06-01).** editor-core: `master` `7af843b` + tag `v0.5.20`
+      (`bfc0752`) pushed to `origin`. YarnTwist game (`itay-main`, commit `e8a727f`, repo
+      `hoppa-cloppa/YAT---Yarn-Twist`): manifest pinned `#v0.5.20` + Layer-2 sync (YarnBoxCell,
+      Yarn{Box,ArrowBox}CellDefinition, YarnMasterLevelExporter, YarnTwistLevelAnalyzer, new
+      YarnConnectedBoxRule). **User confirmed the game compiles clean in Unity 2022.3.** YAK sync
+      NOT needed. The v0.5.20 `ICellContextActions` signature change was breaking — BOTH game cell
+      defs (box + arrowbox) had to sync in lockstep with the pin bump (lesson for future Layer-1
+      interface changes).
+      - **Deferred game-side follow-ups (optional, non-blocking):** the game's embedded editor has
+        connected-box authoring (ConnectedDir + Connect/Un-connect UI + outline) and export emits
+        `BottomType 6` via the exporter's `Get(...)` default, BUT (a) `YarnConnectedBoxRule` is NOT
+        wired into the game's `GameProfile` asset (no `.asset` created there) → no validation in the
+        game's editor; (b) `yt.connectedbox→6` not added to the game's cell-type-mapping asset
+        (harmless). Wire these in the game project if its embedded editor needs the full safety net.
+        Primary authoring is in editor-core where everything is wired + tested.
       Watch-if-tests-fail: (a) hand-written `.meta` GUIDs for `CellActionContext`,
       `YarnConnectedBoxRule` (.cs+.asset), `YarnConnectedBoxTests` must be unique & importable;
       (b) the `CellContextAction` Func/Action ctor overload resolves by the named `create:`/
       `apply:` argument at every call site.
 
-### Mechanic 2 — TBD (pull from game project when starting)
+### Mechanic 2 — Connected Spools (2026-06-02) — CODE COMPLETE; awaiting user EditMode test run + rollout approval
+
+Spec/plan: `C:\Users\itay0\.claude\plans\let-s-talk-about-the-stateless-meerkat.md`.
+
+**What it is:** two spools in *adjacent* columns are linked; each stays locked until BOTH
+reach their column's bottom active row, then the chain breaks and both activate. Authored in
+the spool panel via right-click Add Connect / Disable Connect; shown with a number badge +
+chain line.
+
+**Game schema (Eliran) — NO connection object.** A connected spool is a `WinderConfig` with
+`WinderType = ConnectedWinders` + `ConnectedColumnIndex` + `ConnectedWinderIndex` pointing at its
+partner (mirrors Connected Boxes). Source: `YarnTwist/.../YATLevelManager.cs` (`WinderConfig`,
+`enum YATWinderType { None, ConnectedWinders }`). Editor stores a stable `ConnectionId` on the
+spool; the exporter translates to the partner's `(column, index)`.
+
+**User decisions (all the ambitious option):** (1) commit-on-first-click — the first spool sticks
+and an unfinished pair is flagged incomplete by validation; (2) draw the actual chain line across
+columns; (3) analyzer models the lock now; (4) auto-fill stays analyzer-accurate (it still wipes
+connections — connect AFTER auto-filling).
+
+**Implementation checklist:**
+- [x] **Data model** — `YarnSpoolData.ConnectionId` (`int?`, `[JsonProperty("connId", Ignore)]`).
+- [x] **Authoring** — `YarnTopSectionPanel`: row right-click `GenericMenu` (Change Color… moved into
+      the menu; Add/Complete/Disable/Cancel Connect); number badge (amber while pending) + cross-column
+      chain line drawn after the scroll views; deferred color-picker (col,idx) so it reopens inside the
+      scroll view. Connection ops live in new **`YarnSpoolConnection`** (UI-agnostic, tested):
+      `BuildConnInfo`/`DisplayNumber`/`AllocId`/`CanComplete`/`Connect`/`DisconnectGroup`.
+- [x] **Validation** — `YarnConnectedSpoolRule` (Scope=Level): incomplete (size 1) → *"Connected
+      Spool Pair N is incomplete…"*; size>2; same/non-adjacent columns. `.cs` guid
+      `c2a3b4d5e6f70819203a4b5c6d7e8f91`, `.asset` guid `d3b4c5e6f7081920304a5b6c7d8e9f02`
+      (`_id: yt.connected_spool`); wired into `YarnTwistProfile.asset` `_rules`.
+- [x] **Soft-lock prevention (2026-06-02 follow-up)** — user hit a mutual deadlock by authoring two
+      *crossing* pairs (pair links can't cross between a column-pair). `YarnSpoolConnection.ConnectionsDeadlock`
+      = color-blind head-advance simulation (infinite yarn; a connected spool clears only when its partner
+      is simultaneously at its head). Enforced two ways: (a) the connect menu disables a completion that
+      `CompletingDeadlocks` → *"would soft-lock — links can't cross"*; (b) `YarnConnectedSpoolRule` emits a
+      soft-lock Error (safety net for reorder/move/hand-edit; blocks export). Tests added (+4) in
+      `YarnConnectedSpoolTests`.
+- [x] **Export** — `YarnMasterLevelExporter.BuildTopConfigs`: complete pair → both winders get
+      `WinderType:"ConnectedWinders"` (string, Direction precedent) + reciprocal `ConnectedColumnIndex`/
+      `ConnectedWinderIndex`; unconnected/incomplete spools unchanged.
+- [x] **Analyzer (lock)** — `YarnTwistLevelAnalyzer`: `Column` gains `PartnerCol`/`PartnerPos`,
+      `ParseTopSection` resolves complete pairs (size≠2 → independent), `Model.ColPartnerCol/Pos` +
+      `Intern` + `ComputeStructHash`. **Key:** shared `ResolveMatches` gates a connected head spool with
+      the pure latching check `spoolHead[partnerCol] < partnerPos` — memo-safe, alloc-free, covers DFS
+      + rollouts. Caveat understood: belt capacity is checked at node entry (post-resolve), so a
+      one-way lock only reduces win paths when balls stay stuck across a node; mutual locks deadlock →
+      unsolvable.
+- [x] **Auto-fill** — no behavior change; inventory comment noting it clears connections.
+- [x] **Tests (EditMode)** — exporter (+3: reciprocal pointers / no WinderType when unconnected /
+      incomplete exports unconnected); analyzer (+2: connected lock removes orderings vs unconnected
+      baseline [relational, cap 12]; mutual lock → unsolvable); new `YarnConnectedSpoolTests.cs`
+      (.meta `e4c5d6f70819203a4b5c6d7e8f901a2c`): validation + authoring (two-step connect, adjacency
+      gate, disable clears both, connect→undo round-trip, pending detection).
+- [ ] **Tests verified** — user runs EditMode tests in Unity.
+- [ ] **Rollout** — Layer-2 only → **no UPM tag bump** (manifest stays `#v0.5.20`). After tests pass:
+      commit on `master`; sync touched files to the YarnTwist game repo (`itay-main`): `YarnTopSectionData.cs`,
+      `TopSection/YarnTopSectionPanel.cs` + new `TopSection/YarnSpoolConnection.cs`, `YarnMasterLevelExporter.cs`,
+      `Analysis/YarnTwistLevelAnalyzer.cs`, `Analysis/YarnTwistSpoolAutofiller.cs`, new
+      `Validation/YarnConnectedSpoolRule.cs` (+`.asset`). Game `WinderConfig` already has the fields →
+      consumes the export immediately; wiring the rule into the game `GameProfile` is optional (defer).
+      Watch-if-tests-fail: hand-written `.meta` GUIDs must be unique/importable; `Handles.DrawAAPolyLine`
+      renders in the IMGUI panel; ValueTuple comparison in the exporter pre-pass.
+
 ### Mechanic 3 — TBD (pull from game project when starting)
 
 ---
@@ -119,7 +191,7 @@ unity-mcp-cli 401). Summary kept for context:
 
 ---
 
-### Parked — Per-level Difficulty Type — YarnTwist (2026-05-28) — FEATURE DONE; game-project editor BLOCKED
+### Parked — Per-level Difficulty Type — YarnTwist (2026-05-28) — FEATURE DONE (game-project editor blocker since resolved, see below)
 
 Small Layer-2 feature. The game's `LevelConfig` gained `YATLevelType LevelType`
 (`None` / `Hard` / `SuperHard`). Editor now lets the designer pick a difficulty
@@ -138,58 +210,25 @@ Feature status: **complete, committed, pushed, deployed.**
 - **Verified working in editor-core** (Unity 6): dropdown shows "None" under
   Coins in the Summary panel.
 
-### BLOCKER — Level Editor broken in the YarnTwist GAME project (`E:/Projects/Hoppa/YarnTwist`)
+### RESOLVED — Level Editor in the YarnTwist GAME project works fine (user-confirmed 2026-06-02)
 
-Pre-existing, **not caused by the feature**. Opening any level NREs and the
-Difficulty dropdown never renders.
+The "blocker" below is **no longer reproducing**. User confirms the Level Editor
+opens and works correctly in the YarnTwist game project. Most likely fixed by the
+`v0.5.20` rollout (manifest pin bump from `#v0.5.18` → `#v0.5.20` + the Layer-2 sync
+that came with Connected Boxes, which the user verified compiles clean in Unity
+2022.3). Do not chase this next session — kept here only as historical context.
 
-- Symptom: `NullReferenceException` in package code
-  `LevelEditorWindow.AutoActivateCellType()` at `LevelEditorWindow.cs:534`
-  (`def.CreateDefault()` where `def = _profile.CellTypes[1]` is **null**), then
-  `EndLayoutGroup`/`Stack empty` IMGUI cascade. Palette is empty; Summary shows
-  no Coins/Difficulty rows. Root: the profile's cell-type definitions resolve
-  to **null** (missing-script binding) at runtime.
-- Environment: game project is **Unity 2022.3.62f2**; editor-core is Unity 6.
-  Game consumes package via git UPM pinned `#v0.5.18` (= commit `bc7477a`,
-  confirmed by `git tag --contains`). Lock hash matches. Package is NOT stale.
+<details><summary>Original blocker writeup (historical — left for context)</summary>
 
-What was VERIFIED on disk (all correct — none is the cause):
-- Profile `_cellTypes`/`_exporters` GUIDs all resolve to existing assets.
-- Cell-def `.asset` `m_Script` GUIDs match their `.cs.meta` GUIDs.
-- v0.5.17 sync (`3197cef`) did NOT touch cell-def assets — only added
-  generator/analyzer fields to the profile. Cell-def scripts/metas stable
-  since original import.
-- No duplicate `YarnWallCellDefinition` type; no duplicate Layer-1 framework
-  copy in `Assets`.
+Was: opening any level NRE'd in `LevelEditorWindow.AutoActivateCellType()` at
+`LevelEditorWindow.cs:534` (`def.CreateDefault()` where `def = _profile.CellTypes[1]`
+was **null**), then an `EndLayoutGroup`/`Stack empty` IMGUI cascade; palette empty,
+Summary showed no Coins/Difficulty rows. Game was then pinned at `#v0.5.18`. Disk
+checks (cell-def GUIDs, `m_Script` bindings, no duplicate types) all came back clean;
+adding two game-side asmdefs (`Hoppa.YarnTwist.Runtime`/`Editor`) did not fix it at
+the time. The version bump to v0.5.20 appears to have resolved it.
 
-What was TRIED (none fixed it):
-- **Added 2 asmdefs to the game project** (NEW, uncommitted, unverified-as-fix):
-  `Assets/_YAT/Scripts/Runtime/Hoppa.YarnTwist.Runtime.asmdef` and
-  `Assets/_YAT/Scripts/Editor/Hoppa.YarnTwist.Editor.asmdef`. Rationale: the
-  cell-def assets record `m_EditorClassIdentifier: Hoppa.YarnTwist.Editor::…`
-  but the game had NO such assembly (scripts compiled into
-  `Assembly-CSharp-Editor`). After adding them, `Hoppa.YarnTwist.Editor.dll`
-  builds and contains `YarnWallCellDefinition` (verified) — but the NRE
-  PERSISTS. **Consider reverting these two files if they turn out irrelevant.**
-- Reimport All, folder Reimport, full Unity restart — NRE persists.
-- NOTE: the game has NEVER had a `Hoppa.YarnTwist.Editor` asmdef in git history
-  (only `YAT.Editor`/`YAT.Gamelogic`, added at init). User says the editor
-  "worked before with a simple version bump" — so binding worked previously
-  with types in `Assembly-CSharp-Editor`. That contradicts the assembly-name
-  theory and is unresolved.
-
-### RESUME HERE (next session)
-The one decisive datapoint never gathered: **in the game Unity, click
-`Assets/_YAT/LevelEditor/Config/CellDefs/YarnWallCellDef.asset` and read the
-Inspector.**
-- If it shows "script can not be loaded" / Script = `None` → asset genuinely
-  can't bind (re-assign the script / re-create the asset; the GUID link is the
-  issue regardless of YAML).
-- If it shows normal fields (Script=`YarnWallCellDefinition`, `yt.wall`, `Wall`)
-  → cell-defs are fine; the null is in the **profile's** `_cellTypes` reference
-  list → re-assign cell types on `YarnTwistProfile.asset`.
-This single answer splits the problem; pick the matching fix. Also worth a
-fresh look from the "package version bump" angle the user raised.
+</details>
 
 ---
 
