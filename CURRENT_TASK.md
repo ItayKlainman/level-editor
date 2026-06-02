@@ -172,7 +172,51 @@ connections — connect AFTER auto-filling).
       created / NOT wired into game `GameProfile` — deferred, mirroring `YarnConnectedBoxRule`. Manifest pin
       unchanged (`#v0.5.20`). **User to confirm the game compiles in Unity 2022.3** (agent can't compile-verify).
 
-### Mechanic 3 — TBD (pull from game project when starting)
+### Mechanic 3 — Palette (2026-06-02) — CODE COMPLETE; awaiting user EditMode test run + rollout approval
+
+Spec: `docs/superpowers/specs/2026-06-02-yarntwist-palette-design.md`.
+
+**What it is:** a 3×3 cover over boxes that hides them in-game and reveals them after the player
+opens enough boxes elsewhere (a countdown). Editor authors it; gameplay is Eliran's parallel task.
+
+**Game schema:** only the stub exists — `YATBottomType.Palette = 7` + `BottomConfig.ExtraFeatureBottomType`.
+**User decisions:** no ID (center = identity); covered always 3×3 (derived); amount editable+stored
+editor-side but **not exported** (game field is future); export marks **center box only** with
+`ExtraFeatureBottomType="Palette"`; placement via **right-click context actions** (not a button);
+analyzer/difficulty **deferred**.
+
+**Layer 1 (UPM → tag `v0.5.21`):** new `CanvasOverlayAsset` (abstract SO) + `GameProfile.CanvasOverlay`;
+`GridCanvasPanel` calls `CanvasOverlay?.DrawOverlay(session, cellRect)` after cells (inside scroll view).
+Additive/optional → YAK/YarnKingdom unaffected. `.cs` guid `f4a1c2e3b5d60718293a4b5c6d7e8f10`.
+package.json bumped 0.1.0→0.5.21 + CHANGELOG entry.
+
+**Layer 2 (YarnTwist):**
+- [x] **Data** — `YarnPalettes` (guid `a5b6c7d8e9f0a1b2c3d4e5f60718293a`): palettes in
+      `GameData["palettes"]` (`[{center{x,y},amount}]`); `All/Write/CanPlace/CoveredCells/TryPaletteAt/
+      Add/Remove/SetAmount/IsBox`. "Box" = `yt.box`/`yt.arrowbox`.
+- [x] **Authoring** — `YarnBoxCellDefinition.GetContextActions`: Add Palette (3×3 here) when `CanPlace`;
+      on a covered box, Set Palette Requirement (inline IntField via `drawOptions`) + Remove Palette.
+- [x] **Overlay** — `YarnPaletteOverlay : CanvasOverlayAsset` (.cs guid `b6c7d8e9f0a1b2c3d4e5f60718293a4b`,
+      .asset guid `c7d8e9f0a1b2c3d4e5f60718293a4b5c`): red 3×3 outline + tint + amount badge. Wired into
+      `YarnTwistProfile._canvasOverlay`.
+- [x] **Validation** — `YarnPaletteRule` (Scope=Level; .cs guid `d8e9f0a1b2c3d4e5f60718293a4b5c6d`,
+      .asset guid `e9f0a1b2c3d4e5f60718293a4b5c6d7e`, `_id: yt.palette`): in-bounds / all-boxes / no-overlap.
+      Wired into `_rules`.
+- [x] **Export** — `YarnMasterLevelExporter.BuildBottomConfigs(grid, document)`: center cell gets
+      `ExtraFeatureBottomType:"Palette"`. (Confirm center-vs-all-9 with Eliran when spawner lands.)
+- [x] **Tests** — exporter (+2: center flagged / no-palette no key); new `YarnPaletteTests` (.meta
+      `f0a1b2c3d4e5f60718293a4b5c6d7e8f`): helper (CanPlace valid/edge/non-box/overlap, CoveredCells,
+      TryPaletteAt), authoring (add offered for valid center only, covered-box offers remove+requirement,
+      add stores default 5, remove clears, add→undo GameData round-trip), validation (valid / non-box /
+      overlap / off-grid).
+- [x] **Tests verified** — ran EditMode via MCP (the unity-mcp 401 is resolved): 113 tests, 0 failures,
+      all Palette tests green. Also fixed 2 **pre-existing stale** exporter reward tests
+      (`Export_NewLevel_StubsRewardEntry`, renamed `Export_ExistingReward_IsPreserved` →
+      `Export_AlwaysWritesReward_OverwritingExisting`) — they asserted old "preserve reward" behavior /
+      depended on EditorPrefs; updated to the canonical always-write-reward behavior, deterministic via
+      `GameData["coinReward"]`. Not Palette regressions.
+- [x] **Rollout — SHIPPED (2026-06-02).** Layer-1 change → **UPM tag `v0.5.21`**. editor-core commit +
+      tag + push to `origin`; game (`itay-main`) manifest pin `#v0.5.21` + Layer-2 mirror pushed.
 
 ---
 
