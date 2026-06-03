@@ -68,7 +68,7 @@ namespace Hoppa.YarnTwist.Editor
 
             // Intern colors → small int indices over the union of every color
             // that can enter the belt or sit on a spool.
-            var model = Intern(items, columns);
+            var model = Intern(items, columns, doc.Grid.Height);
 
             if (req != null && req.RecordSolution)
             {
@@ -149,8 +149,10 @@ namespace Hoppa.YarnTwist.Editor
             int W = grid.Width;
             long Key(int x, int y) => (long)y * W + x;
 
-            for (int y = 0; y < grid.Height; y++)
-            for (int x = 0; x < W;          x++)
+            // Scan top-to-bottom so item indices match the player's visual row order
+            // (row 0 from the player = grid top = data y = Height-1).
+            for (int y = grid.Height - 1; y >= 0; y--)
+            for (int x = 0; x < W;                x++)
             {
                 var cell = grid.Get(x, y);
                 if (cell is YarnBoxCell b)
@@ -319,7 +321,8 @@ namespace Hoppa.YarnTwist.Editor
             public int[]       Prereq;    // ArrowBox prereq item index; -1 otherwise
             public int[]       Partner;   // connected-box reciprocal partner item index; -1 otherwise
             public int[][]     Queue;     // Tunnel queue (interned); null otherwise
-            public int[]       X, Y;      // grid coordinates per item (for solution display)
+            public int[]       X, Y;      // grid coordinates per item (data space, y=0=bottom)
+            public int         GridHeight; // grid rows — used to flip Y for player-facing display
             public int[][]     ColSpool;  // [Columns][] interned spool colors, head→back
             public bool[][]    ColHidden; // [Columns][] hidden flags, head→back
             public int[][]     ColPartnerCol; // [Columns][] connected-spool partner column; -1 if none
@@ -329,7 +332,7 @@ namespace Hoppa.YarnTwist.Editor
             public ulong       StructHash; // deterministic seed source for rollouts
         }
 
-        private static Model Intern(List<Item> items, Column[] cols)
+        private static Model Intern(List<Item> items, Column[] cols, int gridHeight = 0)
         {
             var map = new Dictionary<string, int>();
             int Id(string c)
@@ -399,6 +402,7 @@ namespace Hoppa.YarnTwist.Editor
                 ItemCount = m,
                 Kind = kind, Color = color, Prereq = prereq, Partner = partner, Queue = queue,
                 X = xs, Y = ys,
+                GridHeight = gridHeight,
                 ColSpool = colSpool, ColHidden = colHidden,
                 ColPartnerCol = colPartnerCol, ColPartnerPos = colPartnerPos,
                 NumColors = map.Count,
@@ -444,19 +448,22 @@ namespace Hoppa.YarnTwist.Editor
             {
                 int i = path[s];
                 int n = s + 1;
+                // Flip Y so (x,0) = top row from the player's perspective
+                // (data y=0 is the bottom row; player sees data y=Height-1 first).
+                int displayY = md.GridHeight > 0 ? md.GridHeight - 1 - md.Y[i] : md.Y[i];
                 if (md.Kind[i] == ItemKind.Tunnel)
                 {
                     tunnelPos.TryGetValue(i, out var q);
                     int len = md.Queue[i].Length;
                     string color = md.ColorNames[md.Queue[i][q]];
-                    steps.Add($"{n}. Tap Tunnel ({md.X[i]},{md.Y[i]}) → {color} ({q + 1}/{len})");
+                    steps.Add($"{n}. Tap Tunnel ({md.X[i]},{displayY}) → {color} ({q + 1}/{len})");
                     tunnelPos[i] = q + 1;
                 }
                 else
                 {
                     string kind  = md.Kind[i] == ItemKind.ArrowBox ? "Arrow-box" : "Box";
                     string color = md.ColorNames[md.Color[i]];
-                    steps.Add($"{n}. Tap {color} {kind} ({md.X[i]},{md.Y[i]})");
+                    steps.Add($"{n}. Tap {color} {kind} ({md.X[i]},{displayY})");
                 }
             }
             return steps;
