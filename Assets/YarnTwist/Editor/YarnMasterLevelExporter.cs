@@ -267,10 +267,10 @@ namespace Hoppa.YarnTwist.Editor
             if (grid == null) return array;
 
             // Palette centers → the game derives the 3x3 cover and hides those boxes.
-            // We mark only the center cell with ExtraFeatureBottomType = Palette.
-            var paletteCenters = new System.Collections.Generic.HashSet<(int, int)>();
+            // We mark only the center cell with ExtraFeatureBottomType + PaletteAmount.
+            var paletteCenters = new System.Collections.Generic.Dictionary<(int, int), int>();
             foreach (var p in YarnPalettes.All(document))
-                paletteCenters.Add((p.CenterX, p.CenterY));
+                paletteCenters[(p.CenterX, p.CenterY)] = p.Amount;
 
             for (int y = 0; y < grid.Height; y++)
             {
@@ -285,9 +285,6 @@ namespace Hoppa.YarnTwist.Editor
                     int bottomType = _cellTypeMapping.Get(cell.CellTypeId, 0);
                     entry["BottomType"] = bottomType;
 
-                    if (paletteCenters.Contains((x, y)))
-                        entry["ExtraFeatureBottomType"] = "Palette";
-
                     if (cell is YarnBoxCell boxCell)
                     {
                         entry["ColorType"] = _colorMapping.Get(boxCell.ColorId, 0);
@@ -298,6 +295,11 @@ namespace Hoppa.YarnTwist.Editor
                             // Direction string. The partner cell emits its own reciprocal entry.
                             entry["BottomType"] = _cellTypeMapping.Get("yt.connectedbox", 6);
                             entry["Direction"]  = boxCell.ConnectedDir.Value.ToString();
+                        }
+                        if (paletteCenters.TryGetValue((x, y), out int paletteAmount))
+                        {
+                            entry["ExtraFeatureBottomType"] = "Palette";
+                            entry["PaletteAmount"]          = paletteAmount;
                         }
                     }
                     else if (cell is YarnArrowBoxCell arrowBoxCell)

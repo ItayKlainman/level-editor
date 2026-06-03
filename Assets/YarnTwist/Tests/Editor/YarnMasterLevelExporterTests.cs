@@ -308,21 +308,24 @@ namespace Hoppa.YarnTwist.Editor.Tests
         // ── Palette ─────────────────────────────────────────────────────
 
         [Test]
-        public void Export_PaletteCenter_GetsExtraFeatureBottomType()
+        public void Export_PaletteCenter_GetsExtraFeatureBottomTypeAndAmount()
         {
             // 3x3 grid of boxes, palette centered at (1,1). Only the center cell gets
-            // ExtraFeatureBottomType=Palette; the game derives the 3x3 cover.
+            // ExtraFeatureBottomType=Palette + PaletteAmount; the game derives the 3x3 cover.
             var cells = new ICellData[9];
             for (int i = 0; i < 9; i++) cells[i] = new YarnBoxCell { ColorId = "pink" };
             var doc = MakeDoc("level_001", cells, MakeTopSection(col0Spool: "pink"), width: 3, height: 3);
             YarnPalettes.Add(doc, new CellRef(1, 1));
+            YarnPalettes.SetAmount(doc, new CellRef(1, 1), 7);
 
             _exporter.Export(doc, new CellTypeRegistry(), _levelFile);
 
             var center = BottomConfigAt(4); // (x=1,y=1) → y*width+x = 4
             var corner = BottomConfigAt(0); // (0,0)
             Assert.AreEqual("Palette", (string)center["ExtraFeatureBottomType"]);
+            Assert.AreEqual(7,         (int)center["PaletteAmount"]);
             Assert.IsNull(corner["ExtraFeatureBottomType"]);
+            Assert.IsNull(corner["PaletteAmount"]);
         }
 
         [Test]
