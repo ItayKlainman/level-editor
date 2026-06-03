@@ -172,16 +172,20 @@ connections — connect AFTER auto-filling).
       created / NOT wired into game `GameProfile` — deferred, mirroring `YarnConnectedBoxRule`. Manifest pin
       unchanged (`#v0.5.20`). **User to confirm the game compiles in Unity 2022.3** (agent can't compile-verify).
 
-### Mechanic 3 — Palette (2026-06-02) — CODE COMPLETE; awaiting user EditMode test run + rollout approval
+### Mechanic 3 — Palette (2026-06-02) — SHIPPED; exporter follow-up patched 2026-06-03
 
 Spec: `docs/superpowers/specs/2026-06-02-yarntwist-palette-design.md`.
 
 **What it is:** a 3×3 cover over boxes that hides them in-game and reveals them after the player
 opens enough boxes elsewhere (a countdown). Editor authors it; gameplay is Eliran's parallel task.
 
+**Exporter follow-up (2026-06-03):** `PaletteAmount` was missing from export + `ExtraFeatureBottomType`
+was emitted before `ColorType`/`Hidden`. Fixed in editor-core `d57beff` + game-repo `f9a52c8`.
+Layer-2 only — manifest stays `#v0.5.21`.
+
 **Game schema:** only the stub exists — `YATBottomType.Palette = 7` + `BottomConfig.ExtraFeatureBottomType`.
 **User decisions:** no ID (center = identity); covered always 3×3 (derived); amount editable+stored
-editor-side but **not exported** (game field is future); export marks **center box only** with
+editor-side; `PaletteAmount` exported; export marks **center box only** with
 `ExtraFeatureBottomType="Palette"`; placement via **right-click context actions** (not a button);
 analyzer/difficulty **deferred**.
 
