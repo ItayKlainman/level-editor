@@ -547,18 +547,16 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(0L, r.WinPathCount);
         }
 
-        // ── Fixture 24: strict belt-capacity gate blocks pre-overflow tap ─
+        // ── Fixture 24: belt permanently stuck → unsolvable ──────────────
 
         [Test]
-        public void Analyze_BeltFullBeforeTap_BlocksTapEvenIfDrainWouldFollow()
+        public void Analyze_BeltPermanentlyStuck_Unsolvable()
         {
-            // 3 orange boxes + 3 orange spools (capacity=9). After tapping 1 orange,
-            // all 3 spools are filled (bag drains to 0). Tapping a 2nd orange (bagSum=0)
-            // is fine (0+9=9 ≤ 9). Tapping the 3rd orange box when bagSum=9 would add 9
-            // more → 18 > 9 so it must be blocked even though a drain would follow.
-            // Only 2 paths exist (the first two boxes drain immediately; the third can
-            // never be tapped since bagSum=9 after each, and no further drain occurs).
-            // Result: unsolvable (the 3rd box can never fire under strict capacity).
+            // 3 orange boxes + 3 orange spools (capacity=9). Tapping box1 fills and
+            // clears all 3 orange spools (bag drains to 0). Tapping box2 adds 9 orange —
+            // no spools remain to drain, bagSum stays 9 (at capacity). Tapping box3
+            // would push bagSum to 18 > 9 at the NEXT DFS node start → dead end.
+            // The 3rd orange box can never be cleared — unsolvable.
             var doc = MakeDoc(width: 3, height: 1,
                 cells: new (int, int, ICellData)[] {
                     (0,0,new YarnBoxCell{ColorId="orange"}),
@@ -568,7 +566,7 @@ namespace Hoppa.YarnTwist.Editor.Tests
                 topSection: SpoolColumns(("orange","orange","orange"),(null,null,null),(null,null,null),(null,null,null)));
 
             var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 9 });
-            Assert.IsFalse(r.Solvable, "should be unsolvable: 2nd and 3rd orange boxes can't both drain");
+            Assert.IsFalse(r.Solvable, "3 orange boxes with only 3 orange spools overflows after 1st clear");
             Assert.AreEqual(0L, r.WinPathCount);
         }
 

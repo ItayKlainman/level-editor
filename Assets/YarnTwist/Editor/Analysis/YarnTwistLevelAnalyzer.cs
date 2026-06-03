@@ -685,19 +685,9 @@ namespace Hoppa.YarnTwist.Editor
                         // move; tapping it co-activates the partner, so offering the partner
                         // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
-                        {
-                            // Belt capacity gate: the game blocks a tap when adding the
-                            // new balls would immediately overflow the belt (before drain).
-                            int needed = _md.Partner[i] >= 0 ? 2 * BallsPerItem : BallsPerItem;
-                            if (_bagSum + needed > _capacity) return false;
-                        }
                         return true;
-                    case ItemKind.ArrowBox:
-                        return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]]
-                            && _bagSum + BallsPerItem <= _capacity;
-                    case ItemKind.Tunnel:
-                        return _queueIdx[i] < _md.Queue[i].Length
-                            && _bagSum + BallsPerItem <= _capacity;
+                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
+                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
                     default: return false;
                 }
             }
@@ -975,17 +965,9 @@ namespace Hoppa.YarnTwist.Editor
                         // move; tapping it co-activates the partner, so offering the partner
                         // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
-                        {
-                            int needed = _md.Partner[i] >= 0 ? 2 * BallsPerItem : BallsPerItem;
-                            if (_bagSum + needed > _capacity) return false;
-                        }
                         return true;
-                    case ItemKind.ArrowBox:
-                        return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]]
-                            && _bagSum + BallsPerItem <= _capacity;
-                    case ItemKind.Tunnel:
-                        return _queueIdx[i] < _md.Queue[i].Length
-                            && _bagSum + BallsPerItem <= _capacity;
+                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
+                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
                     default: return false;
                 }
             }
