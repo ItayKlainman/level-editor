@@ -547,6 +547,65 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(0L, r.WinPathCount);
         }
 
+        // ── Fixture 24: strict belt-capacity gate blocks pre-overflow tap ─
+
+        [Test]
+        public void Analyze_BeltFullBeforeTap_BlocksTapEvenIfDrainWouldFollow()
+        {
+            // 3 orange boxes + 3 orange spools (capacity=9). After tapping 1 orange,
+            // all 3 spools are filled (bag drains to 0). Tapping a 2nd orange (bagSum=0)
+            // is fine (0+9=9 ≤ 9). Tapping the 3rd orange box when bagSum=9 would add 9
+            // more → 18 > 9 so it must be blocked even though a drain would follow.
+            // Only 2 paths exist (the first two boxes drain immediately; the third can
+            // never be tapped since bagSum=9 after each, and no further drain occurs).
+            // Result: unsolvable (the 3rd box can never fire under strict capacity).
+            var doc = MakeDoc(width: 3, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="orange"}),
+                    (1,0,new YarnBoxCell{ColorId="orange"}),
+                    (2,0,new YarnBoxCell{ColorId="orange"}),
+                },
+                topSection: SpoolColumns(("orange","orange","orange"),(null,null,null),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 9 });
+            Assert.IsFalse(r.Solvable, "should be unsolvable: 2nd and 3rd orange boxes can't both drain");
+            Assert.AreEqual(0L, r.WinPathCount);
+        }
+
+        // ── Fixture 25: demand ordering — recorded solution leads with a color ─
+        //                that matches a current column head ───────────────────────
+
+        [Test]
+        public void Analyze_RecordSolution_PrefersTapThatMatchesColumnHead()
+        {
+            // Item 0 = orange at (0,0); item 1 = blue at (1,0).
+            // Col0 has 6 spools: [blue, blue, blue, orange, orange, orange].
+            // With lookahead=2, orange is only at positions 3-5 (all beyond the 0..2
+            // window), so demand(orange)=0. demand(blue)=3 (head match). The DFS in
+            // recording mode must explore blue first, giving "blue" as the first step.
+            // (Both orderings are valid; the point is the demand-ordered DFS picks the
+            // intuitive one.)
+            var top = ConnTop(
+                new (string, int?)[] {
+                    ("blue",null),("blue",null),("blue",null),
+                    ("orange",null),("orange",null),("orange",null)
+                });
+
+            var doc = MakeDoc(width: 2, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,new YarnBoxCell{ColorId="orange"}),
+                    (1,0,new YarnBoxCell{ColorId="blue"}),
+                },
+                topSection: top);
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(2, r.SolutionSteps.Count);
+            // Step 1 must tap blue (demand=3) before orange (demand=0 — buried at depth 3).
+            StringAssert.Contains("blue", r.SolutionSteps[0],
+                $"Expected blue (head-match, demand=3) first, got: {r.SolutionSteps[0]}");
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         // Builds a top section from explicit per-column (color, connectionId) lists;

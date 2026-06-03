@@ -485,6 +485,7 @@ namespace Hoppa.YarnTwist.Editor
             // Solution recording (first winning tap-ordering).
             private readonly bool   _record;
             private readonly List<int> _path;       // live tap stack while recording
+            private readonly int[]  _recordScratch; // scratch buffer for demand-sorted ordering (overwritten per node)
             private bool            _stop;          // set once a solution is captured
 
             public long PathCount;
@@ -498,7 +499,8 @@ namespace Hoppa.YarnTwist.Editor
                 _capacity = capacity; _cap = cap; _timeoutMs = timeoutMs;
                 _mode = mode; _sw = sw;
                 _record = record;
-                _path = record ? new List<int>(md.ItemCount) : null;
+                _path         = record ? new List<int>(md.ItemCount) : null;
+                _recordScratch = record ? new int[md.ItemCount]       : null;
                 _tapped    = new bool[md.ItemCount];
                 _queueIdx  = new int[md.ItemCount];
                 _spoolHead = new int[Columns];
@@ -544,32 +546,85 @@ namespace Hoppa.YarnTwist.Editor
                 for (int k = 0; k < Columns; k++) { savedHead[k] = _spoolHead[k]; savedFill[k] = _spoolFill[k]; }
                 int savedBagSum = _bagSum;
 
-                for (int i = 0; i < _md.ItemCount; i++)
+                if (_record)
                 {
-                    if (!IsTappable(i)) continue;
-                    if (total >= _cap) break;
-                    if (_mode == AnalysisMode.Solvable && total >= 1) break;
+                    // Recording mode: explore items in demand-score order (highest first)
+                    // so the captured solution prioritises taps that match current column
+                    // heads, producing a natural, easy-to-follow sequence.
+                    //
+                    // Collect tappable items into _recordScratch, sort, then snapshot into
+                    // a stack-local span so recursive DfsMemo calls cannot corrupt the order.
+                    int nc = 0;
+                    for (int i = 0; i < _md.ItemCount; i++)
+                        if (IsTappable(i)) _recordScratch[nc++] = i;
 
-                    bool savedTapped  = _tapped[i];
-                    int  savedQueue   = _queueIdx[i];
-                    int  partner      = _md.Partner[i];
-                    bool savedPartner = partner >= 0 && _tapped[partner];
+                    // Insertion sort by demand score (descending). n ≤ itemCount (~50).
+                    for (int a = 1; a < nc; a++)
+                    {
+                        int key = _recordScratch[a];
+                        int keyD = DemandForItem(key);
+                        int b = a - 1;
+                        while (b >= 0 && DemandForItem(_recordScratch[b]) < keyD)
+                        { _recordScratch[b + 1] = _recordScratch[b]; b--; }
+                        _recordScratch[b + 1] = key;
+                    }
 
-                    if (_record) _path.Add(i);
-                    ApplyTap(i);
-                    long sub = DfsMemo();
-                    total = Math.Min(_cap, total + sub);
+                    // Snapshot to stack: recursive calls overwrite _recordScratch.
+                    Span<int> order = nc > 0 ? stackalloc int[nc] : Span<int>.Empty;
+                    for (int j = 0; j < nc; j++) order[j] = _recordScratch[j];
 
-                    // Undo.
-                    for (int c = 0; c < _md.NumColors; c++) _bag[c] = savedBag[c];
-                    for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
-                    _bagSum      = savedBagSum;
-                    _tapped[i]   = savedTapped;
-                    if (partner >= 0) _tapped[partner] = savedPartner; // restore co-tapped partner
-                    _queueIdx[i] = savedQueue;
-                    if (_record) _path.RemoveAt(_path.Count - 1);
+                    for (int j = 0; j < nc; j++)
+                    {
+                        if (_mode == AnalysisMode.Solvable && total >= 1) break;
+                        int i = order[j];
 
-                    if (_stop || TimedOut) break;
+                        bool savedTapped  = _tapped[i];
+                        int  savedQueue   = _queueIdx[i];
+                        int  partner      = _md.Partner[i];
+                        bool savedPartner = partner >= 0 && _tapped[partner];
+
+                        _path.Add(i);
+                        ApplyTap(i);
+                        long sub = DfsMemo();
+                        total = Math.Min(_cap, total + sub);
+
+                        for (int c = 0; c < _md.NumColors; c++) _bag[c] = savedBag[c];
+                        for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
+                        _bagSum = savedBagSum;
+                        _tapped[i] = savedTapped;
+                        if (partner >= 0) _tapped[partner] = savedPartner;
+                        _queueIdx[i] = savedQueue;
+                        _path.RemoveAt(_path.Count - 1);
+
+                        if (_stop || TimedOut) break;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < _md.ItemCount; i++)
+                    {
+                        if (!IsTappable(i)) continue;
+                        if (total >= _cap) break;
+                        if (_mode == AnalysisMode.Solvable && total >= 1) break;
+
+                        bool savedTapped  = _tapped[i];
+                        int  savedQueue   = _queueIdx[i];
+                        int  partner      = _md.Partner[i];
+                        bool savedPartner = partner >= 0 && _tapped[partner];
+
+                        ApplyTap(i);
+                        long sub = DfsMemo();
+                        total = Math.Min(_cap, total + sub);
+
+                        for (int c = 0; c < _md.NumColors; c++) _bag[c] = savedBag[c];
+                        for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
+                        _bagSum      = savedBagSum;
+                        _tapped[i]   = savedTapped;
+                        if (partner >= 0) _tapped[partner] = savedPartner;
+                        _queueIdx[i] = savedQueue;
+
+                        if (_stop || TimedOut) break;
+                    }
                 }
 
                 if (!_record) _memo[stateKey] = total;
@@ -630,11 +685,58 @@ namespace Hoppa.YarnTwist.Editor
                         // move; tapping it co-activates the partner, so offering the partner
                         // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
+                        {
+                            // Belt capacity gate: the game blocks a tap when adding the
+                            // new balls would immediately overflow the belt (before drain).
+                            int needed = _md.Partner[i] >= 0 ? 2 * BallsPerItem : BallsPerItem;
+                            if (_bagSum + needed > _capacity) return false;
+                        }
                         return true;
-                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
-                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
+                    case ItemKind.ArrowBox:
+                        return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]]
+                            && _bagSum + BallsPerItem <= _capacity;
+                    case ItemKind.Tunnel:
+                        return _queueIdx[i] < _md.Queue[i].Length
+                            && _bagSum + BallsPerItem <= _capacity;
                     default: return false;
                 }
+            }
+
+            // ── Demand scoring for recording mode ──────────────────────────
+            // Scores how many belt-balls an item would feed toward visible column
+            // needs. Higher score → tap earlier for a natural, followable solution.
+            private const int SolutionLookahead = 2;
+
+            private int DemandForItem(int i)
+            {
+                int c = _md.Kind[i] == ItemKind.Tunnel
+                    ? _md.Queue[i][_queueIdx[i]]
+                    : _md.Color[i];
+                int score = DemandForColor(c);
+                int p = _md.Partner[i];
+                if (p >= 0) score += DemandForColor(_md.Color[p]);
+                return score;
+            }
+
+            private int DemandForColor(int c)
+            {
+                int score = 0;
+                for (int k = 0; k < Columns; k++)
+                {
+                    int len = _md.ColSpool[k].Length;
+                    for (int off = 0; off <= SolutionLookahead; off++)
+                    {
+                        int pos = _spoolHead[k] + off;
+                        if (pos >= len) break;
+                        if (off > 0 && _md.ColHidden[k][pos]) break;
+                        if (_md.ColSpool[k][pos] == c)
+                        {
+                            score += SolutionLookahead - off + 1; // head=3, 1-deep=2, 2-deep=1
+                            break; // only first match per column counts
+                        }
+                    }
+                }
+                return score;
             }
 
             private void ApplyTap(int i)
@@ -873,9 +975,17 @@ namespace Hoppa.YarnTwist.Editor
                         // move; tapping it co-activates the partner, so offering the partner
                         // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
+                        {
+                            int needed = _md.Partner[i] >= 0 ? 2 * BallsPerItem : BallsPerItem;
+                            if (_bagSum + needed > _capacity) return false;
+                        }
                         return true;
-                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
-                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
+                    case ItemKind.ArrowBox:
+                        return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]]
+                            && _bagSum + BallsPerItem <= _capacity;
+                    case ItemKind.Tunnel:
+                        return _queueIdx[i] < _md.Queue[i].Length
+                            && _bagSum + BallsPerItem <= _capacity;
                     default: return false;
                 }
             }
