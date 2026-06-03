@@ -546,7 +546,13 @@ namespace Hoppa.YarnTwist.Editor
                 if (_sw.ElapsedMilliseconds > _timeoutMs) { TimedOut = true; return 0; }
                 StatesExplored++;
 
-                if (_bagSum > _capacity) return 0;
+                // Belt jam = loss. _bagSum here is the post-resolve residue between
+                // taps: balls that match NO current spool head. If that residue fills
+                // the belt (>= capacity) there's no free slot for new balls to flow
+                // through and reach a head, so columns can never advance — a permanent
+                // jam. The real game's lose fires at on-belt count == capacity, so the
+                // bound is >= (not >): residue == capacity is already dead.
+                if (_bagSum >= _capacity) return 0;
 
                 bool allConsumed = AllConsumed();
                 bool allCleared  = AllSpoolsCleared();
@@ -927,7 +933,7 @@ namespace Hoppa.YarnTwist.Editor
 
                 for (int step = 0; step <= maxTaps + 1; step++)
                 {
-                    if (_bagSum > _capacity) return false;
+                    if (_bagSum >= _capacity) return false; // belt jam = loss (see SearchContext)
 
                     bool allConsumed = AllConsumed();
                     bool allCleared  = AllSpoolsCleared();
