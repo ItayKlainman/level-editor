@@ -66,9 +66,26 @@ namespace Hoppa.YarnTwist.Editor
                 return result;
             }
 
+            // Build cell-access maps so the DFS can model the unlock mechanic:
+            // only the top row is accessible initially; tapping a box unlocks its
+            // 4 orthogonal neighbours.
+            int gW = doc.Grid.Width, gH = doc.Grid.Height;
+            var gridItemIdx  = new int[gW * gH];
+            var gridCellOpen = new bool[gW * gH]; // true = permanently empty (not wall)
+            for (int k = 0; k < gridItemIdx.Length; k++) gridItemIdx[k] = -1;
+            for (int j = 0; j < items.Count; j++)
+                gridItemIdx[items[j].Y * gW + items[j].X] = j;
+            for (int cy = 0; cy < gH; cy++)
+            for (int cx = 0; cx < gW; cx++)
+            {
+                var cell = doc.Grid.Get(cx, cy);
+                if (!(cell is YarnWallCell) && gridItemIdx[cy * gW + cx] < 0)
+                    gridCellOpen[cy * gW + cx] = true;
+            }
+
             // Intern colors → small int indices over the union of every color
             // that can enter the belt or sit on a spool.
-            var model = Intern(items, columns, doc.Grid.Height);
+            var model = Intern(items, columns, gH, gW, gridItemIdx, gridCellOpen);
 
             if (req != null && req.RecordSolution)
             {
@@ -323,6 +340,9 @@ namespace Hoppa.YarnTwist.Editor
             public int[][]     Queue;     // Tunnel queue (interned); null otherwise
             public int[]       X, Y;      // grid coordinates per item (data space, y=0=bottom)
             public int         GridHeight; // grid rows — used to flip Y for player-facing display
+            public int         GridWidth;
+            public int[]       GridItemIdx;  // flat [y*W+x] → item index, or -1 if no tappable item
+            public bool[]      GridCellOpen; // flat [y*W+x] → true if permanently empty (not wall)
             public int[][]     ColSpool;  // [Columns][] interned spool colors, head→back
             public bool[][]    ColHidden; // [Columns][] hidden flags, head→back
             public int[][]     ColPartnerCol; // [Columns][] connected-spool partner column; -1 if none
@@ -332,7 +352,9 @@ namespace Hoppa.YarnTwist.Editor
             public ulong       StructHash; // deterministic seed source for rollouts
         }
 
-        private static Model Intern(List<Item> items, Column[] cols, int gridHeight = 0)
+        private static Model Intern(List<Item> items, Column[] cols,
+            int gridHeight = 0, int gridWidth = 0,
+            int[] gridItemIdx = null, bool[] gridCellOpen = null)
         {
             var map = new Dictionary<string, int>();
             int Id(string c)
@@ -402,7 +424,8 @@ namespace Hoppa.YarnTwist.Editor
                 ItemCount = m,
                 Kind = kind, Color = color, Prereq = prereq, Partner = partner, Queue = queue,
                 X = xs, Y = ys,
-                GridHeight = gridHeight,
+                GridHeight = gridHeight, GridWidth = gridWidth,
+                GridItemIdx = gridItemIdx, GridCellOpen = gridCellOpen,
                 ColSpool = colSpool, ColHidden = colHidden,
                 ColPartnerCol = colPartnerCol, ColPartnerPos = colPartnerPos,
                 NumColors = map.Count,
@@ -692,12 +715,40 @@ namespace Hoppa.YarnTwist.Editor
                         // move; tapping it co-activates the partner, so offering the partner
                         // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
-                        return true;
-                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
-                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
+                        return IsAccessible(i);
+                    case ItemKind.ArrowBox:
+                        return !_tapped[i] && IsAccessible(i)
+                            && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
+                    case ItemKind.Tunnel:
+                        return _queueIdx[i] < _md.Queue[i].Length && IsAccessible(i);
                     default: return false;
                 }
             }
+
+            // ── Unlock / accessibility ──────────────────────────────────────
+            // A cell is accessible if it is in the top row (data y = GridHeight-1,
+            // closest to the belt) OR at least one orthogonal neighbour is "open":
+            // either permanently empty or already cleared by the player.
+
+            private bool IsAccessible(int i)
+            {
+                if (_md.GridItemIdx == null) return true; // no grid map (tests with tiny grids)
+                int x = _md.X[i], y = _md.Y[i];
+                if (y == _md.GridHeight - 1) return true;
+                return IsNeighbourOpen(x + 1, y) || IsNeighbourOpen(x - 1, y)
+                    || IsNeighbourOpen(x, y + 1) || IsNeighbourOpen(x, y - 1);
+            }
+
+            private bool IsNeighbourOpen(int nx, int ny)
+            {
+                if ((uint)nx >= (uint)_md.GridWidth || (uint)ny >= (uint)_md.GridHeight) return false;
+                int flat = ny * _md.GridWidth + nx;
+                int idx  = _md.GridItemIdx[flat];
+                return idx >= 0 ? IsCellCleared(idx) : _md.GridCellOpen[flat];
+            }
+
+            private bool IsCellCleared(int idx)
+                => _md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] > 0 : _tapped[idx];
 
             // ── Demand scoring for recording mode ──────────────────────────
             // Scores how many belt-balls an item would feed toward visible column
@@ -968,15 +1019,33 @@ namespace Hoppa.YarnTwist.Editor
                 {
                     case ItemKind.Box:
                         if (_tapped[i]) return false;
-                        // Only the canonical (lower-index) half of a connected pair is a
-                        // move; tapping it co-activates the partner, so offering the partner
-                        // too would double-count and split the search.
                         if (_md.Partner[i] >= 0 && _md.Partner[i] < i) return false;
-                        return true;
-                    case ItemKind.ArrowBox: return !_tapped[i] && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
-                    case ItemKind.Tunnel:   return _queueIdx[i] < _md.Queue[i].Length;
+                        return IsAccessible(i);
+                    case ItemKind.ArrowBox:
+                        return !_tapped[i] && IsAccessible(i)
+                            && _md.Prereq[i] >= 0 && _tapped[_md.Prereq[i]];
+                    case ItemKind.Tunnel:
+                        return _queueIdx[i] < _md.Queue[i].Length && IsAccessible(i);
                     default: return false;
                 }
+            }
+
+            private bool IsAccessible(int i)
+            {
+                if (_md.GridItemIdx == null) return true;
+                int x = _md.X[i], y = _md.Y[i];
+                if (y == _md.GridHeight - 1) return true;
+                return IsNeighbourOpen(x + 1, y) || IsNeighbourOpen(x - 1, y)
+                    || IsNeighbourOpen(x, y + 1) || IsNeighbourOpen(x, y - 1);
+            }
+
+            private bool IsNeighbourOpen(int nx, int ny)
+            {
+                if ((uint)nx >= (uint)_md.GridWidth || (uint)ny >= (uint)_md.GridHeight) return false;
+                int flat = ny * _md.GridWidth + nx;
+                int idx  = _md.GridItemIdx[flat];
+                return idx >= 0 ? (_md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] > 0 : _tapped[idx])
+                                : _md.GridCellOpen[flat];
             }
 
             private void ApplyTap(int i)
