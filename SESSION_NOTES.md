@@ -5,8 +5,17 @@
 
 ---
 
-## Current status (as of 2026-06-01)
+## Current status (as of 2026-06-03)
 
+- **WHERE WE LEFT OFF (2026-06-03):** actively fixing the **Save Solution** feature so it
+  produces a genuinely followable, winning tap sequence. Test level = **level_044** (hardest,
+  zero-slack). Today we calibrated the win-path solver's belt model against a **real game-log
+  capture** and landed 5 fixes (demand-ordered hints, player-perspective coords, box-unlock
+  mechanic, rightmost-first drain order, belt-jams-at-capacity). level_044 now simulates as
+  solvable & safe (residue peaks 27/30); **awaiting the user's real-game play-test tomorrow.**
+  Full detail + resume checklist in `CURRENT_TASK.md` → "Active phase". A TEMPORARY
+  `YATSolutionDebug` logger is in the GAME project and must be removed once verified. See
+  memories `design_yarntw_belt_drain_order` (RESOLVED) + `design_yarntw_box_unlock`.
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
 - **Active branch**: `master` — YarnTwist editor was complete at tag `v0.5.14`, then **unparked for the level-generator initiative (v1 ships YarnTwist-only, 2026-05-25)**. YAK Layer 2 onboarding still in progress in parallel — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). The next Layer 1 tag bumps for both the v0.5.15/16 changes that already shipped and the new generator framework added 2026-05-25.
 - **Multi-game project**: both YarnTwist and YAK Layer 2s coexist in this same Unity project. The framework's profile selector (`LevelEditorWindow.DrawProfileSelector`) is the switcher.

@@ -8,7 +8,91 @@
 
 ## Active phase
 
-**New game mechanics — week of 2026-06-01 — 3 mechanics, one per spec.**
+**Save Solution / Win-path solver correctness — YarnTwist (2026-06-03) — IN PROGRESS.**
+
+> **RESUME HERE TOMORROW.** This is where we left off on 2026-06-03. Read this whole
+> section first. Everything is committed + pushed (editor-core `master`, game `itay-main`).
+
+### Goal
+Make the **Save Solution** feature (Spool Analysis panel → "Save Solution…") produce a
+tap sequence a player can actually follow to WIN the level. It was producing unsolvable /
+nonsensical / belt-jamming solutions. Test level = **level_044** (`E:/Projects/Hoppa/YarnTwist/
+Assets/_YAT/Configs/LevelEditor configs/level_044.json`), the hardest current level (369 balls
+= 369 spool capacity, zero slack — a brutal calibration case).
+
+### What we fixed today (all committed + synced, in order)
+All changes in `Assets/YarnTwist/Editor/Analysis/YarnTwistLevelAnalyzer.cs` (Layer-2; synced to
+game `Assets/_YAT/Scripts/Editor/Analysis/YarnTwistLevelAnalyzer.cs`; no UPM tag — Layer-2 only):
+
+1. **Demand-ordered solution recording** (editor-core `7a51c7e`, refined `03eadd4`) — the DFS
+   records taps in *demand-score order* (taps whose color matches current column heads go first)
+   so the hint reads naturally instead of grid-scan order. (A strict pre-tap capacity gate was
+   tried here and **reverted** — it made recording time out; see "dead ends".)
+2. **Player-perspective Y coords** (`e5fdfab`) — solution text + `BuildItems` scan flipped so
+   `(x,0)` = TOP row nearest the belt (what the player sees), not data-space bottom row.
+   `Model.GridHeight` added; `FormatSolution` flips `displayY = GridHeight-1 - dataY`.
+3. **Box-tap unlock mechanic** (`151bbf3`) — only the top row is tappable initially; tapping a
+   box unlocks its 4 orthogonal neighbours (walls block; empty cells always open). Modelled via
+   `IsAccessible(i)` in both SearchContext + RolloutContext. `Model` gained `GridWidth`,
+   `GridItemIdx[]`, `GridCellOpen[]`. See memory `design_yarntw_box_unlock`.
+4. **Belt drain order = RIGHTMOST column first** (`1d0421f`) — real belt circulates
+   counter-clockwise; rightmost column (highest index) consumes a shared color first.
+   `ResolveMatches` iterates `k = Columns-1 → 0`.
+5. **Belt jams AT capacity, not above** (`f706493`) — the real lose fires when on-belt count
+   == capacity AND nothing matches (full belt of unmatchable balls = permanent jam; queued
+   balls can't flow through). DFS/rollout check changed `_bagSum > _capacity` → `>= _capacity`.
+
+### How #4 and #5 were nailed: a real game-log capture
+We added a TEMPORARY debug logger to the GAME project (`YATSolutionDebug.cs` under
+`Assets/_YAT/Scripts/Gamelogic/Gameplay/`) that writes a full run to
+`E:/Projects/Hoppa/YarnTwist/yat_solution_debug.log` (gitignored). The user played level_044;
+the log gave ground truth: **capacity = 30, drain order = rightmost-first, lose at belt==30
+with no match.** That confirmed #4 and pinpointed #5.
+
+### Current status — level_044 now SOLVABLE & SAFE
+Analyzer produces a 41-step solution whose between-taps belt residue peaks at **27/30 — never
+jams**. All **115 EditMode tests pass**. Capacity is set via the AutofillPanel dropdown
+(**24** for levels 1–15, **30** for 16+; level_044 = 30).
+
+### Resume checklist (do these tomorrow)
+- [ ] **User play-test:** regenerate level_044's solution (Save Solution, capacity = 30) and
+      play it through in the game to confirm it actually wins now. (Agent verified in simulation;
+      needs real-game confirmation.)
+- [ ] **If it wins:** REMOVE the temporary `YATSolutionDebug` logger from the game project and
+      its 5 hook sites: `YATBoxPrefabComponent.OnClick`, `YATYarnBallPrefabComponent.OnFindWinder`,
+      `YATGameManagerComponent` (CheckLose + level-start Reset), `YATWinderPrefabComponent`
+      (`WinderColumn` getter), `YATWinderColumnPrefabComponent` (`ColumnIndex`). Also the
+      `.gitignore` line + delete `YATSolutionDebug.cs`.
+- [ ] **If it still fails:** capture a fresh `yat_solution_debug.log` of the user FOLLOWING the
+      generated solution (not free-play) and re-read it — the remaining gap would be belt
+      queue-ordering (matchable balls stuck behind unmatchable ones), which the multiset model
+      approximates. Consider a positional belt sim only if needed.
+- [ ] **Difficulty drift check (low priority):** the `>=` change slightly tightens the shared
+      hot path (win-count/autofill/difficulty). No test regressed, but spot-check that
+      auto-fill difficulty bands still feel right on a couple of levels.
+
+### Dead ends (don't re-try)
+- **Strict pre-tap gate** (`residue + 9 ≤ capacity`): too pessimistic — made level_044 unsolvable
+  / timed out. The real belt drains *while* balls feed in, so the correct bound is post-resolve
+  `residue >= capacity`, not pre-tap room-for-9. Reverted.
+- **Order-robust (all-24-permutations)**: level_044 has zero slack (peaks at capacity even under
+  the single best order), so requiring safety under all orders → no solution. Abandoned in favour
+  of matching the real (rightmost-first) order exactly.
+
+### Also shipped today (separate, done)
+- **Palette exporter fix** (`d57beff`, game `f9a52c8`): export `PaletteAmount` + move
+  `ExtraFeatureBottomType`/`PaletteAmount` after `ColorType`/`Hidden` (Eliran's field order).
+- **`scan-project` skill** created (`.claude/skills/scan-project/SKILL.md`) — run `/scan-project`
+  at the start of a familiar-project session for a resume briefing.
+- **SolutionVisualizer** (game-only, `Assets/_YAT/Scripts/SolutionVisualizer.cs` + Editor):
+  drop on a GameObject, assign a `.solution.txt`, click "Show Solution Path" in Play mode →
+  white gizmo squares over the boxes to tap (yellow = current). Auto-advances on box click
+  (subscribes to `YATBoxPrefabComponent.BoxClicked`). Gizmos are Scene-view only.
+
+---
+
+## Parked — New game mechanics — week of 2026-06-01 — 3 mechanics, one per spec.
+
 Mechanic 1 = **Connected Boxes** (design approved, spec written, NOT yet implemented).
 Mechanics 2 & 3 = TBD, to be pulled from the game project as we get to them.
 
