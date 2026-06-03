@@ -817,13 +817,19 @@ namespace Hoppa.YarnTwist.Editor
         // Greedy continuous-circulation match: each column consumes balls of its
         // current head color until the head spool fills (then advances) or runs
         // out. Repeats until no column can make progress. Maintains bagSum.
+        //
+        // Column priority is RIGHTMOST-FIRST (index Columns-1 → 0) to match the real
+        // game: the conveyor circulates counter-clockwise, so a ball reaches the
+        // rightmost spool column first and is consumed there before any column to its
+        // left gets a chance. Draining in the wrong order changes which spool advances
+        // and can make a "solvable" plan soft-lock in-game (see level_044 step 19).
         private static void ResolveMatches(Model md, int[] bag, ref int bagSum, int[] spoolHead, int[] spoolFill)
         {
             bool changed = true;
             while (changed)
             {
                 changed = false;
-                for (int k = 0; k < Columns; k++)
+                for (int k = Columns - 1; k >= 0; k--)
                 {
                     while (spoolHead[k] < md.ColSpool[k].Length)
                     {
