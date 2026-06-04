@@ -79,7 +79,10 @@ namespace Hoppa.YarnTwist.Editor
             for (int cx = 0; cx < gW; cx++)
             {
                 var cell = doc.Grid.Get(cx, cy);
-                if (!(cell is YarnWallCell) && gridItemIdx[cy * gW + cx] < 0)
+                // A tunnel TILE is a solid structure (never tapped, never empty) — it must
+                // not count as an open/unlocking neighbour. The tunnel's tappable item lives
+                // at its output cell (see BuildItems), which carries its own gridItemIdx.
+                if (!(cell is YarnWallCell) && !(cell is YarnTunnelCell) && gridItemIdx[cy * gW + cx] < 0)
                     gridCellOpen[cy * gW + cx] = true;
             }
 
@@ -184,14 +187,24 @@ namespace Hoppa.YarnTwist.Editor
                 }
                 else if (cell is YarnTunnelCell t && t.Queue != null && t.Queue.Count > 0)
                 {
-                    idxAt[Key(x, y)] = items.Count;
+                    // The tunnel spawns its boxes into the adjacent cell in OutputDirection
+                    // and the player taps THEM there — the tunnel tile itself is never tapped
+                    // (game: boxGridPosition = tunnelPos + direction). Model the item at the
+                    // output cell so its tap coordinate AND unlock accessibility match the
+                    // game. Fall back to the tunnel tile only if the output is off-grid (an
+                    // invalid level the game couldn't render either).
+                    var (ox, oy) = NeighborOf(x, y, t.OutputDirection);
+                    bool outInBounds = grid.InBounds(ox, oy);
+                    int ix = outInBounds ? ox : x;
+                    int iy = outInBounds ? oy : y;
+                    idxAt[Key(ix, iy)] = items.Count;
                     items.Add(new Item {
                         Kind = ItemKind.Tunnel,
                         ColorId = null,
                         PrereqIndex = -1,
                         PartnerIndex = -1,
                         Queue = new List<string>(t.Queue),
-                        X = x, Y = y,
+                        X = ix, Y = iy,
                     });
                 }
             }
@@ -479,7 +492,7 @@ namespace Hoppa.YarnTwist.Editor
                     tunnelPos.TryGetValue(i, out var q);
                     int len = md.Queue[i].Length;
                     string color = md.ColorNames[md.Queue[i][q]];
-                    steps.Add($"{n}. Tap Tunnel ({md.X[i]},{displayY}) → {color} ({q + 1}/{len})");
+                    steps.Add($"{n}. Tap Tunnel box ({md.X[i]},{displayY}) → {color} ({q + 1}/{len})");
                     tunnelPos[i] = q + 1;
                 }
                 else
@@ -753,8 +766,11 @@ namespace Hoppa.YarnTwist.Editor
                 return idx >= 0 ? IsCellCleared(idx) : _md.GridCellOpen[flat];
             }
 
+            // A tunnel's output cell opens (unlocks its neighbours) only once the whole
+            // queue is exhausted — matching the game, where ActivateNeighbors fires when
+            // the LAST box is tapped. Until then the cell still holds a box.
             private bool IsCellCleared(int idx)
-                => _md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] > 0 : _tapped[idx];
+                => _md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] >= _md.Queue[idx].Length : _tapped[idx];
 
             // ── Demand scoring for recording mode ──────────────────────────
             // Scores how many belt-balls an item would feed toward visible column
@@ -1056,7 +1072,7 @@ namespace Hoppa.YarnTwist.Editor
                 if ((uint)nx >= (uint)_md.GridWidth || (uint)ny >= (uint)_md.GridHeight) return false;
                 int flat = ny * _md.GridWidth + nx;
                 int idx  = _md.GridItemIdx[flat];
-                return idx >= 0 ? (_md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] > 0 : _tapped[idx])
+                return idx >= 0 ? (_md.Kind[idx] == ItemKind.Tunnel ? _queueIdx[idx] >= _md.Queue[idx].Length : _tapped[idx])
                                 : _md.GridCellOpen[flat];
             }
 

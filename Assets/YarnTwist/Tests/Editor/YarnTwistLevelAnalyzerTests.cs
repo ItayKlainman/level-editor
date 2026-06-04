@@ -604,6 +604,62 @@ namespace Hoppa.YarnTwist.Editor.Tests
                 $"Expected blue (head-match, demand=3) first, got: {r.SolutionSteps[0]}");
         }
 
+        // ── Fixture 26: tunnel solution targets the OUTPUT cell, not the tunnel tile ─
+
+        [Test]
+        public void Analyze_RecordSolution_Tunnel_TargetsOutputCellNotTunnelTile()
+        {
+            // In-game the tunnel spawns its box into the adjacent cell in OutputDirection
+            // and the player taps THAT cell — the tunnel tile itself is never tapped
+            // (YATTunnelPrefabComponent + YATGameManagerComponent: boxGridPosition =
+            // tunnelPos + direction). The recorded solution coordinate must therefore be
+            // the output cell.
+            // Tunnel at (0,0) dir Right → output cell (1,0). Height 1 so display Y = 0.
+            var tunnel = new YarnTunnelCell {
+                OutputDirection = YarnDirection.Right,
+                Queue = new List<string> { "pink" },
+            };
+            var doc = MakeDoc(width: 3, height: 1,
+                cells: new (int, int, ICellData)[] {
+                    (0,0,tunnel),
+                    (1,0,new YarnEmptyCell()),  // output cell
+                    (2,0,new YarnEmptyCell()),
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),(null,null,null),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1, r.SolutionSteps.Count);
+            StringAssert.Contains("(1,0)", r.SolutionSteps[0]);  // output cell, NOT tunnel tile (0,0)
+        }
+
+        // ── Fixture 27: tunnel accessibility is evaluated at the output cell ─────────
+
+        [Test]
+        public void Analyze_Tunnel_AccessibilityFollowsOutputCell_DeadEndIsUnsolvable()
+        {
+            // Tunnel at (0,1) [top row] dir Down → output cell (0,0). The output box at
+            // (0,0) is NOT top-row and its only orthogonal neighbour is the solid tunnel
+            // tile above it, so in-game IsBoxActive((0,0)) is false forever (not maxY, no
+            // Empty neighbour) → the tunnel box can never be tapped → unsolvable.
+            // The buggy model evaluated accessibility at the tunnel TILE, which IS top-row,
+            // and wrongly reported this solvable.
+            var tunnel = new YarnTunnelCell {
+                OutputDirection = YarnDirection.Down,
+                Queue = new List<string> { "pink" },
+            };
+            var doc = MakeDoc(width: 1, height: 2,
+                cells: new (int, int, ICellData)[] {
+                    (0,1,tunnel),
+                    (0,0,new YarnEmptyCell()),  // output cell — walled in by the tunnel tile + grid edges
+                },
+                topSection: SpoolColumns(("pink","pink","pink"),(null,null,null),(null,null,null),(null,null,null)));
+
+            var r = _analyzer.Analyze(doc, _profile, new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 24 });
+            Assert.IsFalse(r.Solvable, "tunnel output box is permanently locked (no empty neighbour, not top row)");
+            Assert.AreEqual(0L, r.WinPathCount);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
 
         // Builds a top section from explicit per-column (color, connectionId) lists;
