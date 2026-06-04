@@ -8,10 +8,51 @@
 
 ## Active phase
 
-**Save Solution / Win-path solver correctness — YarnTwist (2026-06-03) — IN PROGRESS.**
+**Save Solution / Win-path solver correctness — YarnTwist (2026-06-03) — ✅ VERIFIED WORKING (2026-06-04).**
 
-> **RESUME HERE TOMORROW.** This is where we left off on 2026-06-03. Read this whole
-> section first. Everything is committed + pushed (editor-core `master`, game `itay-main`).
+> **DONE.** User play-tested level_044 (the hardest, zero-slack case) in the real game on
+> 2026-06-04 — the generated solution **won perfectly.** The belt model is confirmed correct
+> against the live game (see "Model verified equivalent" below). Everything is committed + pushed
+> (editor-core `master`, game `itay-main`).
+>
+> **Logger KEPT (user decision, 2026-06-04):** the temporary `YATSolutionDebug` logger +
+> `SolutionVisualizer` are intentionally left in the game project — still useful for validating
+> more levels. Do NOT remove them. The removal checklist below is parked, not abandoned.
+
+### Tunnel solver fix — output-cell modeling (2026-06-04) — CODE COMPLETE, awaiting in-game re-test
+
+While validating more levels, level_041 (has tunnels) generated a solution whose tunnel steps
+pointed at the wrong tiles. **Root cause:** the analyzer modeled a tunnel's tappable item at the
+**tunnel tile**, but in-game the tunnel spawns its queued boxes into the adjacent cell in
+`OutputDirection` and the player taps THEM there (`YATTunnelPrefabComponent` +
+`YATGameManagerComponent:485-495`: `boxGridPosition = tunnelPos + direction`; unlock via
+`IsBoxActive` at that cell). The tunnel tile is never tapped.
+
+**Fix (analyzer-only, Layer-2; 5 edits to `YarnTwistLevelAnalyzer.cs`):**
+- `BuildItems`: place the tunnel `Item` at `tunnelPos + OutputDirection` (fallback to tile if
+  off-grid); map `idxAt` there.
+- `Analyze` grid-open map: treat the tunnel TILE as solid (added `!(cell is YarnTunnelCell)`) so it
+  never falsely unlocks neighbours.
+- `IsCellCleared` (both SearchContext + RolloutContext): tunnel cell opens only when fully depleted
+  (`queueIdx >= Queue.Length`), matching the game's ActivateNeighbors-on-last-box.
+- `FormatSolution`: relabel "Tap Tunnel box (x,y) → …"; coordinate now resolves to the output cell.
+
+**Verified:**
+- New EditMode fixtures 26 (solution targets output cell) + 27 (accessibility follows output cell;
+  dead-ended tunnel = unsolvable). Both went red→green.
+- **Full EditMode suite green: 117/117** (incl. pre-existing tunnel fixtures 5 & 15).
+- Ran the analyzer on the real `level_041.json` via script-execute: **Solvable, 26 steps**, tunnel
+  steps now correctly at output cells — tunnel#1 `(4,3)`, tunnel#2 `(3,2)` player-coords, each
+  tapped 3× in queue order.
+- Synced to game repo `Assets/_YAT/Scripts/Editor/Analysis/YarnTwistLevelAnalyzer.cs` (identical 5
+  edits). Layer-2 only → **no UPM tag bump.** Both repos UNCOMMITTED.
+
+**Resume / next:**
+- [ ] **User:** regenerate level_041's solution (Save Solution) in the game and re-test in-play to
+      confirm the tunnel steps now highlight the correct (output-cell) boxes and the level wins.
+- [ ] **User:** confirm the game project still compiles in Unity 2022.3 (agent can't compile-verify).
+- [ ] Commit + push both repos once confirmed (editor-core `master`, game `itay-main`). Analyzer +
+      the 2 new test fixtures only.
 
 ### Goal
 Make the **Save Solution** feature (Spool Analysis panel → "Save Solution…") produce a
@@ -54,19 +95,37 @@ Analyzer produces a 41-step solution whose between-taps belt residue peaks at **
 jams**. All **115 EditMode tests pass**. Capacity is set via the AutofillPanel dropdown
 (**24** for levels 1–15, **30** for 16+; level_044 = 30).
 
+### Model verified equivalent to the real lose-check (2026-06-04)
+Read the game's `YATGameManagerComponent.CheckLose()` + `CanAnyBallFillAnyWinder()`. The real
+lose fires iff **belt full (`_splineYarnBalls.Count >= MaxRoadBalls`) AND no ball matches any
+current non-full winder head.** The analyzer's `_bagSum(settled) >= capacity` is *provably the
+same* condition: settled residue contains only balls matching no head, so residue>=cap ⟺
+belt-full-and-nothing-matches. **The transient-peak worry is dead** — the game does NOT lose on a
+momentarily-full belt if any ball still matches a winder (`CanAnyBallFillAnyWinder` short-circuits
+the loss); the 9-ball spike drains. So the model is structurally correct, not just empirically
+calibrated. **The only residual sim-vs-real gap is PACING:** the model assumes `ResolveMatches`
+settles to fixpoint between taps (winder heads advance instantly); the game advances a head only
+when 3 physical balls arrive. Tapping faster than the belt drains can hit a transient
+"full + matching head hasn't advanced yet" state the model never represents → loss.
+
 ### Resume checklist (do these tomorrow)
-- [ ] **User play-test:** regenerate level_044's solution (Save Solution, capacity = 30) and
-      play it through in the game to confirm it actually wins now. (Agent verified in simulation;
-      needs real-game confirmation.)
-- [ ] **If it wins:** REMOVE the temporary `YATSolutionDebug` logger from the game project and
-      its 5 hook sites: `YATBoxPrefabComponent.OnClick`, `YATYarnBallPrefabComponent.OnFindWinder`,
-      `YATGameManagerComponent` (CheckLose + level-start Reset), `YATWinderPrefabComponent`
-      (`WinderColumn` getter), `YATWinderColumnPrefabComponent` (`ColumnIndex`). Also the
-      `.gitignore` line + delete `YATSolutionDebug.cs`.
-- [ ] **If it still fails:** capture a fresh `yat_solution_debug.log` of the user FOLLOWING the
-      generated solution (not free-play) and re-read it — the remaining gap would be belt
-      queue-ordering (matchable balls stuck behind unmatchable ones), which the multiset model
-      approximates. Consider a positional belt sim only if needed.
+- [x] **User play-test (2026-06-04):** level_044 solution played through in the real game and
+      **WON.** Pacing guidance confirmed sound: follow the recorded order one tap at a time,
+      letting the belt settle between taps (sim == reality under that condition).
+- [~] **Logger removal — DEFERRED (user keeping it 2026-06-04).** When eventually removing the
+      temporary `YATSolutionDebug` logger, the 5 hook sites are (grep-verified 2026-06-04):
+      `YATBoxPrefabComponent.cs:268` (`LogTap` in OnClick), `YATYarnBallPrefabComponent.cs:89`
+      (`LogConsume` in OnFindWinder), `YATGameManagerComponent.cs:275` (`Reset` at level start) +
+      `:763` (`LogFail` in CheckLose), plus the read-only accessors added for it:
+      `YATWinderPrefabComponent.cs:69` (`WinderColumn` getter) and
+      `YATWinderColumnPrefabComponent.cs:19` (`ColumnIndex`). Also the `.gitignore` line + delete
+      `YATSolutionDebug.cs`. (`SolutionVisualizer.cs` is the play-time path overlay — keep/remove
+      independently.)
+- [ ] **If a FUTURE level fails:** capture a fresh `yat_solution_debug.log` of the user FOLLOWING
+      the generated solution (not free-play) and re-read it. **At the failing tap, compare the
+      winder head colors against the belt contents** — if a column whose head *should* have
+      advanced (per the model) is still showing its old color, that confirms the
+      head-advancement-timing/pacing gap, not a model bug. Only then consider a positional belt sim.
 - [ ] **Difficulty drift check (low priority):** the `>=` change slightly tightens the shared
       hot path (win-count/autofill/difficulty). No test regressed, but spot-check that
       auto-fill difficulty bands still feel right on a couple of levels.
