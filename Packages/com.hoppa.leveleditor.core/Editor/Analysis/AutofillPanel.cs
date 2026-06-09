@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
@@ -25,17 +26,21 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color ErrText     = new Color(1.00f, 0.45f, 0.40f);
         private static readonly Color BannerBg    = new Color(0.45f, 0.12f, 0.10f);
 
-        private int    _difficulty = 5;
+        private int    _aps = 3;                 // Attempts-Per-Solve target (1..6)
         private int    _seed;
         private bool   _seedLocked;
         private int    _capacityChoice = 24;     // 24 / 30 / 0=custom
         private int    _customCapacity = 24;
 
+        // Per-mechanic on/off choices, keyed by the names the active completer
+        // advertises via LevelCompleterAsset.MechanicToggles. Default on.
+        private readonly Dictionary<string, bool> _mechanicToggles = new Dictionary<string, bool>();
+
         private LevelAnalysisResult   _lastAnalysis;
         private LevelCompletionResult _lastCompletion;
         private string                _statusMessage;
 
-        public float PreferredHeight => 300f;
+        public float PreferredHeight => 360f;
 
         public void OnGUI(Rect rect, LevelEditorSession session, GameProfile profile)
         {
@@ -67,13 +72,34 @@ namespace Hoppa.LevelEditor.Core.Editor
                 y += RowH + 2f;
             }
 
-            // Difficulty
-            EditorGUI.LabelField(new Rect(x, y, 60f, RowH), "Difficulty", EditorStyles.miniLabel);
-            _difficulty = (int)Mathf.Round(GUI.HorizontalSlider(
+            // APS (Attempts Per Solve): how many tries the average player needs to
+            // win. 1 = very easy / many ways to win; 6 = hard / few ways.
+            EditorGUI.LabelField(new Rect(x, y, 60f, RowH),
+                new GUIContent("APS", "Attempts Per Solve (1–6): the number of tries an average player needs to win. 1 = very easy with many winning paths; 6 = hard with few."),
+                EditorStyles.miniLabel);
+            _aps = (int)Mathf.Round(GUI.HorizontalSlider(
                 new Rect(x + 60f, y + 4f, w - 60f - 26f, RowH),
-                Mathf.Clamp(_difficulty, 1, 10), 1f, 10f));
-            GUI.Label(new Rect(x + w - 22f, y, 22f, RowH), _difficulty.ToString(), EditorStyles.miniLabel);
+                Mathf.Clamp(_aps, 1, 6), 1f, 6f));
+            GUI.Label(new Rect(x + w - 22f, y, 22f, RowH), _aps.ToString(), EditorStyles.miniLabel);
             y += RowH + 2f;
+
+            // Per-mechanic toggles advertised by the active completer (e.g. Hidden /
+            // Connected spools for YarnTwist). Auto-fill includes a mechanic only when
+            // its box is checked.
+            var toggleNames = profile?.LevelCompleter?.MechanicToggles;
+            if (toggleNames != null && toggleNames.Count > 0)
+            {
+                GUI.Label(new Rect(x, y, w, RowH), "Mechanics", EditorStyles.miniBoldLabel);
+                y += RowH;
+                foreach (var name in toggleNames)
+                {
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (!_mechanicToggles.TryGetValue(name, out var on)) on = true; // default on
+                    _mechanicToggles[name] = GUI.Toggle(new Rect(x + 8f, y, w - 8f, RowH), on, " " + name);
+                    y += RowH;
+                }
+                y += 2f;
+            }
 
             // Seed
             EditorGUI.LabelField(new Rect(x, y, 40f, RowH), "Seed", EditorStyles.miniLabel);
@@ -104,7 +130,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             using (new EditorGUI.DisabledGroupScope(profile?.LevelCompleter == null || session?.Document == null))
             {
                 if (GUI.Button(new Rect(x + halfW + 4f, y, halfW, ButtonH), new GUIContent("Auto-fill",
-                        "Replace the top section with a fresh spool layout targeted at the current Difficulty.")))
+                        "Replace the top section with a fresh spool layout targeted at the current APS, using the checked mechanics.")))
                 {
                     OnAutofill(session, profile);
                 }
@@ -202,9 +228,10 @@ namespace Hoppa.LevelEditor.Core.Editor
 
                 _lastCompletion = profile.LevelCompleter.Complete(session.Document, profile, new CompletionRequest
                 {
-                    Difficulty = _difficulty,
+                    TargetAPS = _aps,
                     Seed = seed,
                     ConveyorCapacityOverride = ResolveCapacity(),
+                    MechanicToggles = new Dictionary<string, bool>(_mechanicToggles),
                 });
                 _lastAnalysis = _lastCompletion?.Analysis;
 
@@ -216,7 +243,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                     session.RunValidation();
 
                     if (!_lastCompletion.Succeeded)
-                        _statusMessage = "Couldn't hit Difficulty band — best candidate applied (Ctrl-Z to revert).";
+                        _statusMessage = "Couldn't hit APS band — best candidate applied (Ctrl-Z to revert).";
                 }
                 else
                 {

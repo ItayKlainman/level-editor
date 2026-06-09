@@ -660,7 +660,88 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(0L, r.WinPathCount);
         }
 
+        // ── Fixture 28: palette reveals once enough boxes are opened → solvable + labelled ─
+
+        [Test]
+        public void Analyze_Palette_RevealsWhenAmountReached_SolvableAndLabelled()
+        {
+            // 3×4 all-pink grid. A 3×3 palette over rows y=0..2 (center (1,1)) hides the
+            // bottom 9 boxes; only the 3 top-row boxes (y=3) are openable first. With
+            // amount=3, opening those 3 reveals the palette and the rest cascade.
+            var doc = MakePinkGrid(3, 4);
+            YarnPalettes.Add(doc, new CellRef(1, 1));
+            YarnPalettes.SetAmount(doc, new CellRef(1, 1), 3);
+
+            var r = _analyzer.Analyze(doc, _profile,
+                new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 30 });
+
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.IsNotNull(r.SolutionSteps);
+            string all = string.Join("\n", r.SolutionSteps);
+            StringAssert.Contains("under palette", all, "covered-box taps should be tagged");
+            StringAssert.Contains("palette opens", all, "the reveal step should be annotated");
+        }
+
+        // ── Fixture 29: palette amount beyond reachable opens → unsolvable ─
+
+        [Test]
+        public void Analyze_Palette_AmountTooHigh_Unsolvable()
+        {
+            // Only the 3 top-row boxes can be opened before the cover must lift; an
+            // amount of 4 can never be reached, so the covered boxes stay locked.
+            var doc = MakePinkGrid(3, 4);
+            YarnPalettes.Add(doc, new CellRef(1, 1));
+            YarnPalettes.SetAmount(doc, new CellRef(1, 1), 4);
+
+            var r = _analyzer.Analyze(doc, _profile,
+                new AnalysisRequest { Mode = AnalysisMode.Count, ConveyorCapacityOverride = 30 });
+
+            Assert.IsFalse(r.Solvable, "palette never reveals (3 opens possible, needs 4)");
+            Assert.AreEqual(0L, r.WinPathCount);
+        }
+
+        // ── Fixture 30: solution labels a connected-box co-tap ─
+
+        [Test]
+        public void Analyze_RecordSolution_ConnectedBox_LabelsCoTap()
+        {
+            var grid = new GridData<ICellData>(2, 1);
+            grid.Set(0, 0, new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Right });
+            grid.Set(1, 0, new YarnBoxCell { ColorId = "pink", ConnectedDir = YarnDirection.Left });
+            var doc = new LevelDocument
+            {
+                SchemaVersion = "yarn-twist.v1", LevelId = "test", Grid = grid,
+                TopSection = PinkSpools(6), // 2 boxes × 3 spools
+            };
+
+            var r = _analyzer.Analyze(doc, _profile,
+                new AnalysisRequest { RecordSolution = true, ConveyorCapacityOverride = 24 });
+
+            Assert.IsTrue(r.Solvable, r.FailureReason);
+            Assert.AreEqual(1, r.SolutionSteps.Count, "one tap clears the whole pair");
+            StringAssert.Contains("connected box", r.SolutionSteps[0]);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
+
+        // n pink spools round-robined into 4 columns.
+        private static JObject PinkSpools(int n)
+        {
+            var data = new YarnTopSectionData();
+            for (int i = 0; i < 4; i++) data.Columns.Add(new YarnSpoolColumn());
+            for (int i = 0; i < n; i++) data.Columns[i % 4].Spools.Add(new YarnSpoolData { ColorId = "pink" });
+            return JObject.FromObject(data);
+        }
+
+        // w×h grid of pink boxes + exactly enough pink spools (3 per box).
+        private static LevelDocument MakePinkGrid(int w, int h)
+        {
+            var cells = new List<(int, int, ICellData)>();
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    cells.Add((x, y, new YarnBoxCell { ColorId = "pink" }));
+            return MakeDoc(w, h, cells, PinkSpools(w * h * 3));
+        }
 
         // Builds a top section from explicit per-column (color, connectionId) lists;
         // spools sharing a connectionId across two columns form a connected pair.

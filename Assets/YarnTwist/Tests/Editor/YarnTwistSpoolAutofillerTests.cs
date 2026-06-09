@@ -124,23 +124,70 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.GreaterOrEqual(sumD1, sumD10);
         }
 
-        // ── Fixture 4: hidden ratio matches HiddenSpoolRatio.Evaluate(D) ─
+        // ── Fixture 4: 'Hidden Spools' toggle gates hidden spools (not difficulty) ─
 
         [Test]
-        public void Complete_HiddenRatio_TracksDifficulty()
+        public void Complete_HiddenToggle_GatesHiddenSpools()
         {
-            // At D=1, HiddenSpoolRatio = 0 → no hidden spools.
-            // At D=10, HiddenSpoolRatio = 40 → ~40% hidden.
             var doc = MakeBoxGrid(("pink",5),("blue",5)); // 30 spools total
-            var rLow  = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 1,  Seed = 42, ConveyorCapacityOverride = 24 });
-            var rHigh = _autofiller.Complete(doc, _profile, new CompletionRequest { Difficulty = 10, Seed = 42, ConveyorCapacityOverride = 24 });
+            _config.HiddenSpoolPercent = 30f;
 
-            int hiddenLow  = CountHidden(rLow.TopSection);
-            int hiddenHigh = CountHidden(rHigh.TopSection);
-            Assert.AreEqual(0, hiddenLow);
-            // 30 × 40% = 12, within ±1 for rounding tolerance.
-            Assert.GreaterOrEqual(hiddenHigh, 11);
-            Assert.LessOrEqual(hiddenHigh, 13);
+            var off = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                TargetAPS = 3, Seed = 42, ConveyorCapacityOverride = 24,
+                MechanicToggles = Toggles(hidden: false, connected: false) });
+            var on  = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                TargetAPS = 3, Seed = 42, ConveyorCapacityOverride = 24,
+                MechanicToggles = Toggles(hidden: true,  connected: false) });
+
+            Assert.AreEqual(0, CountHidden(off.TopSection), "toggle off ⇒ no hidden spools");
+            int hi = CountHidden(on.TopSection);   // 30 × 30% = 9, ±1 rounding
+            Assert.GreaterOrEqual(hi, 8);
+            Assert.LessOrEqual(hi, 10);
+        }
+
+        // ── Fixture 4b: APS — lower APS yields more win paths than higher APS ─
+
+        [Test]
+        public void Complete_LowAPS_HasHigherAveragePathCountThanHighAPS()
+        {
+            var doc = MakeBoxGrid(("pink",3),("blue",3));
+            _config.WinPathTargetByAPS = new AnimationCurve(new Keyframe(1f, 100f), new Keyframe(6f, 1f));
+            long sumLow = 0, sumHigh = 0;
+            const int N = 20;
+            for (int i = 0; i < N; i++)
+            {
+                var rl = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                    TargetAPS = 1, Seed = 200 + i * 7, ConveyorCapacityOverride = 24,
+                    MechanicToggles = Toggles(false, false) });
+                var rh = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                    TargetAPS = 6, Seed = 200 + i * 7, ConveyorCapacityOverride = 24,
+                    MechanicToggles = Toggles(false, false) });
+                sumLow  += rl.Analysis?.WinPathCount ?? 0;
+                sumHigh += rh.Analysis?.WinPathCount ?? 0;
+            }
+            // APS 1 targets ~100 paths (easy / many ways), APS 6 targets ~1 (few).
+            Assert.GreaterOrEqual(sumLow, sumHigh);
+        }
+
+        // ── Fixture 4c: 'Connected Spools' toggle generates valid, non-deadlocking pairs ─
+
+        [Test]
+        public void Complete_ConnectedToggle_GeneratesNonDeadlockingPairs()
+        {
+            var doc = MakeBoxGrid(("pink",4),("blue",4)); // 24 spools across 4 columns
+            _config.ConnectedSpoolPairs = 2;
+
+            var off = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                TargetAPS = 3, Seed = 7, ConveyorCapacityOverride = 24,
+                MechanicToggles = Toggles(hidden: false, connected: false) });
+            var on  = _autofiller.Complete(doc, _profile, new CompletionRequest {
+                TargetAPS = 3, Seed = 7, ConveyorCapacityOverride = 24,
+                MechanicToggles = Toggles(hidden: false, connected: true) });
+
+            Assert.AreEqual(0, CountConnected(off.TopSection), "toggle off ⇒ no connections");
+            Assert.GreaterOrEqual(CountConnected(on.TopSection), 2, "toggle on ⇒ at least one pair (2 spools)");
+            Assert.IsFalse(YarnSpoolConnection.ConnectionsDeadlock(on.TopSection.ToObject<YarnTopSectionData>()),
+                "generated connections must never soft-lock");
         }
 
         // ── Fixture 5: capacity override changes outcome on a borderline grid ─
@@ -261,6 +308,13 @@ namespace Hoppa.YarnTwist.Editor.Tests
             Assert.AreEqual(6, pink); // 2 boxes × 3 spools — connection doesn't change inventory
         }
 
+        private static Dictionary<string, bool> Toggles(bool hidden, bool connected) =>
+            new Dictionary<string, bool>
+            {
+                { YarnTwistSpoolAutofiller.ToggleHidden,    hidden },
+                { YarnTwistSpoolAutofiller.ToggleConnected, connected },
+            };
+
         private static int CountHidden(JObject topJson)
         {
             int n = 0;
@@ -268,6 +322,16 @@ namespace Hoppa.YarnTwist.Editor.Tests
             foreach (var col in data.Columns)
                 foreach (var s in col.Spools)
                     if (s.Hidden) n++;
+            return n;
+        }
+
+        private static int CountConnected(JObject topJson)
+        {
+            int n = 0;
+            var data = topJson.ToObject<YarnTopSectionData>();
+            foreach (var col in data.Columns)
+                foreach (var s in col.Spools)
+                    if (s.ConnectionId.HasValue) n++;
             return n;
         }
 

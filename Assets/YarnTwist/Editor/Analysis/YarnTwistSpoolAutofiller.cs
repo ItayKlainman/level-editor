@@ -32,8 +32,25 @@ namespace Hoppa.YarnTwist.Editor
         private const int BallsPerSpool = 3;
         private const int BallsPerItem  = 9;
 
-        [Tooltip("Configuration asset with Difficulty curves, caps and timeouts.")]
+        [Tooltip("Configuration asset with APS curves, caps and timeouts.")]
         [SerializeField] private YarnTwistSpoolAutofillConfig _config;
+
+        // Spool-side mechanics the auto-fill can produce. The generic Auto-fill panel
+        // renders one checkbox per name; checked ⇒ included. (Grid mechanics are
+        // painter-authored, so they are not listed here.)
+        public const string ToggleHidden    = "Hidden Spools";
+        public const string ToggleConnected = "Connected Spools";
+        private static readonly string[] _mechanicToggles = { ToggleHidden, ToggleConnected };
+        public override System.Collections.Generic.IReadOnlyList<string> MechanicToggles => _mechanicToggles;
+
+        // A mechanic is included only when the request explicitly says so. The
+        // Auto-fill panel always sends a full dict (checkboxes default checked), so
+        // designers get mechanics ON by default; programmatic callers that pass no
+        // dict get the conservative no-extra-mechanics behaviour.
+        private static bool ToggleOn(CompletionRequest req, string name)
+            => req?.MechanicToggles != null
+               && req.MechanicToggles.TryGetValue(name, out var on)
+               && on;
 
         // Tests inject an analyzer instance via reflection; production code reads
         // _profile.LevelAnalyzer. Both code paths land here.
@@ -63,7 +80,6 @@ namespace Hoppa.YarnTwist.Editor
                 return result;
             }
 
-            int difficulty = Mathf.Clamp(req?.Difficulty ?? 5, 1, 10);
             int rootSeed = (req != null && req.Seed != 0)
                 ? req.Seed
                 : new System.Random().Next(1, int.MaxValue);
@@ -114,16 +130,31 @@ namespace Hoppa.YarnTwist.Editor
                     flatColors.Add(kv.Key);
 
             // ── Resolve target bands ────────────────────────────────────
-            float hiddenPct = Mathf.Clamp01(_config.HiddenSpoolRatio.Evaluate(difficulty) / 100f);
-            int hiddenN = Mathf.RoundToInt(flatColors.Count * hiddenPct);
-
-            _winPathTarget = _config.WinPathTargetByDifficulty.Evaluate(difficulty);
+            // Primary knob is APS (Attempts Per Solve, 1–6). When a request omits it
+            // we fall back to the legacy Difficulty curves so older callers still work.
+            if (req?.TargetAPS.HasValue == true)
+            {
+                float aps = Mathf.Clamp(req.TargetAPS.Value, 1f, 6f);
+                _winPathTarget = _config.WinPathTargetByAPS.Evaluate(aps);
+                _winRateTarget = Mathf.Clamp01(_config.WinRateTargetByAPS.Evaluate(aps));
+            }
+            else
+            {
+                int difficulty = Mathf.Clamp(req?.Difficulty ?? 5, 1, 10);
+                _winPathTarget = _config.WinPathTargetByDifficulty.Evaluate(difficulty);
+                _winRateTarget = Mathf.Clamp01(_config.WinRateTargetByDifficulty.Evaluate(difficulty));
+            }
             _winPathLow    = _winPathTarget * (1f - _config.WinPathTolerance);
             _winPathHigh   = _winPathTarget * (1f + _config.WinPathTolerance);
-
-            _winRateTarget = Mathf.Clamp01(_config.WinRateTargetByDifficulty.Evaluate(difficulty));
             _winRateLow    = Mathf.Clamp01(_winRateTarget - _config.WinRateTolerance);
             _winRateHigh   = Mathf.Clamp01(_winRateTarget + _config.WinRateTolerance);
+
+            // ── Mechanic toggles → how many hidden / connected the fill produces ──
+            float hiddenPct = ToggleOn(req, ToggleHidden)
+                ? Mathf.Clamp01(_config.HiddenSpoolPercent / 100f) : 0f;
+            int hiddenN = Mathf.RoundToInt(flatColors.Count * hiddenPct);
+            int connectedPairs = ToggleOn(req, ToggleConnected)
+                ? Mathf.Max(0, _config.ConnectedSpoolPairs) : 0;
 
             // ── Stage 1: parallel random sampling ───────────────────────
             int attempts = Math.Max(1, _config.MaxRerollAttempts);
@@ -142,10 +173,10 @@ namespace Hoppa.YarnTwist.Editor
                 Parallel.For(0, attempts, options, (a, state) =>
                 {
                     if (sw.ElapsedMilliseconds > _config.TotalTimeoutMs) { state.Stop(); return; }
-                    BuildCandidate(seeds[a], flatColors, hiddenN, out var colors, out var hidden);
-                    var top = BuildTop(colors, hidden);
+                    BuildCandidate(seeds[a], flatColors, hiddenN, connectedPairs, out var colors, out var hidden, out var conn);
+                    var top = BuildTop(colors, hidden, conn);
                     var analysis = Analyze(analyzer, doc, profile, top, capacity);
-                    evaluated[a] = new CandResult { Colors = colors, Hidden = hidden, Top = top, Analysis = analysis };
+                    evaluated[a] = new CandResult { Colors = colors, Hidden = hidden, Conn = conn, Top = top, Analysis = analysis };
                 });
             }
             catch (AggregateException ex)
@@ -252,6 +283,7 @@ namespace Hoppa.YarnTwist.Editor
             var rng = new System.Random(unchecked(rootSeed ^ 0x5EED5EED));
             var curColors = (string[])start.Colors.Clone();
             var hidden    = start.Hidden; // fixed throughout (preserves hidden ratio)
+            var conn      = start.Conn;   // fixed throughout (connections are positional, color-blind)
             var cur = start;
             double curDist = startDist;
             int n = curColors.Length;
@@ -268,7 +300,7 @@ namespace Hoppa.YarnTwist.Editor
 
                 (curColors[p], curColors[q]) = (curColors[q], curColors[p]);
 
-                var top = BuildTop(curColors, hidden);
+                var top = BuildTop(curColors, hidden, conn);
                 var analysis = Analyze(analyzer, doc, profile, top, capacity);
                 result.CandidatesTried++;
                 BumpHist(result.CandidatePathCountHistogram, analysis.WinPathCount);
@@ -277,7 +309,7 @@ namespace Hoppa.YarnTwist.Editor
                 if (d <= curDist)
                 {
                     curDist = d;
-                    cur = new CandResult { Colors = (string[])curColors.Clone(), Hidden = hidden, Top = top, Analysis = analysis };
+                    cur = new CandResult { Colors = (string[])curColors.Clone(), Hidden = hidden, Conn = conn, Top = top, Analysis = analysis };
                     if (InBand(analysis)) return cur;
                 }
                 else
@@ -291,8 +323,8 @@ namespace Hoppa.YarnTwist.Editor
 
         // ── Candidate construction ──────────────────────────────────────
 
-        private static void BuildCandidate(int seed, List<string> flatColors, int hiddenN,
-            out string[] colors, out bool[] hidden)
+        private static void BuildCandidate(int seed, List<string> flatColors, int hiddenN, int connectedPairs,
+            out string[] colors, out bool[] hidden, out int[] conn)
         {
             var rng = new System.Random(seed);
             colors = flatColors.ToArray();
@@ -302,20 +334,69 @@ namespace Hoppa.YarnTwist.Editor
             for (int i = 0; i < idxs.Length; i++) idxs[i] = i;
             Shuffle(idxs, rng);
             for (int i = 0; i < Math.Min(hiddenN, idxs.Length); i++) hidden[idxs[i]] = true;
+            conn = BuildConnections(colors, hidden, connectedPairs, rng);
         }
 
-        private static JObject BuildTop(string[] colors, bool[] hidden)
+        // Deterministically assign up to `pairs` connected-spool pairs. A flat spool
+        // index i lands at column (i % Columns), so a pair links indices in
+        // immediately-adjacent columns (YarnSpoolConnection.CanComplete). Every
+        // tentative pair is vetted with ConnectionsDeadlock (color-blind soft-lock
+        // check): a pair that would soft-lock is reverted, so a cramped layout simply
+        // yields fewer pairs. Returns a per-position ConnectionId array (-1 = none).
+        private static int[] BuildConnections(string[] colors, bool[] hidden, int pairs, System.Random rng)
         {
-            // Auto-fill rebuilds the spool list from scratch, so it does NOT carry
-            // over any Connected-Spool links (ConnectionId) — the designer authors
-            // connections AFTER auto-filling. The win-path/win-rate accuracy for a
-            // connected level comes from the analyzer's lock modelling (via Analyze),
-            // not from generating connections here.
+            int n = colors.Length;
+            var conn = new int[n];
+            for (int i = 0; i < n; i++) conn[i] = -1;
+            if (pairs <= 0 || n < 2) return conn;
+
+            int id = 1, made = 0, attempts = 0;
+            int maxAttempts = pairs * 30 + 60;
+            var partners = new List<int>(n);
+            while (made < pairs && attempts++ < maxAttempts)
+            {
+                int iA = rng.Next(n);
+                if (conn[iA] != -1) continue;
+                int colA = iA % Columns;
+                int colB = colA + (rng.Next(2) == 0 ? -1 : 1);
+                if (colB < 0 || colB >= Columns) continue;
+
+                partners.Clear();
+                for (int j = 0; j < n; j++)
+                    if (conn[j] == -1 && j % Columns == colB) partners.Add(j);
+                if (partners.Count == 0) continue;
+                int iB = partners[rng.Next(partners.Count)];
+
+                conn[iA] = id; conn[iB] = id;
+                if (YarnSpoolConnection.ConnectionsDeadlock(BuildTopData(colors, hidden, conn)))
+                {
+                    conn[iA] = -1; conn[iB] = -1; continue; // would soft-lock — drop it
+                }
+                id++; made++;
+            }
+            return conn;
+        }
+
+        private static JObject BuildTop(string[] colors, bool[] hidden, int[] conn)
+            => JObject.FromObject(BuildTopData(colors, hidden, conn));
+
+        // Round-robins the flat spool list into Columns columns. Connections (when the
+        // 'Connected Spools' toggle is on) are written as a shared ConnectionId on the
+        // two linked spools; the analyzer's lock modelling (via Analyze) keeps win-path
+        // / win-rate scoring accurate, so connected candidates are scored on their real
+        // difficulty rather than assumed.
+        private static YarnTopSectionData BuildTopData(string[] colors, bool[] hidden, int[] conn)
+        {
             var data = new YarnTopSectionData();
             for (int i = 0; i < Columns; i++) data.Columns.Add(new YarnSpoolColumn());
             for (int i = 0; i < colors.Length; i++)
-                data.Columns[i % Columns].Spools.Add(new YarnSpoolData { ColorId = colors[i], Hidden = hidden[i] });
-            return JObject.FromObject(data);
+                data.Columns[i % Columns].Spools.Add(new YarnSpoolData
+                {
+                    ColorId      = colors[i],
+                    Hidden       = hidden[i],
+                    ConnectionId = (conn != null && conn[i] >= 0) ? conn[i] : (int?)null,
+                });
+            return data;
         }
 
         private LevelAnalysisResult Analyze(LevelAnalyzerAsset analyzer, LevelDocument doc, GameProfile profile, JObject top, int capacity)
@@ -336,6 +417,7 @@ namespace Hoppa.YarnTwist.Editor
         {
             public string[]            Colors;
             public bool[]              Hidden;
+            public int[]               Conn;   // per-position ConnectionId, -1 = none
             public JObject             Top;
             public LevelAnalysisResult Analysis;
         }

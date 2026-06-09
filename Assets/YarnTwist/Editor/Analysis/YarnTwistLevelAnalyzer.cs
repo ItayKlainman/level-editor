@@ -86,9 +86,27 @@ namespace Hoppa.YarnTwist.Editor
                     gridCellOpen[cy * gW + cx] = true;
             }
 
+            // Palette cover: map each covered box to its reveal threshold so the DFS
+            // keeps it untappable until enough boxes are opened elsewhere. Matches the
+            // game (YATPalettePrefabComponent): a 3×3 palette decrements on every box
+            // open and reveals at 0, i.e. covered boxes unlock once the global open
+            // count reaches the palette's amount. Covered cells are box/arrowbox items
+            // (YarnPalettes.IsBox); 0 in PaletteReq means "not covered".
+            var paletteReq = new int[items.Count];
+            foreach (var pal in YarnPalettes.All(doc))
+            {
+                int amount = Math.Max(1, pal.Amount);
+                foreach (var c in YarnPalettes.CoveredCells(pal.Center))
+                {
+                    if ((uint)c.X >= (uint)gW || (uint)c.Y >= (uint)gH) continue;
+                    int it = gridItemIdx[c.Y * gW + c.X];
+                    if (it >= 0) paletteReq[it] = amount;
+                }
+            }
+
             // Intern colors → small int indices over the union of every color
             // that can enter the belt or sit on a spool.
-            var model = Intern(items, columns, gH, gW, gridItemIdx, gridCellOpen);
+            var model = Intern(items, columns, gH, gW, gridItemIdx, gridCellOpen, paletteReq);
 
             if (req != null && req.RecordSolution)
             {
@@ -350,6 +368,7 @@ namespace Hoppa.YarnTwist.Editor
             public int[]       Color;     // Box/ArrowBox color index; -1 for tunnel
             public int[]       Prereq;    // ArrowBox prereq item index; -1 otherwise
             public int[]       Partner;   // connected-box reciprocal partner item index; -1 otherwise
+            public int[]       PaletteReq; // box reveal threshold (global opens needed); 0 = not under a palette
             public int[][]     Queue;     // Tunnel queue (interned); null otherwise
             public int[]       X, Y;      // grid coordinates per item (data space, y=0=bottom)
             public int         GridHeight; // grid rows — used to flip Y for player-facing display
@@ -367,7 +386,7 @@ namespace Hoppa.YarnTwist.Editor
 
         private static Model Intern(List<Item> items, Column[] cols,
             int gridHeight = 0, int gridWidth = 0,
-            int[] gridItemIdx = null, bool[] gridCellOpen = null)
+            int[] gridItemIdx = null, bool[] gridCellOpen = null, int[] paletteReq = null)
         {
             var map = new Dictionary<string, int>();
             int Id(string c)
@@ -436,6 +455,7 @@ namespace Hoppa.YarnTwist.Editor
             {
                 ItemCount = m,
                 Kind = kind, Color = color, Prereq = prereq, Partner = partner, Queue = queue,
+                PaletteReq = (paletteReq != null && paletteReq.Length == m) ? paletteReq : new int[m],
                 X = xs, Y = ys,
                 GridHeight = gridHeight, GridWidth = gridWidth,
                 GridItemIdx = gridItemIdx, GridCellOpen = gridCellOpen,
@@ -457,6 +477,7 @@ namespace Hoppa.YarnTwist.Editor
                 h = (h ^ (ulong)(md.Color[i] + 2)) * P;
                 h = (h ^ (ulong)(md.Prereq[i] + 2)) * P;
                 h = (h ^ (ulong)(md.Partner[i] + 2)) * P;
+                h = (h ^ (ulong)(md.PaletteReq[i] + 1)) * P;
                 if (md.Queue[i] != null)
                     foreach (var q in md.Queue[i]) h = (h ^ (ulong)(q + 2)) * P;
             }
@@ -480,26 +501,95 @@ namespace Hoppa.YarnTwist.Editor
         {
             var steps = new List<string>(path.Count);
             var tunnelPos = new Dictionary<int, int>();
+
+            // Replay the recorded path through the same state machine the DFS used
+            // (ApplyTap + ResolveMatches) so each tap can be annotated with the
+            // mechanic consequences it triggers — co-taps, palette reveals,
+            // connected-spool clears, hidden-spool reveals.
+            var tapped    = new bool[md.ItemCount];
+            var queueIdx  = new int[md.ItemCount];
+            var spoolHead = new int[Columns];
+            var spoolFill = new int[Columns];
+            var bag       = new int[md.NumColors];
+            int bagSum = 0, opened = 0;
+
+            var thresholds = new SortedSet<int>();
+            for (int i = 0; i < md.ItemCount; i++)
+                if (md.PaletteReq[i] > 0) thresholds.Add(md.PaletteReq[i]);
+
+            int DisplayY(int idx) => md.GridHeight > 0 ? md.GridHeight - 1 - md.Y[idx] : md.Y[idx];
+
             for (int s = 0; s < path.Count; s++)
             {
                 int i = path[s];
                 int n = s + 1;
                 // Flip Y so (x,0) = top row from the player's perspective
                 // (data y=0 is the bottom row; player sees data y=Height-1 first).
-                int displayY = md.GridHeight > 0 ? md.GridHeight - 1 - md.Y[i] : md.Y[i];
+                int displayY = DisplayY(i);
+
+                string line;
                 if (md.Kind[i] == ItemKind.Tunnel)
                 {
                     tunnelPos.TryGetValue(i, out var q);
                     int len = md.Queue[i].Length;
                     string color = md.ColorNames[md.Queue[i][q]];
-                    steps.Add($"{n}. Tap Tunnel box ({md.X[i]},{displayY}) → {color} ({q + 1}/{len})");
+                    line = $"{n}. Tap Tunnel box ({md.X[i]},{displayY}) → {color} ({q + 1}/{len})";
                     tunnelPos[i] = q + 1;
                 }
                 else
                 {
                     string kind  = md.Kind[i] == ItemKind.ArrowBox ? "Arrow-box" : "Box";
                     string color = md.ColorNames[md.Color[i]];
-                    steps.Add($"{n}. Tap {color} {kind} ({md.X[i]},{displayY})");
+                    line = $"{n}. Tap {color} {kind} ({md.X[i]},{displayY})";
+                    int p = md.Partner[i];
+                    if (p >= 0)
+                        line += $" + connected box ({md.X[p]},{DisplayY(p)})";
+                }
+                if (md.PaletteReq[i] > 0) line += " (under palette)";
+                steps.Add(line);
+
+                // ── advance the replay state (mirrors ApplyTap) ──
+                int prevOpened = opened;
+                var oldHead = (int[])spoolHead.Clone();
+                if (md.Kind[i] == ItemKind.Tunnel)
+                {
+                    int color = md.Queue[i][queueIdx[i]];
+                    queueIdx[i]++;
+                    bag[color] += BallsPerItem; bagSum += BallsPerItem;
+                    opened++;
+                }
+                else
+                {
+                    tapped[i] = true;
+                    bag[md.Color[i]] += BallsPerItem; bagSum += BallsPerItem;
+                    opened++;
+                    int p = md.Partner[i];
+                    if (p >= 0 && !tapped[p])
+                    {
+                        tapped[p] = true;
+                        bag[md.Color[p]] += BallsPerItem; bagSum += BallsPerItem;
+                        opened++;
+                    }
+                }
+                ResolveMatches(md, bag, ref bagSum, spoolHead, spoolFill);
+
+                // ── consequence annotations ──
+                foreach (var t in thresholds)
+                    if (prevOpened < t && opened >= t)
+                        steps.Add($"   ↳ palette opens (≥{t} boxes opened) — covered boxes now tappable");
+
+                for (int k = 0; k < Columns; k++)
+                {
+                    if (spoolHead[k] == oldHead[k]) continue;
+                    for (int pos = oldHead[k]; pos < spoolHead[k]; pos++)
+                        if (md.ColPartnerCol[k][pos] >= 0)
+                        {
+                            steps.Add($"   ↳ clears connected spool (column {k + 1}, slot {pos + 1})");
+                            break;
+                        }
+                    int head = spoolHead[k];
+                    if (head < md.ColSpool[k].Length && md.ColHidden[k][head])
+                        steps.Add($"   ↳ column {k + 1} reveals hidden spool ({md.ColorNames[md.ColSpool[k][head]]})");
                 }
             }
             return steps;
@@ -523,6 +613,7 @@ namespace Hoppa.YarnTwist.Editor
             private readonly int[]  _spoolFill;   // [Columns]
             private readonly int[]  _bag;         // [NumColors]
             private int             _bagSum;
+            private int             _opened;      // boxes opened so far (palette countdown); derivable from _tapped/_queueIdx, so memo-safe
             private readonly Dictionary<ulong, long> _memo = new Dictionary<ulong, long>();
 
             // Solution recording (first winning tap-ordering).
@@ -594,6 +685,7 @@ namespace Hoppa.YarnTwist.Editor
                 Span<int> savedFill = stackalloc int[Columns];
                 for (int k = 0; k < Columns; k++) { savedHead[k] = _spoolHead[k]; savedFill[k] = _spoolFill[k]; }
                 int savedBagSum = _bagSum;
+                int savedOpened = _opened;
 
                 if (_record)
                 {
@@ -640,6 +732,7 @@ namespace Hoppa.YarnTwist.Editor
                         for (int c = 0; c < _md.NumColors; c++) _bag[c] = savedBag[c];
                         for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
                         _bagSum = savedBagSum;
+                        _opened = savedOpened;
                         _tapped[i] = savedTapped;
                         if (partner >= 0) _tapped[partner] = savedPartner;
                         _queueIdx[i] = savedQueue;
@@ -668,6 +761,7 @@ namespace Hoppa.YarnTwist.Editor
                         for (int c = 0; c < _md.NumColors; c++) _bag[c] = savedBag[c];
                         for (int k = 0; k < Columns; k++) { _spoolHead[k] = savedHead[k]; _spoolFill[k] = savedFill[k]; }
                         _bagSum      = savedBagSum;
+                        _opened      = savedOpened;
                         _tapped[i]   = savedTapped;
                         if (partner >= 0) _tapped[partner] = savedPartner;
                         _queueIdx[i] = savedQueue;
@@ -751,6 +845,10 @@ namespace Hoppa.YarnTwist.Editor
 
             private bool IsAccessible(int i)
             {
+                // Palette cover: a covered box is untappable until enough boxes have
+                // been opened elsewhere (global open count reaches the palette amount).
+                // Monotonic + a pure function of the hashed _tapped/_queueIdx, so memo-safe.
+                if (_md.PaletteReq[i] > 0 && _opened < _md.PaletteReq[i]) return false;
                 if (_md.GridItemIdx == null) return true; // no grid map (tests with tiny grids)
                 int x = _md.X[i], y = _md.Y[i];
                 if (y == _md.GridHeight - 1) return true;
@@ -816,18 +914,22 @@ namespace Hoppa.YarnTwist.Editor
                     int color = _md.Queue[i][_queueIdx[i]];
                     _queueIdx[i]++;
                     _bag[color] += BallsPerItem; _bagSum += BallsPerItem;
+                    _opened++;                       // tunnel box = one box open
                 }
                 else
                 {
                     _tapped[i] = true;
                     _bag[_md.Color[i]] += BallsPerItem; _bagSum += BallsPerItem;
+                    _opened++;
                     int p = _md.Partner[i];
                     if (p >= 0 && !_tapped[p])
                     {
                         // Connected pair: tapping one activates both — both release their
                         // balls and clear together (then a single ResolveMatches below).
+                        // The game fires BoxClicked per box, so a pair counts as TWO opens.
                         _tapped[p] = true;
                         _bag[_md.Color[p]] += BallsPerItem; _bagSum += BallsPerItem;
+                        _opened++;
                     }
                 }
                 ResolveMatches(_md, _bag, ref _bagSum, _spoolHead, _spoolFill);
@@ -906,6 +1008,7 @@ namespace Hoppa.YarnTwist.Editor
             private readonly double[] _demand;
             private readonly int[]  _candidates;
             private int             _bagSum;
+            private int             _opened;   // boxes opened so far (palette countdown)
 
             public RolloutContext(Model md, int capacity, int lookahead)
             {
@@ -940,6 +1043,7 @@ namespace Hoppa.YarnTwist.Editor
                 Array.Clear(_spoolFill, 0, Columns);
                 Array.Clear(_bag, 0, _bag.Length);
                 _bagSum = 0;
+                _opened = 0;
 
                 // Hard ceiling on taps: every item is consumed at most once
                 // (queue entries count individually). Prevents any pathological loop.
@@ -1060,6 +1164,7 @@ namespace Hoppa.YarnTwist.Editor
 
             private bool IsAccessible(int i)
             {
+                if (_md.PaletteReq[i] > 0 && _opened < _md.PaletteReq[i]) return false; // palette cover
                 if (_md.GridItemIdx == null) return true;
                 int x = _md.X[i], y = _md.Y[i];
                 if (y == _md.GridHeight - 1) return true;
@@ -1083,18 +1188,22 @@ namespace Hoppa.YarnTwist.Editor
                     int color = _md.Queue[i][_queueIdx[i]];
                     _queueIdx[i]++;
                     _bag[color] += BallsPerItem; _bagSum += BallsPerItem;
+                    _opened++;                       // tunnel box = one box open
                 }
                 else
                 {
                     _tapped[i] = true;
                     _bag[_md.Color[i]] += BallsPerItem; _bagSum += BallsPerItem;
+                    _opened++;
                     int p = _md.Partner[i];
                     if (p >= 0 && !_tapped[p])
                     {
                         // Connected pair: tapping one activates both — both release their
                         // balls and clear together (then a single ResolveMatches below).
+                        // The game fires BoxClicked per box, so a pair counts as TWO opens.
                         _tapped[p] = true;
                         _bag[_md.Color[p]] += BallsPerItem; _bagSum += BallsPerItem;
+                        _opened++;
                     }
                 }
                 ResolveMatches(_md, _bag, ref _bagSum, _spoolHead, _spoolFill);

@@ -5,6 +5,18 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.22] - 2026-06-09
+
+### Added
+
+- `ILevelCompleter.MechanicToggles` / `LevelCompleterAsset.MechanicToggles`: a completer advertises named per-mechanic on/off toggles; the Auto-fill panel renders a checkbox per name and passes the choices back via `CompletionRequest.MechanicToggles`. Keeps the shared panel game-agnostic (no game mechanic names in Layer 1).
+- `CompletionRequest.MechanicToggles` (`Dictionary<string,bool>`): per-mechanic include/exclude choices for the completer. Null = completer defaults.
+
+### Changed
+
+- `AutofillPanel`: the **Difficulty 1–10** slider is replaced by an **APS 1–6** slider (Attempts Per Solve — how many tries an average player needs to win; sent as `CompletionRequest.TargetAPS`). The panel also renders the active completer's mechanic checkboxes.
+- `SummaryPanel`: trimmed to **ID, Grid, Coins, Notes** — removed the Schema row, exporter info rows (Order), the cell-count list, and the APS metadata field for a cleaner panel.
+
 ## [0.5.21] - 2026-06-02
 
 ### Added

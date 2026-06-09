@@ -66,27 +66,9 @@ namespace Hoppa.YarnTwist.Editor
                 }
                 yield return ("Order", _cachedOrder);
             }
-
-            // Layout: bounding box of all non-wall cells.
-            var grid = session.Document.Grid;
-            int minX = int.MaxValue, maxX = int.MinValue;
-            int minY = int.MaxValue, maxY = int.MinValue;
-            for (int gy = 0; gy < grid.Height; gy++)
-            for (int gx = 0; gx < grid.Width; gx++)
-            {
-                var cell = grid.Get(gx, gy);
-                if (cell != null && cell.CellTypeId != "yt.wall")
-                {
-                    if (gx < minX) minX = gx;
-                    if (gx > maxX) maxX = gx;
-                    if (gy < minY) minY = gy;
-                    if (gy > maxY) maxY = gy;
-                }
-            }
-            yield return ("Layout", minX == int.MaxValue ? "—" : $"{maxX - minX + 1} × {maxY - minY + 1}");
         }
 
-        public override int ExtraSummaryRowCount => 2;
+        public override int ExtraSummaryRowCount => 1;
 
         public override void DrawExtraSummaryRows(Rect rect, LevelEditorSession session)
         {
@@ -112,22 +94,9 @@ namespace Hoppa.YarnTwist.Editor
                 session.MarkDirty();
             }
 
-            // Row 1 — difficulty type
-            float diffY = rect.y + lh;
-            string currentType = doc.GameData?["levelType"]?.ToString() ?? LevelTypeOptions[0];
-            int currentIdx = Array.IndexOf(LevelTypeOptions, currentType);
-            if (currentIdx < 0) currentIdx = 0;
-
-            GUI.Label(new Rect(rect.x, diffY, LabelW, lh), "Difficulty", EditorStyles.miniLabel);
-            EditorGUI.BeginChangeCheck();
-            int newIdx = EditorGUI.Popup(
-                new Rect(fieldX, diffY, fieldW, lh), currentIdx, LevelTypeOptions);
-            if (EditorGUI.EndChangeCheck())
-            {
-                if (doc.GameData == null) doc.GameData = new JObject();
-                doc.GameData["levelType"] = LevelTypeOptions[newIdx];
-                session.MarkDirty();
-            }
+            // Difficulty-type (LevelType) dropdown intentionally removed from the Summary
+            // panel — it was clutter. Export still writes LevelType (defaults to "None"
+            // from GameData["levelType"]); set it elsewhere if a level needs Hard/SuperHard.
         }
 
         // ── Export ───────────────────────────────────────────────────
@@ -296,11 +265,6 @@ namespace Hoppa.YarnTwist.Editor
                             entry["BottomType"] = _cellTypeMapping.Get("yt.connectedbox", 6);
                             entry["Direction"]  = boxCell.ConnectedDir.Value.ToString();
                         }
-                        if (paletteCenters.TryGetValue((x, y), out int paletteAmount))
-                        {
-                            entry["ExtraFeatureBottomType"] = "Palette";
-                            entry["PaletteAmount"]          = paletteAmount;
-                        }
                     }
                     else if (cell is YarnArrowBoxCell arrowBoxCell)
                     {
@@ -329,6 +293,15 @@ namespace Hoppa.YarnTwist.Editor
                     else
                     {
                         entry["ColorType"] = 0;
+                    }
+
+                    // Palette center → mark the covering box with the cover feature. CanPlace
+                    // allows arrow-box centers too, so this must live outside the box-only branch
+                    // (otherwise a palette on an arrow box is silently dropped on export).
+                    if (YarnPalettes.IsBox(cell) && paletteCenters.TryGetValue((x, y), out int paletteAmount))
+                    {
+                        entry["ExtraFeatureBottomType"] = "Palette";
+                        entry["PaletteAmount"]          = paletteAmount;
                     }
 
                     array.Add(entry);
