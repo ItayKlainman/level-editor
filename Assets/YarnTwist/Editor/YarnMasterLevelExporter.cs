@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using Newtonsoft.Json;
@@ -145,13 +144,6 @@ namespace Hoppa.YarnTwist.Editor
             }
 
             var fileNameNoExt = Path.GetFileNameWithoutExtension(jsonFilePath);
-            var allMatches    = Regex.Matches(fileNameNoExt, @"\d+");
-            if (allMatches.Count == 0)
-            {
-                Debug.LogWarning($"[YarnMasterLevelExporter] Could not parse integer key from filename '{fileNameNoExt}'.");
-                return false;
-            }
-            string levelKey = int.Parse(allMatches[allMatches.Count - 1].Value).ToString();
 
             // Read existing file or start fresh
             JObject root = null;
@@ -179,22 +171,11 @@ namespace Hoppa.YarnTwist.Editor
             var bottomConfigs = BuildBottomConfigs(document.Grid, document);
             var topConfigs    = BuildTopConfigs(document.TopSection);
 
-            // Upsert LevelConfigs — preserve the key assigned by Apply Order if this levelId
-            // already exists, otherwise fall back to the filename-derived key.
-            var levelConfigsObj = (JObject)root["LevelConfigs"];
-            string existingKey  = null;
-            foreach (var kvp in levelConfigsObj)
-            {
-                if (string.Equals(kvp.Value?["levelId"]?.ToString(), fileNameNoExt, StringComparison.Ordinal))
-                { existingKey = kvp.Key; break; }
-            }
-            string writeKey = existingKey ?? levelKey;
-
             string levelType = document.GameData?["levelType"]?.ToString();
             if (string.IsNullOrEmpty(levelType) || Array.IndexOf(LevelTypeOptions, levelType) < 0)
                 levelType = LevelTypeOptions[0];
 
-            levelConfigsObj[writeKey] = new JObject
+            var newLevelConfig = new JObject
             {
                 ["levelId"]       = fileNameNoExt,
                 ["LevelType"]     = levelType,
@@ -206,8 +187,7 @@ namespace Hoppa.YarnTwist.Editor
             int coinReward = document.GameData?["coinReward"]?.Value<int>()
                 ?? EditorPrefs.GetInt(LastCoinRewardPrefKey, _defaultRewardAmount);
 
-            var rewardConfigsObj = (JObject)root["LevelRewardConfigs"];
-            rewardConfigsObj[writeKey] = new JObject
+            var newRewardConfig = new JObject
             {
                 ["WinReward"] = new JArray
                 {
@@ -218,6 +198,53 @@ namespace Hoppa.YarnTwist.Editor
                     }
                 }
             };
+
+            // Slot assignment by levelId — the filename's number no longer decides the slot.
+            //  • Existing levelId  → update in place at its current key (re-export keeps its slot).
+            //  • New levelId       → insert at the top (slot 1); every existing level shifts down
+            //                         by one. This guarantees a new level can never overwrite an
+            //                         existing slot, and self-heals any gaps in the old keys.
+            var levelConfigsObj  = (JObject)root["LevelConfigs"];
+            var rewardConfigsObj = (JObject)root["LevelRewardConfigs"];
+
+            string existingKey = null;
+            foreach (var kvp in levelConfigsObj)
+            {
+                if (string.Equals(kvp.Value?["levelId"]?.ToString(), fileNameNoExt, StringComparison.Ordinal))
+                { existingKey = kvp.Key; break; }
+            }
+
+            if (existingKey != null)
+            {
+                levelConfigsObj[existingKey]  = newLevelConfig;
+                rewardConfigsObj[existingKey] = newRewardConfig;
+            }
+            else
+            {
+                // Sort existing entries by their current numeric key, carrying each level's
+                // reward config alongside it, then re-key 1..N with the new level first.
+                var existing = new List<KeyValuePair<string, JToken>>();
+                foreach (var kvp in levelConfigsObj) existing.Add(kvp);
+                existing.Sort((a, b) =>
+                {
+                    int ka = int.TryParse(a.Key, out var x) ? x : int.MaxValue;
+                    int kb = int.TryParse(b.Key, out var y) ? y : int.MaxValue;
+                    return ka.CompareTo(kb);
+                });
+
+                var newLevelConfigs  = new JObject { ["1"] = newLevelConfig };
+                var newRewardConfigs = new JObject { ["1"] = newRewardConfig };
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    string shiftedKey = (i + 2).ToString();
+                    newLevelConfigs[shiftedKey] = existing[i].Value;
+                    var carriedReward = rewardConfigsObj[existing[i].Key];
+                    if (carriedReward != null) newRewardConfigs[shiftedKey] = carriedReward;
+                }
+
+                root["LevelConfigs"]       = newLevelConfigs;
+                root["LevelRewardConfigs"] = newRewardConfigs;
+            }
 
             // Invalidate the cached order key so the Summary panel refreshes after export.
             _orderCacheForPath = null;

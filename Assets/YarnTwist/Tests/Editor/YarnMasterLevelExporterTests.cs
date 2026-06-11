@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
 using Hoppa.YarnTwist;
@@ -57,13 +58,16 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         [Test]
-        public void Export_ParsesFileName_025_ToKey25()
+        public void Export_NewLevelIntoEmptyMaster_GetsKey1_RegardlessOfFilenameNumber()
         {
+            // The filename's number no longer decides the slot — a new level lands at slot 1.
             string levelFile025 = Path.Combine(Path.GetTempPath(), "level_025.json");
             var doc = MakeDoc("level_025", new[] { EmptyCell() }, MakeTopSection());
             _exporter.Export(doc, new CellTypeRegistry(), levelFile025);
-            var config = ReadOutput();
-            Assert.IsTrue(config["LevelConfigs"].ToObject<JObject>().ContainsKey("25"));
+            var configs = ReadOutput()["LevelConfigs"].ToObject<JObject>();
+            Assert.IsTrue(configs.ContainsKey("1"));
+            Assert.IsFalse(configs.ContainsKey("25"));
+            Assert.AreEqual("level_025", (string)configs["1"]["levelId"]);
         }
 
         [Test]
@@ -75,23 +79,76 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         [Test]
-        public void Export_FilenameWithNoNumber_ReturnsFalse()
+        public void Export_FilenameWithNoNumber_NowSucceeds_AtSlot1()
         {
+            // A number in the filename is now optional; the slot is assigned, not parsed.
             string noNumberFile = Path.Combine(Path.GetTempPath(), "my_awesome_level.json");
-            var doc = MakeDoc("level_001", new[] { EmptyCell() }, MakeTopSection());
+            var doc = MakeDoc("my_awesome_level", new[] { EmptyCell() }, MakeTopSection());
             bool result = _exporter.Export(doc, new CellTypeRegistry(), noNumberFile);
-            Assert.IsFalse(result);
+            Assert.IsTrue(result);
+            Assert.AreEqual("my_awesome_level", (string)ReadOutput()["LevelConfigs"]["1"]["levelId"]);
         }
 
         [Test]
-        public void Export_FilenameWithSuffixAfterNumber_UsesLastDigitGroup()
+        public void Export_NewCollidingName_DoesNotOverwriteExistingSlot()
         {
-            // e.g. "level_004_example.json" → last digit group "004" → key "4"
-            string exampleFile = Path.Combine(Path.GetTempPath(), "level_004_example.json");
-            var doc = MakeDoc("level_004_example", new[] { EmptyCell() }, MakeTopSection());
-            _exporter.Export(doc, new CellTypeRegistry(), exampleFile);
-            var config = ReadOutput();
-            Assert.IsTrue(config["LevelConfigs"].ToObject<JObject>().ContainsKey("4"));
+            // Seed a master with level_001 + level_002, then export a NEW level whose name
+            // collides on the number (level002_new). It must NOT clobber level_002 — both survive,
+            // and the new level is inserted at the top.
+            SeedMaster(("1", "level_001"), ("2", "level_002"));
+
+            string collidingFile = Path.Combine(Path.GetTempPath(), "level002_new.json");
+            var doc = MakeDoc("level002_new", new[] { EmptyCell() }, MakeTopSection());
+            _exporter.Export(doc, new CellTypeRegistry(), collidingFile);
+
+            var configs = ReadOutput()["LevelConfigs"].ToObject<JObject>();
+            Assert.AreEqual(3, configs.Count);                                // nothing lost
+            Assert.AreEqual("level002_new", (string)configs["1"]["levelId"]); // new at top
+            var ids = configs.Properties().Select(p => (string)p.Value["levelId"]).ToList();
+            CollectionAssert.Contains(ids, "level_001");
+            CollectionAssert.Contains(ids, "level_002");
+        }
+
+        [Test]
+        public void Export_NewLevel_ShiftsExistingDown_AndCarriesRewards()
+        {
+            // Seed level_001 at slot 1 with a recognizable reward; export a new level → it takes
+            // slot 1, level_001 shifts to slot 2 and keeps its reward.
+            SeedMaster(("1", "level_001"));
+            var seeded = ReadOutput();
+            ((JObject)seeded["LevelRewardConfigs"])["1"] = new JObject
+            {
+                ["WinReward"] = new JArray { new JObject { ["ScoreType"] = "Coin", ["ScoreAmount"] = 99 } }
+            };
+            File.WriteAllText(_tempFile, seeded.ToString());
+
+            string newFile = Path.Combine(Path.GetTempPath(), "level_010.json");
+            var doc = MakeDoc("level_010", new[] { EmptyCell() }, MakeTopSection());
+            doc.GameData = new JObject { ["coinReward"] = 10 };
+            _exporter.Export(doc, new CellTypeRegistry(), newFile);
+
+            var output = ReadOutput();
+            Assert.AreEqual("level_010", (string)output["LevelConfigs"]["1"]["levelId"]);
+            Assert.AreEqual("level_001", (string)output["LevelConfigs"]["2"]["levelId"]);
+            Assert.AreEqual(10, (int)output["LevelRewardConfigs"]["1"]["WinReward"][0]["ScoreAmount"]);
+            Assert.AreEqual(99, (int)output["LevelRewardConfigs"]["2"]["WinReward"][0]["ScoreAmount"]); // carried
+        }
+
+        [Test]
+        public void Export_ReExportExistingLevel_UpdatesInPlace_NoShift()
+        {
+            SeedMaster(("1", "level_001"), ("2", "level_002"));
+
+            string file002 = Path.Combine(Path.GetTempPath(), "level_002.json");
+            var doc = MakeDoc("level_002", new[] { BoxCell("pink") }, MakeTopSection());
+            doc.GameData = new JObject { ["coinReward"] = 42 };
+            _exporter.Export(doc, new CellTypeRegistry(), file002);
+
+            var output = ReadOutput();
+            Assert.AreEqual(2, output["LevelConfigs"].ToObject<JObject>().Count);             // no new slot
+            Assert.AreEqual("level_002", (string)output["LevelConfigs"]["2"]["levelId"]);     // same slot
+            Assert.AreEqual(3, (int)output["LevelConfigs"]["2"]["BottomConfigs"][0]["BottomType"]); // updated
+            Assert.AreEqual(42, (int)output["LevelRewardConfigs"]["2"]["WinReward"][0]["ScoreAmount"]);
         }
 
         [Test]
@@ -337,6 +394,30 @@ namespace Hoppa.YarnTwist.Editor.Tests
         }
 
         // ── Helpers ───────────────────────────────────────────────────────
+
+        // Write a master JSON pre-populated with the given (key, levelId) entries, each with a
+        // stub reward, so insert/shift behavior can be tested against an existing file.
+        private void SeedMaster(params (string key, string levelId)[] entries)
+        {
+            var levels  = new JObject();
+            var rewards = new JObject();
+            foreach (var (key, levelId) in entries)
+            {
+                levels[key] = new JObject
+                {
+                    ["levelId"]       = levelId,
+                    ["LevelType"]     = "None",
+                    ["BottomConfigs"] = new JArray(),
+                    ["TopConfigs"]    = new JArray()
+                };
+                rewards[key] = new JObject
+                {
+                    ["WinReward"] = new JArray { new JObject { ["ScoreType"] = "Coin", ["ScoreAmount"] = 1 } }
+                };
+            }
+            var root = new JObject { ["LevelConfigs"] = levels, ["LevelRewardConfigs"] = rewards };
+            File.WriteAllText(_tempFile, root.ToString());
+        }
 
         // col0 = pink spool, col1 = blue spool, each carrying the given ConnectionId.
         private static JObject ConnectedTop(int? c0, int? c1)

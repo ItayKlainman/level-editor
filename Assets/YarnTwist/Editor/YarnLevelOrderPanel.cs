@@ -138,20 +138,66 @@ namespace Hoppa.YarnTwist.Editor
                 EditorGUI.LabelField(
                     new Rect(elementRect.x + IndexW + 4f, y, elementRect.width - IndexW - 4f, lh),
                     entry.Label);
+
+                var evt = Event.current;
+                if (evt.type == EventType.ContextClick && elementRect.Contains(evt.mousePosition))
+                {
+                    int captured = index;
+                    var menu = new GenericMenu();
+                    menu.AddItem(new GUIContent("Move to position…"), false, () => PromptMove(captured));
+                    menu.AddItem(new GUIContent("Remove level"),      false, () => RemoveAt(captured));
+                    menu.ShowAsContext();
+                    evt.Use();
+                }
             };
 
-            _list.onRemoveCallback = list =>
+            _list.onRemoveCallback = list => RemoveAt(list.index);
+        }
+
+        // Right-click → "Move to position…": jump a level to an arbitrary slot without a long
+        // drag. The target is the final 1-based slot (matching the #N column). In-memory only —
+        // the user still clicks Apply Order to renumber + write the master JSON, same as a drag.
+        private void PromptMove(int index)
+        {
+            if (_entries == null || index < 0 || index >= _entries.Count) return;
+            var entry = _entries[index];
+            MoveToPositionDialog.Show(entry.Label, index + 1, _entries.Count, targetSlot =>
             {
-                var entry = _entries[list.index];
-                bool confirmed = EditorUtility.DisplayDialog(
-                    "Remove Level",
-                    $"Permanently remove Level {entry.OriginalKey} from the master JSON?\n\nThis cannot be undone.",
-                    "Remove", "Cancel");
-                if (!confirmed) return;
-                _entries.RemoveAt(list.index);
-                WriteToFile();
-                BuildList();
-            };
+                if (MoveEntry(_entries, index, targetSlot - 1))
+                {
+                    BuildList();
+                    _list.index = targetSlot - 1;
+                }
+            });
+        }
+
+        private void RemoveAt(int index)
+        {
+            if (_entries == null || index < 0 || index >= _entries.Count) return;
+            var entry = _entries[index];
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Remove Level",
+                $"Permanently remove Level {entry.OriginalKey} from the master JSON?\n\nThis cannot be undone.",
+                "Remove", "Cancel");
+            if (!confirmed) return;
+            _entries.RemoveAt(index);
+            WriteToFile();
+            BuildList();
+        }
+
+        // Pure reorder: move the item at `from` so it lands at index `to`, shifting the rest.
+        // Returns false on no-op / out-of-range (both indices are 0-based). Unit-tested.
+        public static bool MoveEntry<T>(List<T> list, int from, int to)
+        {
+            if (list == null) return false;
+            if (from < 0 || from >= list.Count) return false;
+            if (to   < 0 || to   >= list.Count) return false;
+            if (from == to) return false;
+
+            var item = list[from];
+            list.RemoveAt(from);
+            list.Insert(to, item);
+            return true;
         }
 
         private void ApplyOrder()
@@ -197,6 +243,59 @@ namespace Hoppa.YarnTwist.Editor
             File.WriteAllText(path, root.ToString(Formatting.Indented));
             AssetDatabase.Refresh();
             return true;
+        }
+
+        // Tiny modal prompt for a target slot. Kept separate from the row drawing so the list
+        // rendering stays untouched and the move math (MoveEntry) is unit-testable in isolation.
+        private sealed class MoveToPositionDialog : EditorWindow
+        {
+            private string      _label;
+            private int         _value;
+            private int         _max;
+            private Action<int> _onConfirm;
+            private bool        _focused;
+
+            public static void Show(string label, int currentSlot, int max, Action<int> onConfirm)
+            {
+                var win = CreateInstance<MoveToPositionDialog>();
+                win.titleContent = new GUIContent("Move Level");
+                win._label       = label;
+                win._value       = currentSlot;
+                win._max         = max;
+                win._onConfirm   = onConfirm;
+                win.minSize = win.maxSize = new Vector2(340f, 104f);
+                win.ShowModalUtility();
+            }
+
+            private void OnGUI()
+            {
+                var evt = Event.current;
+                if (evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Escape) { Close(); return; }
+
+                GUILayout.Space(8f);
+                EditorGUILayout.LabelField($"Move \"{_label}\" to slot:", EditorStyles.boldLabel);
+                GUILayout.Space(2f);
+
+                GUI.SetNextControlName("slotField");
+                _value = EditorGUILayout.IntField($"Slot (1–{_max})", _value);
+                if (!_focused) { EditorGUI.FocusTextInControl("slotField"); _focused = true; }
+
+                bool enterPressed = evt.type == EventType.KeyDown
+                    && (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter);
+
+                GUILayout.Space(8f);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Cancel", GUILayout.Width(90f))) { Close(); return; }
+                    if (GUILayout.Button("Move", GUILayout.Width(90f)) || enterPressed)
+                    {
+                        int clamped = Mathf.Clamp(_value, 1, _max);
+                        _onConfirm?.Invoke(clamped);
+                        Close();
+                    }
+                }
+            }
         }
     }
 }
