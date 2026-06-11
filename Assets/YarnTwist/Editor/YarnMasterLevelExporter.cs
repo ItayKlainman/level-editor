@@ -67,7 +67,7 @@ namespace Hoppa.YarnTwist.Editor
             }
         }
 
-        public override int ExtraSummaryRowCount => 1;
+        public override int ExtraSummaryRowCount => 2;
 
         public override void DrawExtraSummaryRows(Rect rect, LevelEditorSession session)
         {
@@ -93,9 +93,22 @@ namespace Hoppa.YarnTwist.Editor
                 session.MarkDirty();
             }
 
-            // Difficulty-type (LevelType) dropdown intentionally removed from the Summary
-            // panel — it was clutter. Export still writes LevelType (defaults to "None"
-            // from GameData["levelType"]); set it elsewhere if a level needs Hard/SuperHard.
+            // Row 1 — difficulty type (exported as LevelConfig.LevelType enum-name string).
+            float diffY = rect.y + lh;
+            string currentType = doc.GameData?["levelType"]?.ToString() ?? LevelTypeOptions[0];
+            int currentIdx = Array.IndexOf(LevelTypeOptions, currentType);
+            if (currentIdx < 0) currentIdx = 0;
+
+            GUI.Label(new Rect(rect.x, diffY, LabelW, lh), "Difficulty", EditorStyles.miniLabel);
+            EditorGUI.BeginChangeCheck();
+            int newIdx = EditorGUI.Popup(
+                new Rect(fieldX, diffY, fieldW, lh), currentIdx, LevelTypeOptions);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (doc.GameData == null) doc.GameData = new JObject();
+                doc.GameData["levelType"] = LevelTypeOptions[newIdx];
+                session.MarkDirty();
+            }
         }
 
         // ── Export ───────────────────────────────────────────────────
