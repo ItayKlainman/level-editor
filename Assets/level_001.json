@@ -130,7 +130,8 @@
     ]
   },
   "topSection": {
-    "columns": [
+    "columns": 
+    [
       {
         "spools": [
           {

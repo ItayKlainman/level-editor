@@ -6,6 +6,22 @@
 
 ---
 
+## Latest shipped — APS auto-fill + mechanic toggles + palette solver (2026-06-09) — ✅ SHIPPED
+
+editor-core `master c7edf40` + tag **`v0.5.22`**; game `itay-main 1d9fdd7` (manifest `#v0.5.22`).
+**122 EditMode green; UI verified via screenshot.** See memories
+`design_yarntw_aps_and_mechanic_toggles` + `design_yarntw_palette_countdown`.
+- Auto-fill is **APS 1-6** (replaced Difficulty 1-10); `TargetAPS`, APS curves in config.
+- Per-mechanic **bool table** = **Hidden Spools** + **Connected Spools** checkboxes (generic Layer-1
+  `MechanicToggles` hook). Auto-fill now GENERATES connected pairs (deadlock-guarded).
+- Analyzer **models Palettes** (`PaletteReq`/`_opened`; covered box tappable iff normal-access AND
+  global opens ≥ amount — matches game `BoxClicked` countdown, +2 per connected pair) + replay-based
+  **labelled solutions** (co-taps, palette reveals, spool unlocks, hidden reveals).
+- Summary panel trimmed to **ID / Grid / Coins / Notes**.
+- [ ] **PENDING — lead:** confirm the game compiles in Unity 2022.3 (agent can't compile-verify game).
+
+---
+
 ## Active phase
 
 **Save Solution / Win-path solver correctness — YarnTwist (2026-06-03) — ✅ VERIFIED WORKING (2026-06-04).**
