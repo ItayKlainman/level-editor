@@ -34,7 +34,6 @@ Mirror `GridCellPopup`. Opened on right-click of a spool row (replacing both the
 - **Color swatches** — `ColorSwatchDrawer.Draw(rect, palette, spool.ColorId, pickerFilter)`
   (same palette + filter used today). Picking a swatch applies the color live (see Part 2)
   and closes the popup, matching the current single-pick behavior.
-- **Hidden toggle** — `EditorGUI.ToggleLeft("Hidden", spool.Hidden)`, applied live.
 - **Connect button** — the existing connect logic from `ShowRowMenu`, rendered as one
   button whose label + enabled state reflect the current state:
   - unconnected, no pending pair → **"Add Connect"** (starts a pair)
@@ -48,6 +47,12 @@ Mirror `GridCellPopup`. Opened on right-click of a spool row (replacing both the
 The popup is constructed with everything it needs (session, topData, palette, the spool +
 its (col, idx), the connection-member map, pending id, picker filter). Window size derived
 like `GridCellPopup.GetWindowSize`.
+
+**Hidden stays on the row, not in the popup.** The spool row already has an inline "Hidden"
+toggle that persists cheaply through the panel's `BeginChangeCheck`/`EndChangeCheck`
+(top-section-only write, no full-document snapshot). The right-click menu we're replacing only
+had Change Color + Connect, so the popup mirrors exactly that. Duplicating Hidden into the
+popup would create two controls for one field — kept it on the row.
 
 **Removed:** `ShowRowMenu`, the `_colorPickerCol/_colorPickerIdx` deferred-picker fields,
 and the on-repaint `PopupWindow.Show(ColorPickerPopup…)` block. The row right-click handler

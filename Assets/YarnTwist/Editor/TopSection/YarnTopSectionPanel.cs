@@ -33,12 +33,12 @@ namespace Hoppa.YarnTwist.Editor
         private int _dragSrc = -1;
         private int _dragTgt = -1;
 
-        // Deferred color-picker request (set by the row context menu, opened on the
-        // next repaint inside the scroll view so the popup anchors correctly).
-        // Identified by (column, data index) — spool object identity is not stable
-        // across frames because the top section is re-deserialized each OnGUI.
-        private int _colorPickerCol = -1;
-        private int _colorPickerIdx = -1;
+        // Deferred spool-popup request (set by the row right-click, opened on the next
+        // repaint inside the scroll view so the popup anchors correctly). Identified by
+        // (column, data index) — spool object identity is not stable across frames
+        // because the top section is re-deserialized each OnGUI.
+        private int _popupCol = -1;
+        private int _popupIdx = -1;
 
         // On-screen anchor of a connected spool, collected during the row loop and
         // used to draw chain lines across columns after the scroll views close.
@@ -142,12 +142,13 @@ namespace Hoppa.YarnTwist.Editor
                         Event.current.Use();
                     }
 
-                    // Row right-click → context menu (Change Color / Add or Disable Connect).
+                    // Row right-click → single spool popup (swatches + connect), opened on
+                    // the next repaint so it anchors correctly inside the scroll view.
                     var rowRect = new Rect(0f, rowTop, contentW, SpoolH);
                     if (Event.current.type == EventType.MouseDown && Event.current.button == 1
                         && rowRect.Contains(Event.current.mousePosition))
                     {
-                        ShowRowMenu(session, topData, palette, connMembers, pendingId, c, s, spool);
+                        _popupCol = c; _popupIdx = s;
                         Event.current.Use();
                     }
 
@@ -201,25 +202,16 @@ namespace Hoppa.YarnTwist.Editor
                         GUI.Label(swatchRect, new GUIContent(string.Empty,
                             $"Right-click the row to change color or connect\n{spool.ColorId}"));
 
-                        // Deferred color picker, requested via the row context menu and
-                        // opened here on repaint so it anchors to the swatch inside the
-                        // scroll view (PopupWindow.Show accounts for the scroll matrix).
-                        if (_colorPickerCol == c && _colorPickerIdx == s
+                        // Deferred spool popup, requested via the row right-click and opened
+                        // here on repaint so it anchors to the swatch inside the scroll view
+                        // (PopupWindow.Show accounts for the scroll matrix).
+                        if (_popupCol == c && _popupIdx == s
                             && Event.current.type == EventType.Repaint && palette != null)
                         {
-                            _colorPickerCol = -1; _colorPickerIdx = -1;
-                            var capSpool   = spool;
-                            var capTopData = topData;
-                            var capSession = session;
+                            _popupCol = -1; _popupIdx = -1;
                             PopupWindow.Show(
                                 swatchRect,
-                                new ColorPickerPopup(palette, spool.ColorId, id =>
-                                {
-                                    capSession.PushUndoSnapshot();
-                                    capSpool.ColorId = id;
-                                    capSession.Document.TopSection = JObject.FromObject(capTopData);
-                                    capSession.MarkDirty();
-                                }, pickerFilter));
+                                new YarnSpoolPopup(session, topData, palette, c, s, pickerFilter));
                         }
 
                         // Color ID label
@@ -390,53 +382,6 @@ namespace Hoppa.YarnTwist.Editor
         // Stable hue per pair number so the badge and chain line are easy to tell apart.
         private static Color PairColor(int displayNum) =>
             Color.HSVToRGB((0.137f * displayNum) % 1f, 0.65f, 0.98f);
-
-        // Context menu on a spool row: Change Color + Add/Complete/Disable Connect.
-        // The connection ops themselves live in YarnSpoolConnection (UI-agnostic, tested).
-        private void ShowRowMenu(LevelEditorSession session, YarnTopSectionData topData,
-            IColorPalette palette, Dictionary<int, List<(int col, int pos)>> members,
-            int? pendingId, int c, int s, YarnSpoolData spool)
-        {
-            var menu = new GenericMenu();
-
-            if (palette != null)
-                menu.AddItem(new GUIContent("Change Color…"), false, () =>
-                {
-                    _colorPickerCol = c; _colorPickerIdx = s;
-                });
-            else
-                menu.AddDisabledItem(new GUIContent("Change Color…"));
-
-            menu.AddSeparator(string.Empty);
-
-            if (spool.ConnectionId.HasValue)
-            {
-                int gid    = spool.ConnectionId.Value;
-                int dispN  = YarnSpoolConnection.DisplayNumber(members, gid);
-                bool whole = members.TryGetValue(gid, out var g) && g.Count >= 2;
-                string label = whole ? $"Disable Connect (Pair {dispN})" : $"Cancel Connect (Pair {dispN})";
-                menu.AddItem(new GUIContent(label), false, () => YarnSpoolConnection.DisconnectGroup(session, topData, gid));
-            }
-            else if (pendingId == null)
-            {
-                menu.AddItem(new GUIContent("Add Connect"), false, () =>
-                    YarnSpoolConnection.Connect(session, topData, spool, YarnSpoolConnection.AllocId(topData)));
-            }
-            else
-            {
-                int dispN  = YarnSpoolConnection.DisplayNumber(members, pendingId.Value);
-                var anchor = members[pendingId.Value][0];
-                if (!YarnSpoolConnection.CanComplete(anchor.col, c))
-                    menu.AddDisabledItem(new GUIContent($"Add Connect (Pair {dispN} needs an adjacent column)"));
-                else if (YarnSpoolConnection.CompletingDeadlocks(topData, pendingId.Value, c, s))
-                    menu.AddDisabledItem(new GUIContent($"Add Connect (Pair {dispN} would soft-lock — links can't cross)"));
-                else
-                    menu.AddItem(new GUIContent($"Add Connect (complete Pair {dispN})"), false, () =>
-                        YarnSpoolConnection.Connect(session, topData, spool, pendingId.Value));
-            }
-
-            menu.ShowAsContext();
-        }
 
         // Draws a 2×3 grid of small dots as a drag handle icon.
         private static void DrawDragHandle(Rect r)
