@@ -54,6 +54,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a CanvasOverlayAsset subclass to draw a game-specific overlay on top of the grid canvas (e.g. multi-cell region annotations).\nExample: YarnPaletteOverlay")]
         [SerializeField] private CanvasOverlayAsset _canvasOverlay;
 
+        [Tooltip("Optional: assign an ImageToGridAsset subclass to enable the 🖼 Image toolbar mode — convert a source image into a level grid quantized to this profile's palette.\nExample: YAKImageToGrid")]
+        [SerializeField] private ImageToGridAsset _imageToGrid;
+
         [Tooltip("Generic per-profile extension data. Used by Layer 2 implementations that need profile-scoped configuration outside the typed fields above. Look up by type via GetExtension<T>().")]
         [SerializeField] private List<ScriptableObject> _extensions = new List<ScriptableObject>();
 
@@ -70,6 +73,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public LevelAnalyzerAsset  LevelAnalyzer  => _levelAnalyzer;
         public LevelCompleterAsset LevelCompleter => _levelCompleter;
         public CanvasOverlayAsset  CanvasOverlay  => _canvasOverlay;
+        public ImageToGridAsset    ImageToGrid    => _imageToGrid;
 
         // Generic typed-lookup over the _extensions list. Returns the first
         // ScriptableObject that is assignable to T, or null. Use for Layer 2

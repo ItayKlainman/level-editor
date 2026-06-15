@@ -17,6 +17,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private readonly ValidationPanel     _validation  = new ValidationPanel();
         private readonly MultiSelectPanel    _multiSelect = new MultiSelectPanel();
         private readonly GeneratorModePanel  _generator   = new GeneratorModePanel();
+        private readonly ImageToGridModePanel _imagePanel = new ImageToGridModePanel();
         private readonly AutofillPanel       _autofill    = new AutofillPanel();
         private TopSectionPanel _topSection    = new EmptyTopSectionPanel();
         private TopSectionPanel _bottomSection = new EmptyTopSectionPanel();
@@ -25,6 +26,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
         private bool               _inGeneratorMode;
+        private bool               _inImageMode;
 
         // Exposed so Layer 2 importers can resolve cell types via the active registry.
         public GameProfile Profile => _profile;
@@ -88,7 +90,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnTestPlay       += HandleTestPlay;
             _toolbar.OnOrderToggle    += HandleOrderToggle;
             _toolbar.OnGenerateToggle += HandleGenerateToggle;
+            _toolbar.OnImageToggle    += HandleImageToggle;
             _generator.OnUseLevel     += HandleGeneratorUseLevel;
+            _imagePanel.OnUseLevel    += HandleGeneratorUseLevel;
         }
 
         private void OnDisable()
@@ -103,7 +107,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnTestPlay       -= HandleTestPlay;
             _toolbar.OnOrderToggle    -= HandleOrderToggle;
             _toolbar.OnGenerateToggle -= HandleGenerateToggle;
+            _toolbar.OnImageToggle    -= HandleImageToggle;
             _generator.OnUseLevel     -= HandleGeneratorUseLevel;
+            _imagePanel.OnUseLevel    -= HandleGeneratorUseLevel;
             _session?.Dispose();
             _session       = null;
             _topSection    = new EmptyTopSectionPanel();
@@ -121,6 +127,8 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OrderMode    = _inOrderMode;
             _toolbar.GenerateMode = _inGeneratorMode;
             _toolbar.ShowGenerate = _profile?.LevelGenerator != null;
+            _toolbar.ImageMode    = _inImageMode;
+            _toolbar.ShowImage    = _profile?.ImageToGrid != null;
             _toolbar.OnGUI(new Rect(0f, 0f, w, ToolbarH), _session);
 
             // ── Status bar ────────────────────────────────────────────
@@ -149,6 +157,13 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 EditorGUI.DrawRect(new Rect(0f, bodyY, w, innerH), CanvasBg);
                 _generator.OnGUI(new Rect(0f, bodyY, w, innerH), _profile);
+                return;
+            }
+
+            if (_inImageMode)
+            {
+                EditorGUI.DrawRect(new Rect(0f, bodyY, w, innerH), CanvasBg);
+                _imagePanel.OnGUI(new Rect(0f, bodyY, w, innerH), _profile);
                 return;
             }
 
@@ -430,6 +445,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         {
             _inOrderMode = !_inOrderMode;
             if (_inOrderMode && _inGeneratorMode) { _inGeneratorMode = false; _generator.OnExitMode(); }
+            if (_inOrderMode && _inImageMode)     { _inImageMode = false;     _imagePanel.OnExitMode(); }
             Repaint();
         }
 
@@ -440,11 +456,29 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (_inGeneratorMode)
             {
                 if (_inOrderMode) _inOrderMode = false;
+                if (_inImageMode) { _inImageMode = false; _imagePanel.OnExitMode(); }
                 _generator.OnEnterMode();
             }
             else
             {
                 _generator.OnExitMode();
+            }
+            Repaint();
+        }
+
+        private void HandleImageToggle()
+        {
+            if (_profile?.ImageToGrid == null) return;
+            _inImageMode = !_inImageMode;
+            if (_inImageMode)
+            {
+                if (_inOrderMode) _inOrderMode = false;
+                if (_inGeneratorMode) { _inGeneratorMode = false; _generator.OnExitMode(); }
+                _imagePanel.OnEnterMode();
+            }
+            else
+            {
+                _imagePanel.OnExitMode();
             }
             Repaint();
         }
@@ -465,6 +499,8 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             _inGeneratorMode = false;
             _generator.OnExitMode();
+            _inImageMode = false;
+            _imagePanel.OnExitMode();
             Repaint();
         }
 

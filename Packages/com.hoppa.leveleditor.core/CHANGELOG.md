@@ -5,6 +5,19 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-06-15
+
+### Added
+
+- `AnalysisStatus` enum (`Unknown/Solvable/Unsolvable/TimedOut/Faulted`): an authoritative outcome classification for `ILevelAnalyzer` runs, so callers can distinguish "proven unsolvable" from "budget hit" or "faulted" instead of overloading a single bool.
+- `LevelAnalysisResult`: new generic fields — `Status` (the enum above), `ApsEstimate` + `ApsCalibrated` (measured Attempts-Per-Solve from average-player rollouts, with an uncalibrated flag), `Band` (game-defined difficulty band derived from APS), and `WinPath` (`IReadOnlyList<int>` — machine-readable ordered winning action indices, companion to `SolutionSteps`). `ToString()` appends the APS (marked `(uncalibrated)` until fitted). All additive; existing analyzers (YarnTwist) are unaffected.
+- `AnalysisRequest`: `NodeBudget` (search-node cap; a hit reports `TimedOut`/`Unknown`, never `Unsolvable`) and `Seed` (reproducible Monte-Carlo playouts).
+- `IImageToGrid` + `ImageToGridAsset` (abstract `ScriptableObject`): a Layer-2 game converts a source image into a `LevelDocument` quantized to the profile's palette. `GameProfile._imageToGrid` slot + `ImageToGrid` accessor. New `ImageToGridModePanel` + a `🖼 Image` toolbar mode (mirrors the generator: source-texture field, the converter asset's inspector, Convert + preview + "Use This Level" via the shared load handoff). `ToolbarPanel` gained `OnImageToggle`/`ImageMode`/`ShowImage`. Colors stay string-keyed in Layer 1; enum/int mapping remains the game's concern.
+
+### Notes
+
+- These generalize the analysis contract for the YAK difficulty scorer (measured APS over a simulator) while staying game-agnostic so future games reuse them. No breaking changes.
+
 ## [0.5.22] - 2026-06-09
 
 ### Added

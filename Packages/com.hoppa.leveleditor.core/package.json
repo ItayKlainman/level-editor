@@ -1,6 +1,6 @@
 ﻿{
   "name": "com.hoppa.leveleditor.core",
-  "version": "0.5.22",
+  "version": "0.6.0",
   "displayName": "Hoppa Level Editor Core",
   "description": "A reusable Unity Editor framework for authoring puzzle game level content. Provides a pluggable EditorWindow shell, color palette management, rule-based validation, JSON I/O, and schema migration. Consumer games (Layer 2) register their own cell types, palettes, and validation rules.",
   "unity": "2022.3",

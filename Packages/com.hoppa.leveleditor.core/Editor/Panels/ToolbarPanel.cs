@@ -16,11 +16,15 @@ namespace Hoppa.LevelEditor.Core.Editor
         public event Action OnTestPlay;
         public event Action OnOrderToggle;
         public event Action OnGenerateToggle;
+        public event Action OnImageToggle;
 
         public bool OrderMode { get; set; }
         public bool GenerateMode { get; set; }
         // When false, hides the Generate button (profile has no generator).
         public bool ShowGenerate { get; set; }
+        public bool ImageMode { get; set; }
+        // When false, hides the Image button (profile has no image→grid converter).
+        public bool ShowImage { get; set; }
 
         private const float BtnH = 20f;
         private const float Gap  = 4f;
@@ -38,6 +42,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly GUIContent LabelTestPlay = new GUIContent("▶ Test",   "Save and enter Play Mode");
         private static readonly GUIContent LabelOrder    = new GUIContent("⇅ Order",  "Manage level order in the master config");
         private static readonly GUIContent LabelGenerate = new GUIContent("✨ Generate", "Generate a level from parameters");
+        private static readonly GUIContent LabelImage    = new GUIContent("🖼 Image", "Convert a source image into a level grid");
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -92,6 +97,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                 bool newGen = GUI.Toggle(new Rect(x, y, 88f, BtnH), GenerateMode, LabelGenerate, GUI.skin.button);
                 if (newGen != GenerateMode) OnGenerateToggle?.Invoke();
                 x += 88f + Gap;
+            }
+
+            if (ShowImage)
+            {
+                bool newImg = GUI.Toggle(new Rect(x, y, 72f, BtnH), ImageMode, LabelImage, GUI.skin.button);
+                if (newImg != ImageMode) OnImageToggle?.Invoke();
+                x += 72f + Gap;
             }
 
             // Level name

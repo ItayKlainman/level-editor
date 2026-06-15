@@ -34,6 +34,15 @@ namespace Hoppa.LevelEditor.Core.Editor
         // first the exact solver finds) into LevelAnalysisResult.SolutionSteps.
         // Runs a fast first-solution search; does not affect the win-path count.
         public bool RecordSolution = false;
+
+        // Optional cap on search nodes/states a solver may expand before giving
+        // up. 0 = analyzer's own default. A hit reports Status = TimedOut /
+        // Unknown — never Unsolvable.
+        public long NodeBudget = 0;
+
+        // Seed for reproducible Monte-Carlo playouts. 0 = analyzer derives its
+        // own deterministic seed (e.g. from a structural hash).
+        public int Seed = 0;
     }
 
     public enum AnalysisMode

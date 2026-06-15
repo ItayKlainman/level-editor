@@ -6,6 +6,84 @@
 
 ---
 
+## ACTIVE INITIATIVE — Automated level-generation tooling for YAK (A–E, phase-gated)
+
+Plan: `C:\Users\itay0\.claude\plans\no-thanks-i-want-velvety-frost.md` · Spec: `docs/level-tooling-megaprompt.md`.
+Five systems built as phases A–E; **stop for explicit approval at each gate.** Generic logic →
+Layer 1 package (now **v0.6.0**); YAK specifics → `Assets/YAK/`.
+
+### Phase A — YAK difficulty scorer / simulator — ✅ DONE, verified, awaiting gate (2026-06-15)
+
+**NOT committed/pushed yet.** Full EditMode suite **145/145 green** (11 new YAK tests).
+
+- **Layer 1 (v0.6.0, additive/non-breaking):** `AnalysisStatus` enum (Unknown/Solvable/Unsolvable/
+  TimedOut/Faulted); `LevelAnalysisResult` gained `Status`, `ApsEstimate`+`ApsCalibrated`, `Band`,
+  `WinPath`; `AnalysisRequest` gained `NodeBudget`, `Seed`. `package.json` 0.5.22→0.6.0 + CHANGELOG.
+  **Pending: git tag v0.6.0 + game manifest pin bump when this initiative ships** (deferred until a
+  Layer-1 consumer needs it; no game currently consumes these new fields).
+- **YAK Runtime sim (engine-agnostic plain C#, `Assets/YAK/Runtime/Sim/`):** `YakLevelModel` (interned
+  level: grid reduced to per-column bottom→top color sequences since consumption is bottom-row + gravity;
+  empties omitted), `YakSimState` (ApplyMove/ResolveBelt lap-model to steady state/IsWin/IsDeadlock/
+  HasLegalMove/Key), `YakSolver` (DFS+memo over the DAG; budget hit → BudgetExceeded, never Unsolvable),
+  `YakAveragePlayer` (ε-careless myopic lookahead player; APS≈1/win-rate; `Calibrate` grid-search hook).
+- **YAK Editor (`Assets/YAK/Editor/Analysis/`):** `YAKLevelAnalyzer : LevelAnalyzerAsset` +
+  `YAKAnalyzerConfig`; assets created at `Assets/YAK/Data/Config/Analysis/` and wired into
+  `YAKProfile._levelAnalyzer` (via script-execute). Conveyor slots resolved request→GameData["conveyorCount"]→config.
+- **Tests:** `Assets/YAK/Tests/Editor/` (`Hoppa.YAK.Editor.Tests.asmdef` + `YakAnalyzerTests.cs`):
+  solver trivial/order-sensitive(1-slot deadlock vs 2-slot solve)/budget-hit; player determinism/
+  trivial-APS-1/slack-lowers-APS; analyzer solvable+uncalibrated-APS/balance-mismatch-Unsolvable/
+  no-spools-Unknown/null-fault; smoke-loads the 2 TestConfigs without faulting.
+- **Calibration deferred (decided):** only 2 test levels in repo (one spool-less), no real-player APS.
+  ε default 0.1, `ApsCalibrated=false`. Run `YakAveragePlayer.Calibrate` when the 10 levels + APS land.
+
+### Phase B — YAK spool auto-filler — ✅ DONE, verified, awaiting gate (2026-06-15)
+
+**NOT committed/pushed yet.** Full EditMode suite **151/151 green** (6 new autofill tests).
+
+- **YAK Editor (`Assets/YAK/Editor/Analysis/`):** `YAKSpoolAutofiller : LevelCompleterAsset` +
+  `YAKSpoolAutofillConfig`; assets at `Assets/YAK/Data/Config/Analysis/`, wired into
+  `YAKProfile._levelCompleter` (script-execute). Surfaces in the shared `AutofillPanel` (Auto-fill button).
+- **Algorithm:** tally per-color wool (via IColoredCell) → `Partition(total,min,max,avg)` splits each
+  color into capacities summing EXACTLY (balance by construction; total<min → one undersized spool) →
+  random sweep: assign into a column count in `ColumnRange` (2–5), gate each candidate on
+  `YAKLevelAnalyzer` (Status==Solvable + |APS−target|≤tol), accept first in-band, else honest
+  best-effort (closest-solvable / "no solvable arrangement" / "target unreachable"). No mechanic toggles.
+- **Conveyor precedence fix:** YAK analyzer + autofiller resolve belt slots from
+  `GameData["conveyorCount"]` FIRST (authored truth), since the shared AutofillPanel's 24/30 dropdown is
+  YarnTwist belt-capacity and would mis-drive YAK. (Known Layer-1 nicety deferred: make the panel's
+  conveyor presets profile-configurable — not blocking.)
+- **Tests:** `Assets/YAK/Tests/Editor/YakAutofillTests.cs` — Partition sums-exactly+in-range +
+  undersized exception; single-color balanced+solvable+caps-in-range; two-color balanced; empty-grid →
+  empty top success; no-analyzer fails cleanly.
+
+### Phase C — image→grid converter — ✅ DONE, verified, awaiting gate (2026-06-15)
+
+**NOT committed/pushed yet.** Full EditMode suite **155/155 green** (4 new image tests) + real-profile smoke.
+
+- **Layer 1 (v0.6.0, additive):** `IImageToGrid` + `ImageToGridAsset` (`Editor/ImageToGrid/`);
+  `GameProfile._imageToGrid` slot + `ImageToGrid` accessor; `ImageToGridModePanel` (mirrors
+  GeneratorModePanel: source-texture field, converter-asset inspector in Advanced, Convert + preview +
+  Use-This-Level via OnUseLevel); `ToolbarPanel` `OnImageToggle`/`ImageMode`/`ShowImage` + `🖼 Image`
+  button; `LevelEditorWindow` `_inImageMode` (mutually exclusive with Order/Generate; reuses
+  `HandleGeneratorUseLevel` load handoff). CHANGELOG 0.6.0 updated.
+- **YAK (`Assets/YAK/Editor/ImageToGrid/YAKImageToGrid.cs`):** pipeline = `ReadablePixels` (blit→RT,
+  handles non-readable) → `Downscale` (area average to GridW×H) → `Segment` (BorderRing flood-fill from
+  edge of border-dominant color; Alpha and MostSaturated modes; ambiguity → MostSaturated fallback) →
+  `NearestId` redmean quantize to palette → background = most luminance-contrasting neutral (excludes
+  subject's own id) → `MergeToCap` (least-used → nearest neighbour) → emit all-`YAKWoolCell`
+  LevelDocument, **zero empties**, GameData conveyorCount=5. Config: `ColorCap=6`, `BackgroundNeutrals`
+  (Grey/GreyLight/GreyDark/DarkGrey/White/Black), `SegmentationMode`. Asset wired into
+  `YAKProfile._imageToGrid`.
+- **Tests:** `Assets/YAK/Tests/Editor/YakImageToGridTests.cs` (hermetic synthetic palette) — dims+all-wool
+  +no-empties; determinism; color-cap respected; subject≠background. Real-profile smoke (script-execute):
+  16×16 red-on-grey → 30×30, distinct=2 [White,Red], palette=36.
+
+**Next (Phase D, on approval):** Layer 1 surface to export the analyzer's win-path as `solution.json`
+(canonical order) + a YAK in-game replay component (game project). Reuses `LevelAnalysisResult.WinPath`
+already produced by Phase A.
+
+---
+
 ## Latest shipped — APS auto-fill + mechanic toggles + palette solver (2026-06-09) — ✅ SHIPPED
 
 editor-core `master c7edf40` + tag **`v0.5.22`**; game `itay-main 1d9fdd7` (manifest `#v0.5.22`).
