@@ -300,9 +300,19 @@ namespace Hoppa.LevelEditor.Core.Editor
                 sb.AppendLine();
                 foreach (var step in _lastAnalysis.SolutionSteps) sb.AppendLine(step);
                 System.IO.File.WriteAllText(path, sb.ToString());
+
+                // Machine-readable companion next to the .txt: <levelId>.solution.json
+                // from the analyzer's WinPath (consumed by the in-game viewer).
+                // Written only when the analyzer produced a structured win-path.
+                string jsonPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(path), levelId + ".solution.json");
+                bool wroteJson = SolutionJson.Write(jsonPath, levelId, _lastAnalysis.WinPath);
+
                 AssetDatabase.Refresh();
 
-                _statusMessage = $"Saved {_lastAnalysis.SolutionSteps.Count}-step solution to {System.IO.Path.GetFileName(path)}.";
+                _statusMessage = wroteJson
+                    ? $"Saved {_lastAnalysis.SolutionSteps.Count}-step solution (.txt + .solution.json) to {System.IO.Path.GetFileName(path)}."
+                    : $"Saved {_lastAnalysis.SolutionSteps.Count}-step solution to {System.IO.Path.GetFileName(path)}.";
                 EditorUtility.RevealInFinder(path);
             }
             catch (Exception ex)

@@ -78,9 +78,30 @@ Layer 1 package (now **v0.6.0**); YAK specifics → `Assets/YAK/`.
   +no-empties; determinism; color-cap respected; subject≠background. Real-profile smoke (script-execute):
   16×16 red-on-grey → 30×30, distinct=2 [White,Red], palette=36.
 
-**Next (Phase D, on approval):** Layer 1 surface to export the analyzer's win-path as `solution.json`
-(canonical order) + a YAK in-game replay component (game project). Reuses `LevelAnalysisResult.WinPath`
-already produced by Phase A.
+### Phase D — solution export + in-game viewer — ✅ DONE (editor verified; game viewer UNVERIFIED) (2026-06-15)
+
+**NOT committed (editor-core or game).** Full EditMode suite **157/157 green** (2 new solution tests).
+
+- **Layer 1 (v0.6.0, additive):** `Editor/Solution/LevelSolution` (`schemaVersion`/`levelId`/`steps:int[]`)
+  + `SolutionJson` (Serialize/Deserialize/Write). Flat lowercase fields so the SAME file round-trips
+  through Newtonsoft (editor) AND JsonUtility (game, zero deps). `AutofillPanel."Save Solution…"` now also
+  writes `<levelId>.solution.json` from `LevelAnalysisResult.WinPath` (graceful skip when WinPath null —
+  YarnTwist doesn't set it). CHANGELOG 0.6.0 updated.
+- **Tests:** `Assets/YAK/Tests/Editor/YakSolutionTests.cs` — export → JSON round-trip → replay steps
+  through `YakSimState` → `IsWin` (acceptance: solution replays to a win in the simulator); no-WinPath
+  writes nothing.
+- **Game viewer (UNVERIFIED):** `E:\Projects\Hoppa\YarnKingdom\Assets\_YAK\Scripts\Gamelogic\Gameplay\YAKSolutionViewer.cs`
+  — self-contained MonoBehaviour (UnityEngine/JsonUtility only, namespace `YAK.Gamelogic.Gameplay`):
+  loads a `.solution.json` (TextAsset or path), tracks current step, `CurrentColumn` + Next/Prev/Reset +
+  auto-advance + `onStepChanged(column)`/`onCompleted` UnityEvents + optional column-anchor gizmo + OnGUI
+  controls. Does NOT tap anything itself (decoupled from the game's board). **User must open YarnKingdom in
+  Unity 2022.3, let it import (generates the .meta), wire `onStepChanged` to the board highlight, and
+  play-test.** Not committed in the game repo.
+
+**Next (Phase E, on approval):** `YAKLevelGenerator : LevelGeneratorAsset` + config (image-AI → image→grid
+→ autofiller → analyzer filter), a batch harness (Unity batchmode `[MenuItem]`/`-executeMethod`), and a
+generic Layer 1 Batch Review `EditorWindow` (+ `LevelDocument→Texture2D` thumbnail helper). Needs the
+image-gen API endpoint/auth (deferred decision) before the harness is fully runnable.
 
 ---
 
