@@ -5,17 +5,27 @@
 
 ---
 
-## Current status (as of 2026-06-03)
+## Current status (as of 2026-06-15)
 
-- **WHERE WE LEFT OFF (2026-06-03):** actively fixing the **Save Solution** feature so it
-  produces a genuinely followable, winning tap sequence. Test level = **level_044** (hardest,
-  zero-slack). Today we calibrated the win-path solver's belt model against a **real game-log
-  capture** and landed 5 fixes (demand-ordered hints, player-perspective coords, box-unlock
-  mechanic, rightmost-first drain order, belt-jams-at-capacity). level_044 now simulates as
-  solvable & safe (residue peaks 27/30); **awaiting the user's real-game play-test tomorrow.**
-  Full detail + resume checklist in `CURRENT_TASK.md` → "Active phase". A TEMPORARY
-  `YATSolutionDebug` logger is in the GAME project and must be removed once verified. See
-  memories `design_yarntw_belt_drain_order` (RESOLVED) + `design_yarntw_box_unlock`.
+- **WHERE WE LEFT OFF (2026-06-15):** the **Automated level-generation tooling for YAK**
+  initiative (5 phases A–E) is **code-complete, all unit-verified, committed & tagged
+  `v0.6.0`, and PUSHED** — but **nothing has been hand-tested in the editor / in-game by a
+  human yet**. That verification is the first job tomorrow. Spec: `docs/level-tooling-megaprompt.md`;
+  plan: `~/.claude/plans/no-thanks-i-want-velvety-frost.md`; full resume detail + the
+  TOMORROW checklist in `CURRENT_TASK.md` → "ACTIVE INITIATIVE". Built generically in Layer 1
+  (package → **v0.6.0**) with YAK specifics in `Assets/YAK/`:
+  - **A** `YAKLevelAnalyzer` (engine-agnostic simulator + solver + average-player **measured APS**;
+    rollout-rescue makes 30×30 solvability work), **B** `YAKSpoolAutofiller` (analyzer-gated,
+    balance-by-construction), **C** image→grid (`IImageToGrid` + 🖼 Image toolbar mode +
+    `YAKImageToGrid`), **D** `solution.json` export + replay (+ unverified game viewer
+    `YAKSolutionViewer.cs` in YarnKingdom), **E** `YAKLevelGenerator` + `YAKBatchHarness` +
+    generic `BatchReviewWindow`.
+  - **Full EditMode suite 160/160 green; real batch smoke kept 2/2.**
+  - **Deferred (by design):** image-gen API (batch image step), APS calibration (needs 10 real
+    levels + player data; `YakAveragePlayer.Calibrate` is ready), in-Unity verify of the game viewer.
+- **PRIOR (2026-06-03) — Save Solution / belt model (YarnTwist):** DONE/verified — level_044
+  play-tested winning 2026-06-04. Detail retained in `CURRENT_TASK.md`. See memories
+  `design_yarntw_belt_drain_order` (RESOLVED) + `design_yarntw_box_unlock`.
 - **Project**: `hoppa-level-editor-core` — standalone Unity 2022.3 project hosting the UPM package `com.hoppa.leveleditor.core`.
 - **Active branch**: `master` — YarnTwist editor was complete at tag `v0.5.14`, then **unparked for the level-generator initiative (v1 ships YarnTwist-only, 2026-05-25)**. YAK Layer 2 onboarding still in progress in parallel — files added in `Assets/YAK/` plus small additive Layer 1 changes (`NewLevelDialog`, public `Profile`/`OpenLevelFile`). The next Layer 1 tag bumps for both the v0.5.15/16 changes that already shipped and the new generator framework added 2026-05-25.
 - **Multi-game project**: both YarnTwist and YAK Layer 2s coexist in this same Unity project. The framework's profile selector (`LevelEditorWindow.DrawProfileSelector`) is the switcher.

@@ -126,17 +126,36 @@ wrote json+png+stats).
 
 ---
 
-## ✅ INITIATIVE COMPLETE — all phases A–E done (2026-06-15)
+## ✅ INITIATIVE CODE-COMPLETE — all phases A–E done, committed, tagged, PUSHED (2026-06-15)
 
-Editor-core committed through Phase D (`b89b78f` A–C, `1921303` D); **Phase E uncommitted**.
-Open follow-ups (all non-blocking, by design):
-- **Commit Phase E**; then **tag editor-core `v0.6.0`** + bump the YAK game's `manifest.json` pin when a
-  Layer-1 consumer needs the new contracts (no game consumes them yet).
-- **Image-gen API** (endpoint + auth) for the batch harness's image step — deferred decision.
+Editor-core `master`: `b89b78f` (A–C), `1921303` (D), `111cc47` (E) — **tag `v0.6.0`** at E.
+All **pushed to origin**. Full EditMode suite **160/160 green**; real batch smoke kept 2/2.
+**Caveat: NOTHING has been hand-verified in the editor / in-game by a human yet.**
+
+### ⏭️ TOMORROW — TEST & VERIFY (do this first)
+
+Open the Level Editor on `YAKProfile` and exercise the new flows by hand:
+- [ ] **Analyzer:** open a YAK level (or import a TestConfig), press **Analyze** — confirm the
+      Spool Analysis panel shows a sensible Status + measured APS (marked *uncalibrated*).
+- [ ] **Auto-fill (B):** paint/Import a grid, press **Auto-fill** — confirm spools appear, the level
+      validates (YAKColorBalanceRule green) and reads solvable.
+- [ ] **Image→grid (C):** 🖼 **Image** toolbar mode → pick a source image → **Convert** → preview →
+      **Use This Level**. Confirm a clean blocky 30×30, no empty cells, subject vs background.
+- [ ] **Solution (D):** **Save Solution…** on a small/medium solvable level → confirm both `.txt` and
+      `.solution.json` are written. (Then in **YarnKingdom**: import `YAKSolutionViewer.cs`, wire
+      `onStepChanged` to the board highlight, load the json, play-test that following it WINS.)
+- [ ] **Batch (E):** **Window ▸ Hoppa ▸ YAK ▸ Run Batch (20)** → then **Window ▸ Hoppa ▸ Batch Review**,
+      point it at the dated `YAK_Batch/<ts>/` folder → confirm thumbnails + stats, multi-select,
+      **Import Selected** lands levels in a target folder that open + export normally.
+
+### Deferred (by design — not blocking)
+- **Image-gen API** (endpoint + auth) for the batch image step — currently library-folder + procedural
+  fallback. A future `IImageSource` drops into `YAKLevelGenerator.PickSourceImage`.
 - **APS calibration:** run `YakAveragePlayer.Calibrate` once the 10 real levels + player APS exist
   (ε currently default, `ApsCalibrated=false`).
-- **Game viewer** `YAKSolutionViewer.cs` (YarnKingdom) — open in Unity 2022.3, wire `onStepChanged` to
-  the board highlight, play-test.
+- **Game manifest pin:** bump the YAK game's `manifest.json` to `#v0.6.0` when it needs the new Layer-1
+  contracts (no game consumes them yet).
+- **Game viewer** `YAKSolutionViewer.cs` (YarnKingdom) — open in Unity 2022.3, wire + play-test (above).
 
 ---
 
