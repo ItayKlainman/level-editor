@@ -26,8 +26,8 @@ MonoBehaviour:
   _topSectionScript: {fileID: 0}
   _bottomSectionScript: {fileID: 11500000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0013, type: 3}
   _orderPanel: {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0027, type: 2}
-  _levelGenerator: {fileID: 0}
-  _generatorConfig: {fileID: 0}
+  _levelGenerator: {fileID: 11400000, guid: f87c6ea1d39e4f7448fbc601ae93fe4c, type: 2}
+  _generatorConfig: {fileID: 11400000, guid: d75304184df4ed74a9e9a1806de441c7, type: 2}
   _levelAnalyzer: {fileID: 11400000, guid: c4217b1a4940ef24d9b0ee5e56d52fa3, type: 2}
   _levelCompleter: {fileID: 11400000, guid: 819ef32dcfd5d574199e71ce55d32a23, type: 2}
   _canvasOverlay: {fileID: 0}

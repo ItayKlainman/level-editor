@@ -33,3 +33,6 @@ Assembly-CSharp*.csproj
 
 # Claude Code local config
 .claude/
+
+# YAK batch generation staging output (regenerated; not source)
+YAK_Batch/

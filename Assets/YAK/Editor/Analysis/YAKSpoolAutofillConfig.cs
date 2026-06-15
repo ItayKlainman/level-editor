@@ -31,8 +31,8 @@ namespace Hoppa.YAK.Editor
         [Min(1)] public int DefaultConveyorSlots = 5;
 
         [Header("Search budget")]
-        [Tooltip("Random candidate arrangements sampled before returning the best-so-far.")]
-        [Min(1)] public int MaxAttempts = 40;
+        [Tooltip("Random candidate arrangements sampled before returning the best-so-far. Kept modest so batch generation (which auto-fills every candidate) stays fast.")]
+        [Min(1)] public int MaxAttempts = 60;
         [Tooltip("Monte-Carlo playouts per candidate during the search (kept low for speed; the final pick is reported as-is).")]
         [Min(1)] public int SearchRolloutCount = 120;
         [Tooltip("Solver node budget per candidate.")]

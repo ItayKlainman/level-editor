@@ -119,6 +119,19 @@ namespace Hoppa.YAK.Editor
                     result.ApsEstimate = aps;
                     result.ApsCalibrated = cfg.ApsCalibrated;
                     result.Band = cfg.BandFor(aps);
+
+                    // Rollout rescue: on large grids (e.g. 30×30) the exact solver
+                    // hits its node budget and returns TimedOut — exhaustive search
+                    // doesn't scale. But a winning playout still PROVES the level is
+                    // solvable, so upgrade TimedOut → Solvable when any playout won.
+                    // WinPath stays null (no canonical path was found within budget);
+                    // Save-Solution therefore works best on small/medium levels.
+                    if (result.Status == AnalysisStatus.TimedOut && result.WinRate > 0.0)
+                    {
+                        result.Status = AnalysisStatus.Solvable;
+                        result.Solvable = true;
+                        result.FailureReason = null;
+                    }
                 }
 
                 return Done(result, sw);

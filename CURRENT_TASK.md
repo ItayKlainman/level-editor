@@ -98,10 +98,45 @@ Layer 1 package (now **v0.6.0**); YAK specifics → `Assets/YAK/`.
   Unity 2022.3, let it import (generates the .meta), wire `onStepChanged` to the board highlight, and
   play-test.** Not committed in the game repo.
 
-**Next (Phase E, on approval):** `YAKLevelGenerator : LevelGeneratorAsset` + config (image-AI → image→grid
-→ autofiller → analyzer filter), a batch harness (Unity batchmode `[MenuItem]`/`-executeMethod`), and a
-generic Layer 1 Batch Review `EditorWindow` (+ `LevelDocument→Texture2D` thumbnail helper). Needs the
-image-gen API endpoint/auth (deferred decision) before the harness is fully runnable.
+### Phase E — batch generator + review window — ✅ DONE, verified (2026-06-15)
+
+**Phase E NOT committed yet.** Full EditMode suite **160/160 green** + real batch smoke (kept 2/2,
+wrote json+png+stats).
+
+- **Layer 1 (v0.6.0, Editor/Batch):** `LevelThumbnail` (grid→Texture2D/PNG, 1px+/cell from palette);
+  `BatchStaging` + `LevelStats` + `BatchCandidate` (pure scan/import helpers); `BatchReviewWindow`
+  (`Window▸Hoppa▸Batch Review`: folder scan, thumbnail+stats grid, multi-select, Import Selected → target
+  folder). CHANGELOG 0.6.0 updated.
+- **YAK (Editor/Generator):** `YAKLevelGenerator : LevelGeneratorAsset` + `YAKGeneratorConfig` — source
+  image from a library folder (picked by seed) → `YAKImageToGrid`, procedural fallback when none →
+  `YAKSpoolAutofiller` → `YAKLevelAnalyzer` gate (Succeeded iff solvable + APS in band). Wired into
+  `YAKProfile._levelGenerator` + `_generatorConfig`. `YAKBatchHarness` ([MenuItem]
+  `Window▸Hoppa▸YAK▸Run Batch (20)` + `RunHeadless` for `-batchmode -executeMethod`): loop → dedup
+  (grid FNV signature) → filter (solvable + |APS−target|≤tol) → write `<id>.json` + `<id>.png` +
+  `<id>.stats.json` to dated `YAK_Batch/<ts>/` (gitignored).
+- **Analyzer scale fix (important):** rollout-rescue in `YAKLevelAnalyzer` — the exact solver
+  budget-exceeds on 30×30, so a winning Monte-Carlo playout now upgrades `TimedOut → Solvable`
+  (WinPath null at that scale; exact Save-Solution remains best for small/medium levels). This is what
+  makes full-size generation/auto-fill actually accept levels.
+- **Tests:** `YakBatchTests.cs` — thumbnail size/color; staging scan+import round-trip; generator
+  procedural end-to-end → solvable autofilled level.
+- **Image-AI deferred:** the HTTP image step is not built (no endpoint/auth yet). Source images come
+  from the config's library folder (drop images in) or the procedural fallback. A future `IImageSource`
+  fetching AI images into that folder drops straight into the same flow.
+
+---
+
+## ✅ INITIATIVE COMPLETE — all phases A–E done (2026-06-15)
+
+Editor-core committed through Phase D (`b89b78f` A–C, `1921303` D); **Phase E uncommitted**.
+Open follow-ups (all non-blocking, by design):
+- **Commit Phase E**; then **tag editor-core `v0.6.0`** + bump the YAK game's `manifest.json` pin when a
+  Layer-1 consumer needs the new contracts (no game consumes them yet).
+- **Image-gen API** (endpoint + auth) for the batch harness's image step — deferred decision.
+- **APS calibration:** run `YakAveragePlayer.Calibrate` once the 10 real levels + player APS exist
+  (ε currently default, `ApsCalibrated=false`).
+- **Game viewer** `YAKSolutionViewer.cs` (YarnKingdom) — open in Unity 2022.3, wire `onStepChanged` to
+  the board highlight, play-test.
 
 ---
 
