@@ -119,7 +119,7 @@ namespace Hoppa.YarnTwist.Editor
                 for (int s = count - 1; s >= 0; s--)
                 {
                     var   spool     = col.Spools[s];
-                    int   visualIdx = count - 1 - s;
+                    int   visualIdx = DataToVisual(s, count);
                     float rowTop    = visualIdx * SpoolH;
 
                     bool colDragging   = _dragCol == c;
@@ -268,7 +268,7 @@ namespace Hoppa.YarnTwist.Editor
                         if (count > 0 && _dragTgt != _dragSrc && _dragTgt != _dragSrc + 1)
                         {
                             session.PushUndoSnapshot();
-                            MoveVisual(col.Spools, _dragSrc, _dragTgt);
+                            MoveVisual(col.Spools, _dragSrc, _dragTgt);   // visual indices; honors ReverseRowOrder
                             GUI.changed = true;
                         }
                         _dragCol = -1; _dragSrc = -1; _dragTgt = -1;
@@ -395,21 +395,42 @@ namespace Hoppa.YarnTwist.Editor
                 EditorGUI.DrawRect(new Rect(cx + col * 4f, cy + row * 5f, 2f, 2f), dotColor);
         }
 
+        // ── Data ⇄ visual row mapping ───────────────────────────────────
+        // Visual index 0 = top of the column. When ReverseRowOrder is FALSE
+        // (classic Yarn layout) data index 0 sits at the BOTTOM, so
+        // visual = count-1-data. When TRUE (spools-below-grid layout) data
+        // index 0 sits at the TOP, so visual = data. The mapping is its own
+        // inverse, so DataToVisual and VisualToData share one formula.
+        // Static overloads take an explicit 'reverse' flag for testability.
+        public static int DataToVisual(int s, int count, bool reverse) => reverse ? s : count - 1 - s;
+        public static int VisualToData(int v, int count, bool reverse) => reverse ? v : count - 1 - v;
+
+        // Instance helpers honor the inherited ReverseRowOrder flag.
+        private int DataToVisual(int s, int count) => DataToVisual(s, count, ReverseRowOrder);
+        private int VisualToData(int v, int count) => VisualToData(v, count, ReverseRowOrder);
+
         // Moves a spool from visual index vSrc to before visual index vTgt.
-        // Visual index 0 = top of column = highest data index (count-1).
-        private static void MoveVisual(List<YarnSpoolData> spools, int vSrc, int vTgt)
+        // Reorders the underlying data list so the on-screen result matches the
+        // current ReverseRowOrder mapping. Visual-only semantics: the data order
+        // is changed to reflect the drag, but the data↔visual convention is
+        // preserved (this is the same edit the user sees).
+        private void MoveVisual(List<YarnSpoolData> spools, int vSrc, int vTgt) =>
+            MoveVisual(spools, vSrc, vTgt, ReverseRowOrder);
+
+        // Static, testable core. 'reverse' selects the data↔visual convention.
+        public static void MoveVisual(List<YarnSpoolData> spools, int vSrc, int vTgt, bool reverse)
         {
             int count = spools.Count;
             var visual = new List<YarnSpoolData>(count);
             for (int v = 0; v < count; v++)
-                visual.Add(spools[count - 1 - v]);
+                visual.Add(spools[VisualToData(v, count, reverse)]);
 
             var item = visual[vSrc];
             visual.RemoveAt(vSrc);
             visual.Insert(vSrc < vTgt ? vTgt - 1 : vTgt, item);
 
             for (int v = 0; v < count; v++)
-                spools[count - 1 - v] = visual[v];
+                spools[VisualToData(v, count, reverse)] = visual[v];
         }
 
         private static string GetFirstGridColor(LevelEditorSession session)

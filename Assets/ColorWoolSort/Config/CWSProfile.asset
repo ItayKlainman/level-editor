@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 705a0ca41a11b1a4eaf43d6aee9a89d1, type: 3}
+  m_Name: CWSProfile
+  m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
+  _schemaId: yarn-twist
+  _colorPalette: {fileID: 11400000, guid: b974b868bbc8f5e49a43371139c57f0b, type: 2}
+  _gridWidth: 7
+  _gridHeight: 7
+  _cellTypes:
+  - {fileID: 11400000, guid: af51c0bb90390d94789ebf1e6cbf8c07, type: 2}
+  - {fileID: 11400000, guid: 320c21f93056d68468bd2c9c076d4bf8, type: 2}
+  - {fileID: 11400000, guid: ecf8072de6b78854c88cc04b52c26253, type: 2}
+  - {fileID: 11400000, guid: d7f7aafc6c2f0d143af315dfa8ff6a8e, type: 2}
+  - {fileID: 11400000, guid: e3bb8340332b74d4d95f859d25b51d86, type: 2}
+  _rules:
+  - {fileID: 11400000, guid: 4cf71b0eae7869c4f8712bfcf0f05e62, type: 2}
+  - {fileID: 11400000, guid: 1041302f345509a45a5928538b5cb1cb, type: 2}
+  - {fileID: 11400000, guid: fa6f9a1e69b6c03458578883d47a9287, type: 2}
+  - {fileID: 11400000, guid: d2b3c4e5f6071829304a5b6c7d8e9f01, type: 2}
+  - {fileID: 11400000, guid: d3b4c5e6f7081920304a5b6c7d8e9f02, type: 2}
+  - {fileID: 11400000, guid: e9f0a1b2c3d4e5f60718293a4b5c6d7e, type: 2}
+  _exporters:
+  - {fileID: 11400000, guid: bec5d91d5ef7a6b4fb932261f087281d, type: 2}
+  _topSectionScript: {fileID: 11500000, guid: 20c7138a6394e904ebf3e850f791376d, type: 3}
+  _bottomSectionScript: {fileID: 0}
+  _orderPanel: {fileID: 11400000, guid: 1c9e6a248b677ce44b577099deefc15d, type: 2}
+  _levelGenerator: {fileID: 11400000, guid: 211358c1b8d64ba4bbc9035278e56b93, type: 2}
+  _generatorConfig: {fileID: 11400000, guid: 66449045c92f425bb068ec5babd2340a, type: 2}
+  _levelAnalyzer: {fileID: 11400000, guid: 4bf96f07d5bda314e905450832e4456f, type: 2}
+  _levelCompleter: {fileID: 11400000, guid: fee1cb736b41a514eb954e5e4e3fd102, type: 2}
+  _canvasOverlay: {fileID: 11400000, guid: c7d8e9f0a1b2c3d4e5f60718293a4b5c, type: 2}
+  _imageToGrid: {fileID: 0}
+  _extensions: []
+  _spoolsBelowGrid: 1

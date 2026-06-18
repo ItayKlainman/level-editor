@@ -186,44 +186,81 @@ namespace Hoppa.LevelEditor.Core.Editor
             _palette.OnGUI(new Rect(0f, bodyY, PaletteW, innerH), _session);
 
             // ── Centre: top section + canvas + bottom section ────────
-            // Layout is top → grid → bottom. The bottom section reserves at
-            // least its PreferredHeight; the user can drag the splitter to
-            // give it more room (persisted via EditorPrefs). The canvas takes
-            // whatever's left between the two sections and scrolls internally
-            // if its content exceeds that space. The top section soaks up any
-            // leftover height (preserves Yarn's bottom-anchored grid).
             float centerX = PaletteW + 1f;
             float centerW = w - PaletteW - RightW - 2f;
             float canvasH = _canvas.RequiredHeight(centerW, _session);
-            float minTopH = _topSection.PreferredHeight;
-            float minBotH = _bottomSection.PreferredHeight;
 
-            // Bottom: PreferredHeight as floor; user can drag larger (capped so
-            // the grid keeps at least ~100px and 1 row of cells).
-            float maxBotH = Mathf.Max(minBotH, innerH - 100f);
-            float botH    = 0f;
-            if (minBotH > 0f)
+            // Per-profile layout flip: when SpoolsBelowGrid is set, the top-section
+            // panel (its draw rect only — it stays _topSection) is relocated BELOW
+            // the grid and the grid anchors to the TOP. Default: classic layout.
+            bool spoolsBelow = _profile != null && _profile.SpoolsBelowGrid;
+            _topSection.ReverseRowOrder = spoolsBelow;
+
+            if (spoolsBelow)
             {
-                botH = (_bottomSectionOverrideH > 0f)
-                    ? Mathf.Clamp(_bottomSectionOverrideH, minBotH, maxBotH)
-                    : minBotH;
+                // Grid on top (top-anchored), spool (top-section) panel below it.
+                // The spool panel reserves at least its PreferredHeight; the user
+                // can drag the splitter to give it more room (persisted). The grid
+                // takes the leftover top region and scrolls internally if needed.
+                float minPanelH = _topSection.PreferredHeight;
+                float maxPanelH = Mathf.Max(minPanelH, innerH - 100f);
+                float panelH    = 0f;
+                if (minPanelH > 0f)
+                {
+                    panelH = (_bottomSectionOverrideH > 0f)
+                        ? Mathf.Clamp(_bottomSectionOverrideH, minPanelH, maxPanelH)
+                        : minPanelH;
+                }
+
+                float gridH = Mathf.Max(0f, innerH - panelH);
+                _canvas.OnGUI(new Rect(centerX, bodyY, centerW, gridH), _session);
+                if (panelH > 0f)
+                    _topSection.OnGUI(new Rect(centerX, bodyY + innerH - panelH, centerW, panelH), _session);
+
+                // Splitter between grid and the relocated spool panel.
+                if (panelH > 0f)
+                    HandleBottomSplitter(centerX, bodyY + innerH - panelH, centerW, minPanelH, maxPanelH, bodyY, innerH);
+
+                // _bottomSection stays empty in this layout — nothing to draw.
             }
+            else
+            {
+                // Classic layout: top → grid → bottom. The bottom section reserves
+                // at least its PreferredHeight; the user can drag the splitter to
+                // give it more room (persisted via EditorPrefs). The canvas takes
+                // whatever's left between the two sections and scrolls internally
+                // if its content exceeds that space. The top section soaks up any
+                // leftover height (preserves Yarn's bottom-anchored grid).
+                float minTopH = _topSection.PreferredHeight;
+                float minBotH = _bottomSection.PreferredHeight;
 
-            float remaining = innerH - botH;
-            float topH      = (canvasH + minTopH <= remaining)
-                ? Mathf.Max(0f, remaining - canvasH)
-                : minTopH;
-            topH = Mathf.Clamp(topH, 0f, remaining);
+                // Bottom: PreferredHeight as floor; user can drag larger (capped so
+                // the grid keeps at least ~100px and 1 row of cells).
+                float maxBotH = Mathf.Max(minBotH, innerH - 100f);
+                float botH    = 0f;
+                if (minBotH > 0f)
+                {
+                    botH = (_bottomSectionOverrideH > 0f)
+                        ? Mathf.Clamp(_bottomSectionOverrideH, minBotH, maxBotH)
+                        : minBotH;
+                }
 
-            if (topH > 0f)
-                _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
-            _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH - botH), _session);
-            if (botH > 0f)
-                _bottomSection.OnGUI(new Rect(centerX, bodyY + innerH - botH, centerW, botH), _session);
+                float remaining = innerH - botH;
+                float topH      = (canvasH + minTopH <= remaining)
+                    ? Mathf.Max(0f, remaining - canvasH)
+                    : minTopH;
+                topH = Mathf.Clamp(topH, 0f, remaining);
 
-            // Splitter between canvas and bottom section (only when both exist).
-            if (botH > 0f)
-                HandleBottomSplitter(centerX, bodyY + innerH - botH, centerW, minBotH, maxBotH, bodyY, innerH);
+                if (topH > 0f)
+                    _topSection.OnGUI(new Rect(centerX, bodyY, centerW, topH), _session);
+                _canvas.OnGUI(new Rect(centerX, bodyY + topH, centerW, innerH - topH - botH), _session);
+                if (botH > 0f)
+                    _bottomSection.OnGUI(new Rect(centerX, bodyY + innerH - botH, centerW, botH), _session);
+
+                // Splitter between canvas and bottom section (only when both exist).
+                if (botH > 0f)
+                    HandleBottomSplitter(centerX, bodyY + innerH - botH, centerW, minBotH, maxBotH, bodyY, innerH);
+            }
 
             // ── Right column: validation + summary [+ autofill] ──────────
             float rightX = w - RightW + 1f;

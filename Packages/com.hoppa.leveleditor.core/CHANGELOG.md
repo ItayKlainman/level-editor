@@ -5,6 +5,13 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-06-18
+
+### Added
+
+- `GameProfile.SpoolsBelowGrid` (`bool`, default false): per-profile layout flag. When true the top-section panel (e.g. the spool columns) renders BELOW the grid and the grid anchors to the TOP, with the existing drag-splitter resizing the relocated panel. The panel stays assigned to the top-section slot — only its on-screen position flips. Default false keeps the classic top-section → grid → bottom-section layout, so YarnTwist / YAK are unchanged.
+- `TopSectionPanel.ReverseRowOrder` (`bool`, settable, default false): the window sets this from the profile's `SpoolsBelowGrid` before each draw so a panel that stacks rows vertically can reverse its data→visual mapping (data index 0 at the top). Visual-only — it must not change serialized data order. `EmptyTopSectionPanel` ignores it.
+
 ## [0.6.0] - 2026-06-15
 
 ### Added

@@ -60,6 +60,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Generic per-profile extension data. Used by Layer 2 implementations that need profile-scoped configuration outside the typed fields above. Look up by type via GetExtension<T>().")]
         [SerializeField] private List<ScriptableObject> _extensions = new List<ScriptableObject>();
 
+        [Tooltip("Layout flag: when TRUE the top-section panel (e.g. the spool columns) is rendered BELOW the grid instead of above it, and the grid anchors to the TOP. Use for games whose spool/queue region lives at the bottom of the game screen (e.g. Color Wool Sort).\nDefault FALSE keeps the classic top-section → grid → bottom-section layout (YarnTwist / YAK unchanged).")]
+        [SerializeField] private bool _spoolsBelowGrid;
+
         public string SchemaId => _schemaId;
         public ColorPaletteAsset ColorPalette => _colorPalette;
         public int GridWidth => _gridWidth;
@@ -74,6 +77,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         public LevelCompleterAsset LevelCompleter => _levelCompleter;
         public CanvasOverlayAsset  CanvasOverlay  => _canvasOverlay;
         public ImageToGridAsset    ImageToGrid    => _imageToGrid;
+
+        // Layout flag: render the top-section panel below the grid (grid top-anchored)
+        // instead of the classic above-the-grid layout. Default false.
+        public bool SpoolsBelowGrid => _spoolsBelowGrid;
 
         // Generic typed-lookup over the _extensions list. Returns the first
         // ScriptableObject that is assignable to T, or null. Use for Layer 2
