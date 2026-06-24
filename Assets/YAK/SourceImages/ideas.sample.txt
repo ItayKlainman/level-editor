@@ -1,0 +1,6 @@
+# YAK level ideas — one per line. '#' lines are comments.
+monkey eating a banana
+dolphin jumping over a wave
+a popsicle
+red apple
+smiling sun

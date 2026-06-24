@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- YAK Image Library tool (`Window ▸ Hoppa ▸ YAK ▸ Image Library`): offline auto-fill of the
+  generator's source-image folder via the OpenAI Images API. Reads a plain-text ideas list,
+  builds a flat-sticker prompt injecting the game's wool palette, and gap-fills one PNG per idea.
+  Pure core (parse/slug/gap-diff/prompt) is unit-tested; key resolved from env/EditorPrefs (never committed).
+
 ## [0.7.0] - 2026-06-18
 
 ### Added
