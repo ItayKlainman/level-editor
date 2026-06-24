@@ -42,6 +42,21 @@ namespace Hoppa.YAK.Editor
             return slug + "_" + Fnv1aHex(trimmed) + ".png";
         }
 
+        public static List<string> FindMissing(IEnumerable<string> ideas, IEnumerable<string> existingFileNames)
+        {
+            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (existingFileNames != null)
+                foreach (var f in existingFileNames)
+                    if (!string.IsNullOrEmpty(f)) existing.Add(Path.GetFileName(f));
+
+            var missing = new List<string>();
+            if (ideas == null) return missing;
+            foreach (var idea in ideas)
+                if (!existing.Contains(IdeaToFileName(idea)))
+                    missing.Add(idea);
+            return missing;
+        }
+
         private static string Fnv1aHex(string s)
         {
             unchecked

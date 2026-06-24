@@ -31,5 +31,17 @@ namespace Hoppa.YAK.Editor.Tests
             StringAssert.IsMatch("^[a-z0-9-]+_[0-9a-f]{8}\\.png$", a1);
             StringAssert.StartsWith("monkey-eating-a-banana_", a1);
         }
+
+        [Test]
+        public void FindMissing_ReturnsOnlyIdeasWithoutAFile()
+        {
+            var ideas = new[] { "dolphin", "popsicle", "rocket" };
+            string have = YAKImageLibraryCore.IdeaToFileName("popsicle");
+            var existing = new[] { "C:/x/" + have, "unrelated.png" };
+
+            var missing = YAKImageLibraryCore.FindMissing(ideas, existing);
+
+            Assert.AreEqual(new List<string> { "dolphin", "rocket" }, missing);
+        }
     }
 }
