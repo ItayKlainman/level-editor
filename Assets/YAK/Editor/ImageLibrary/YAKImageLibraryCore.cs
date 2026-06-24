@@ -24,5 +24,32 @@ namespace Hoppa.YAK.Editor
             }
             return result;
         }
+
+        // <slug>_<hash8>.png — deterministic and collision-free across distinct ideas.
+        public static string IdeaToFileName(string idea)
+        {
+            string trimmed = (idea ?? string.Empty).Trim();
+            var sb = new StringBuilder();
+            bool prevDash = false;
+            foreach (char c in trimmed.ToLowerInvariant())
+            {
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) { sb.Append(c); prevDash = false; }
+                else if (!prevDash && sb.Length > 0) { sb.Append('-'); prevDash = true; }
+            }
+            string slug = sb.ToString().Trim('-');
+            if (slug.Length == 0) slug = "idea";
+            if (slug.Length > 40) slug = slug.Substring(0, 40).Trim('-');
+            return slug + "_" + Fnv1aHex(trimmed) + ".png";
+        }
+
+        private static string Fnv1aHex(string s)
+        {
+            unchecked
+            {
+                uint h = 2166136261u;
+                foreach (char c in s) { h ^= c; h *= 16777619u; }
+                return h.ToString("x8");
+            }
+        }
     }
 }

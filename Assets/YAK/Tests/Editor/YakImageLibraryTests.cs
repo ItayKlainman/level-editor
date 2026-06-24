@@ -18,5 +18,18 @@ namespace Hoppa.YAK.Editor.Tests
             Assert.AreEqual(new List<string> { "monkey eating banana", "dolphin", "popsicle" }, ideas,
                 "blank lines and # comments dropped; case-insensitive de-dupe keeps first 'dolphin'");
         }
+
+        [Test]
+        public void IdeaToFileName_IsDeterministic_SlugifiesAndAvoidsCollisions()
+        {
+            string a1 = YAKImageLibraryCore.IdeaToFileName("Monkey eating a Banana!");
+            string a2 = YAKImageLibraryCore.IdeaToFileName("Monkey eating a Banana!");
+            string b  = YAKImageLibraryCore.IdeaToFileName("monkey eating a banana");
+
+            Assert.AreEqual(a1, a2, "same idea -> same filename");
+            Assert.AreNotEqual(a1, b, "different ideas -> different filenames (hash suffix)");
+            StringAssert.IsMatch("^[a-z0-9-]+_[0-9a-f]{8}\\.png$", a1);
+            StringAssert.StartsWith("monkey-eating-a-banana_", a1);
+        }
     }
 }
