@@ -43,5 +43,26 @@ namespace Hoppa.YAK.Editor.Tests
 
             Assert.AreEqual(new List<string> { "dolphin", "rocket" }, missing);
         }
+
+        [Test]
+        public void BuildPrompt_InjectsIdeaAndColorsAndConstraints()
+        {
+            var colors = new List<string> { "Red #ff0000", "Sky Blue #66ccff" };
+            string p = YAKImageLibraryCore.BuildPrompt("a popsicle", colors, null);
+
+            StringAssert.Contains("a popsicle", p);
+            StringAssert.Contains("Red #ff0000", p);
+            StringAssert.Contains("Sky Blue #66ccff", p);
+            StringAssert.Contains("No gradients", p);     // from default preamble
+            StringAssert.DoesNotContain("{idea}", p);     // placeholder was substituted
+        }
+
+        [Test]
+        public void BuildPrompt_NoColors_OmitsColorClause()
+        {
+            string p = YAKImageLibraryCore.BuildPrompt("a rocket", new List<string>(), null);
+            StringAssert.Contains("a rocket", p);
+            StringAssert.DoesNotContain("Use only these flat solid colors", p);
+        }
     }
 }

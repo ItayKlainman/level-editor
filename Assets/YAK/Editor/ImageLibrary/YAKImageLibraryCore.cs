@@ -42,6 +42,23 @@ namespace Hoppa.YAK.Editor
             return slug + "_" + Fnv1aHex(trimmed) + ".png";
         }
 
+        public const string DefaultStylePreamble =
+            "A single centered {idea}, flat vector sticker style, bold solid fill colors, " +
+            "thick clean shapes, plain solid background. No gradients, no shading, no text, " +
+            "no drop shadows, no photorealism.";
+
+        public static string BuildPrompt(string idea, IReadOnlyList<string> colorDescriptors, string stylePreamble)
+        {
+            string preamble = string.IsNullOrEmpty(stylePreamble) ? DefaultStylePreamble : stylePreamble;
+            string subject = (idea ?? string.Empty).Trim();
+            string body = preamble.Contains("{idea}")
+                ? preamble.Replace("{idea}", subject)
+                : preamble.TrimEnd() + " Subject: " + subject + ".";
+            if (colorDescriptors != null && colorDescriptors.Count > 0)
+                body += " Use only these flat solid colors: " + string.Join(", ", colorDescriptors) + ".";
+            return body;
+        }
+
         public static List<string> FindMissing(IEnumerable<string> ideas, IEnumerable<string> existingFileNames)
         {
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
