@@ -64,5 +64,41 @@ namespace Hoppa.YAK.Editor.Tests
             StringAssert.Contains("a rocket", p);
             StringAssert.DoesNotContain("Use only these flat solid colors", p);
         }
+
+        [Test]
+        public void ApiKey_EnvVarTakesPrecedence_ThenEditorPrefs()
+        {
+            string prevEnv = System.Environment.GetEnvironmentVariable(YAKImageApiKey.EnvVar);
+            try
+            {
+                YAKImageApiKey.ClearEditorPrefKey();
+                System.Environment.SetEnvironmentVariable(YAKImageApiKey.EnvVar, "env-key");
+                Assert.AreEqual("env-key", YAKImageApiKey.Resolve());
+                Assert.AreEqual("env", YAKImageApiKey.Source());
+
+                System.Environment.SetEnvironmentVariable(YAKImageApiKey.EnvVar, null);
+                YAKImageApiKey.SetEditorPrefKey("pref-key");
+                Assert.AreEqual("pref-key", YAKImageApiKey.Resolve());
+                Assert.AreEqual("EditorPrefs", YAKImageApiKey.Source());
+            }
+            finally
+            {
+                System.Environment.SetEnvironmentVariable(YAKImageApiKey.EnvVar, prevEnv);
+                YAKImageApiKey.ClearEditorPrefKey();
+            }
+        }
+
+        [Test]
+        public void BuildRequestJson_ContainsModelPromptSizeQualityAndN1()
+        {
+            string json = YAKOpenAIImageClient.BuildRequestJson("draw a cat", "gpt-image-1", "1024x1024", "medium");
+            var o = Newtonsoft.Json.Linq.JObject.Parse(json);
+
+            Assert.AreEqual("gpt-image-1", (string)o["model"]);
+            Assert.AreEqual("draw a cat", (string)o["prompt"]);
+            Assert.AreEqual("1024x1024", (string)o["size"]);
+            Assert.AreEqual("medium", (string)o["quality"]);
+            Assert.AreEqual(1, (int)o["n"]);
+        }
     }
 }
