@@ -220,16 +220,29 @@ namespace Hoppa.YAK.Editor
             AdvanceCurrent();
         }
 
+        // Writes the PNG via temp-file → atomic rename. A disk/permission/move
+        // failure must NOT propagate out of Pump: that would leave _current set
+        // (with _req already disposed) and silently re-issue the PAID request on
+        // the next tick. Instead we fail the idea cleanly so the pump advances —
+        // no IO retry loop, a bad write fails the idea once and moves on.
         private void WritePng(string idea, byte[] png)
         {
             string name = YAKImageLibraryCore.IdeaToFileName(idea);
             string finalPath = Path.Combine(_config.OutputFolder, name);
             string tmpPath = finalPath + ".tmp";
-            File.WriteAllBytes(tmpPath, png);                 // temp then atomic rename
-            if (File.Exists(finalPath)) File.Delete(finalPath);
-            File.Move(tmpPath, finalPath);
-            _status[idea] = "done";
-            _done++;
+            try
+            {
+                File.WriteAllBytes(tmpPath, png);                 // temp then atomic rename
+                if (File.Exists(finalPath)) File.Delete(finalPath);
+                File.Move(tmpPath, finalPath);
+                _status[idea] = "done";
+                _done++;
+            }
+            catch (System.Exception e)
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { /* best-effort temp cleanup */ }
+                FailCurrent("write error: " + e.Message);        // record FAILED; caller still advances
+            }
         }
 
         private void FailCurrent(string error)
