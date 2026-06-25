@@ -141,6 +141,9 @@ namespace Hoppa.LevelEditor.Core.Editor
                     GUILayout.Label($"{c.Stats.status} · APS {c.Stats.aps:0.0}", EditorStyles.miniLabel);
                     GUI.contentColor = old;
                     GUILayout.Label($"band {c.Stats.band} · {c.Stats.distinctColors} colors", EditorStyles.miniLabel);
+                    if (!string.IsNullOrEmpty(c.Stats.tier))
+                        GUILayout.Label($"Tier: {c.Stats.tier}" + (c.Stats.offTarget ? "  OFF-TARGET" : ""),
+                            c.Stats.offTarget ? EditorStyles.miniBoldLabel : EditorStyles.miniLabel);
                 }
                 else GUILayout.Label("(no stats)", EditorStyles.miniLabel);
             }
@@ -166,6 +169,16 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
             _thumbs[c.Id] = tex;
             return tex;
+        }
+
+        // Called by external harnesses (e.g. YAKDifficultyCurveWindow) to point
+        // the review window at a freshly-generated staging folder immediately.
+        public void LoadStagingDir(string dir)
+        {
+            if (string.IsNullOrEmpty(dir)) return;
+            _stagingDir = dir;
+            EditorPrefs.SetString(StagingPrefKey, dir);
+            Refresh();
         }
 
         private void Refresh()

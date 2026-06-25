@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 
 namespace Hoppa.LevelEditor.Core.Editor
@@ -17,6 +18,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public float  aps;
         public int    band;
         public int    distinctColors;
+        public string tier;       // difficulty tier name (curve runs); empty for legacy batches
+        public float  targetAps;  // the tier's APS target
+        public bool   offTarget;  // true = generation could not hit the tier's APS band
     }
 
     // One reviewable candidate in a staging folder: the level JSON plus optional
@@ -60,7 +64,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (cand.StatsPath != null) cand.Stats = LoadStats(cand.StatsPath);
                 list.Add(cand);
             }
-            list.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            list.Sort(CompareIds);
             return list;
         }
 
@@ -82,6 +86,28 @@ namespace Hoppa.LevelEditor.Core.Editor
             string dest = Path.Combine(targetFolder, Path.GetFileName(jsonPath));
             File.Copy(jsonPath, dest, overwrite);
             return dest;
+        }
+
+        // Numeric-aware id comparison: "level_2" < "level_10" < "level_11".
+        // Extracts the trailing integer from each id (if any) and compares
+        // numerically; falls back to ordinal for ids without a trailing number
+        // or when the numeric prefix differs.
+        private static readonly Regex TrailingNumber = new Regex(@"^(.*?)(\d+)$", RegexOptions.Compiled);
+
+        private static int CompareIds(BatchCandidate a, BatchCandidate b)
+        {
+            var ma = TrailingNumber.Match(a.Id ?? "");
+            var mb = TrailingNumber.Match(b.Id ?? "");
+            if (ma.Success && mb.Success)
+            {
+                // Compare the non-numeric prefix first (ordinal), then the number.
+                int prefixCmp = string.CompareOrdinal(ma.Groups[1].Value, mb.Groups[1].Value);
+                if (prefixCmp != 0) return prefixCmp;
+                if (int.TryParse(ma.Groups[2].Value, out int na) &&
+                    int.TryParse(mb.Groups[2].Value, out int nb))
+                    return na.CompareTo(nb);
+            }
+            return string.CompareOrdinal(a.Id, b.Id);
         }
     }
 }

@@ -151,6 +151,13 @@ namespace Hoppa.YAK.Editor
 
             Shuffle(spools, rng);
 
+            // Mark a deterministic fraction hidden (post-shuffle → uniform random selection).
+            // NOTE: YakAveragePlayer does not yet consult Hidden, so this does NOT move the
+            // measured APS — HiddenRatio is a manual difficulty knob until analyzer hidden
+            // support lands (fast-follow). No silent capping here.
+            int hide = Mathf.Clamp(Mathf.RoundToInt(cfg.HiddenRatio * spools.Count), 0, spools.Count);
+            for (int i = 0; i < hide; i++) spools[i].Hidden = true;
+
             var top = new YAKTopSectionData();
             for (int i = 0; i < columns; i++) top.Columns.Add(new YAKSpoolColumn());
             for (int i = 0; i < spools.Count; i++)
