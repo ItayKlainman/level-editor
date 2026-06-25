@@ -60,9 +60,14 @@ namespace Hoppa.YAK.Editor.Tests
             // Image→grid (present but unused with UseImageSource=false).
             var imageToGrid = ScriptableObject.CreateInstance<YAKImageToGrid>();
 
-            // Cell type defs (so BuildRegistry / serialization round-trips work).
-            var emptyDef = ScriptableObject.CreateInstance<YAKEmptyCellDefinition>();
-            var woolDef  = ScriptableObject.CreateInstance<YAKWoolCellDefinition>();
+            // Cell type defs: load the real on-disk assets so their _typeId fields
+            // ("yak.empty", "yak.wool") are populated. CreateInstance'd defs have a
+            // null _typeId, which causes CellTypeRegistry.Register to throw on the
+            // Dictionary key-null check.
+            var emptyDef = UnityEditor.AssetDatabase.LoadAssetAtPath<YAKEmptyCellDefinition>(
+                "Assets/YAK/Data/Config/CellDefs/YAKEmptyCellDef.asset");
+            var woolDef  = UnityEditor.AssetDatabase.LoadAssetAtPath<YAKWoolCellDefinition>(
+                "Assets/YAK/Data/Config/CellDefs/YAKWoolCellDef.asset");
 
             var profile = ScriptableObject.CreateInstance<GameProfile>();
             var so = new UnityEditor.SerializedObject(profile);
