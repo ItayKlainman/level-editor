@@ -141,6 +141,9 @@ namespace Hoppa.LevelEditor.Core.Editor
                     GUILayout.Label($"{c.Stats.status} · APS {c.Stats.aps:0.0}", EditorStyles.miniLabel);
                     GUI.contentColor = old;
                     GUILayout.Label($"band {c.Stats.band} · {c.Stats.distinctColors} colors", EditorStyles.miniLabel);
+                    if (!string.IsNullOrEmpty(c.Stats.tier))
+                        GUILayout.Label($"Tier: {c.Stats.tier}" + (c.Stats.offTarget ? "  OFF-TARGET" : ""),
+                            c.Stats.offTarget ? EditorStyles.miniBoldLabel : EditorStyles.miniLabel);
                 }
                 else GUILayout.Label("(no stats)", EditorStyles.miniLabel);
             }

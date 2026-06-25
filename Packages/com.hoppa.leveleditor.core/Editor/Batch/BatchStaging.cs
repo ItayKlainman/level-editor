@@ -17,6 +17,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         public float  aps;
         public int    band;
         public int    distinctColors;
+        public string tier;       // difficulty tier name (curve runs); empty for legacy batches
+        public float  targetAps;  // the tier's APS target
+        public bool   offTarget;  // true = generation could not hit the tier's APS band
     }
 
     // One reviewable candidate in a staging folder: the level JSON plus optional
