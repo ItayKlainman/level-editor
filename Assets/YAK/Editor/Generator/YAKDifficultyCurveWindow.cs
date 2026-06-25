@@ -53,10 +53,13 @@ namespace Hoppa.YAK.Editor
                 var p = _config.Presets[i];
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
+                EditorGUI.BeginChangeCheck();
                 p.Name = EditorGUILayout.TextField(p.Name);
+                if (EditorGUI.EndChangeCheck()) Dirty();
                 if (GUILayout.Button("Duplicate", GUILayout.Width(80))) { _config.Duplicate(i); Dirty(); break; }
                 if (GUILayout.Button("Delete", GUILayout.Width(60)))   { _config.DeletePreset(i); Dirty(); break; }
                 EditorGUILayout.EndHorizontal();
+                EditorGUI.BeginChangeCheck();
                 p.GridWidth     = EditorGUILayout.IntField("Grid Width", p.GridWidth);
                 p.GridHeight    = EditorGUILayout.IntField("Grid Height", p.GridHeight);
                 p.MaxColors     = EditorGUILayout.IntField("Max Colors", p.MaxColors);
@@ -69,6 +72,7 @@ namespace Hoppa.YAK.Editor
                     p.HiddenRatio, 0f, 1f);
                 p.TargetAps     = EditorGUILayout.FloatField("Target APS", p.TargetAps);
                 p.ApsTolerance  = EditorGUILayout.FloatField("APS Tolerance", p.ApsTolerance);
+                if (EditorGUI.EndChangeCheck()) Dirty();
                 EditorGUILayout.EndVertical();
             }
             if (GUILayout.Button("New Tier")) { _config.Presets.Add(new TierPreset()); Dirty(); }
@@ -82,10 +86,12 @@ namespace Hoppa.YAK.Editor
             {
                 var seg = _config.Curve[i];
                 EditorGUILayout.BeginHorizontal();
+                EditorGUI.BeginChangeCheck();
                 int idx = Mathf.Max(0, System.Array.IndexOf(names, seg.TierName));
                 idx = EditorGUILayout.Popup(idx, names);
                 if (names.Length > 0) seg.TierName = names[Mathf.Clamp(idx, 0, names.Length - 1)];
                 seg.LevelCount = EditorGUILayout.IntField(seg.LevelCount, GUILayout.Width(60));
+                if (EditorGUI.EndChangeCheck()) Dirty();
                 if (GUILayout.Button("↑", GUILayout.Width(24)) && i > 0) { (_config.Curve[i-1], _config.Curve[i]) = (_config.Curve[i], _config.Curve[i-1]); Dirty(); }
                 if (GUILayout.Button("↓", GUILayout.Width(24)) && i < _config.Curve.Count-1) { (_config.Curve[i+1], _config.Curve[i]) = (_config.Curve[i], _config.Curve[i+1]); Dirty(); }
                 if (GUILayout.Button("✕", GUILayout.Width(24))) { _config.Curve.RemoveAt(i); Dirty(); break; }
@@ -104,7 +110,8 @@ namespace Hoppa.YAK.Editor
             string dir = YAKCurveBatchHarness.RunCurve(_config, profile, _attemptsPerLevel, null);
             if (dir != null)
             {
-                var win = GetWindow<BatchReviewWindow>();   // open review on the staging dir
+                var win = GetWindow<BatchReviewWindow>();
+                win.LoadStagingDir(dir);   // point the review window at the new staging folder
                 win.Show();
                 EditorUtility.RevealInFinder(dir);
             }

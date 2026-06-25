@@ -171,6 +171,16 @@ namespace Hoppa.LevelEditor.Core.Editor
             return tex;
         }
 
+        // Called by external harnesses (e.g. YAKDifficultyCurveWindow) to point
+        // the review window at a freshly-generated staging folder immediately.
+        public void LoadStagingDir(string dir)
+        {
+            if (string.IsNullOrEmpty(dir)) return;
+            _stagingDir = dir;
+            EditorPrefs.SetString(StagingPrefKey, dir);
+            Refresh();
+        }
+
         private void Refresh()
         {
             ClearThumbs();
