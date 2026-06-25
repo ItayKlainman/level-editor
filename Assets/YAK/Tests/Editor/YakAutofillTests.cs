@@ -99,6 +99,49 @@ namespace Hoppa.YAK.Editor.Tests
             StringAssert.Contains("analyzer", res.FailureReason);
         }
 
+        // ── Hidden-spool ratio ────────────────────────────────────────────────
+
+        [Test]
+        public void BuildCandidate_HiddenRatioZero_MarksNoneHidden()
+        {
+            var cfg = ScriptableObject.CreateInstance<YAKSpoolAutofillConfig>();
+            cfg.HiddenRatio = 0f;
+            var perColor = new System.Collections.Generic.Dictionary<string, int> { { "Red", 60 }, { "Blue", 60 } };
+            var top = InvokeBuildCandidate(perColor, columns: 3, cfg, new System.Random(1));
+            int hidden = CountHidden(top);
+            Assert.AreEqual(0, hidden);
+        }
+
+        [Test]
+        public void BuildCandidate_HiddenRatioHalf_MarksHalfHidden_Deterministic()
+        {
+            var cfg = ScriptableObject.CreateInstance<YAKSpoolAutofillConfig>();
+            cfg.HiddenRatio = 0.5f;
+            var perColor = new System.Collections.Generic.Dictionary<string, int> { { "Red", 60 }, { "Blue", 60 } };
+            var topA = InvokeBuildCandidate(perColor, columns: 3, cfg, new System.Random(7));
+            var topB = InvokeBuildCandidate(perColor, columns: 3, cfg, new System.Random(7));
+            int total = CountSpools(topA);
+            Assert.AreEqual(Mathf.RoundToInt(0.5f * total), CountHidden(topA));
+            Assert.AreEqual(CountHidden(topA), CountHidden(topB), "same seed → same hidden count");
+        }
+
+        // --- helpers ---
+        private static Hoppa.YAK.YAKTopSectionData InvokeBuildCandidate(
+            System.Collections.Generic.Dictionary<string,int> perColor, int columns, YAKSpoolAutofillConfig cfg, System.Random rng)
+        {
+            var m = typeof(YAKSpoolAutofiller).GetMethod("BuildCandidate",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            return (Hoppa.YAK.YAKTopSectionData)m.Invoke(null, new object[] { perColor, columns, cfg, rng });
+        }
+        private static int CountHidden(Hoppa.YAK.YAKTopSectionData t)
+        {
+            int n = 0; foreach (var c in t.Columns) foreach (var s in c.Spools) if (s.Hidden) n++; return n;
+        }
+        private static int CountSpools(Hoppa.YAK.YAKTopSectionData t)
+        {
+            int n = 0; foreach (var c in t.Columns) n += c.Spools.Count; return n;
+        }
+
         // ── Builders ──────────────────────────────────────────────────────────
 
         private static GameProfile MakeProfile()

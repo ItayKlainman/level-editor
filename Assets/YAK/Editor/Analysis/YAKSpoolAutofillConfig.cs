@@ -30,6 +30,10 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Belt slot count used when the level's GameData[\"conveyorCount\"] is absent.")]
         [Min(1)] public int DefaultConveyorSlots = 5;
 
+        [Header("Hidden spools")]
+        [Tooltip("Fraction of spools marked hidden (0..1). NOTE: the average-player analyzer does not yet model hidden spools, so measured APS will NOT reflect this difficulty (fast-follow).")]
+        [Range(0f, 1f)] public float HiddenRatio = 0f;
+
         [Header("Search budget")]
         [Tooltip("Random candidate arrangements sampled before returning the best-so-far. Kept modest so batch generation (which auto-fills every candidate) stays fast.")]
         [Min(1)] public int MaxAttempts = 60;
