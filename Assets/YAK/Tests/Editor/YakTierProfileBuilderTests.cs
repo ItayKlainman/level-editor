@@ -53,6 +53,7 @@ namespace Hoppa.YAK.Editor.Tests
                 var bGc = (YAKGeneratorConfig)built.Profile.GeneratorConfig;
                 Assert.AreEqual(1.5f, bGc.TargetAPS);
                 Assert.AreEqual(7, bGc.ConveyorCount);
+                Assert.AreEqual(2, bGc.FallbackColors, "FallbackColors must equal tier.MaxColors for procedural path");
             }
             finally { built.Cleanup(); }
         }

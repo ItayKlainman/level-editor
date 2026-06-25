@@ -72,13 +72,17 @@ namespace Hoppa.YAK.Editor
                 Set(profile, "_levelCompleter", af);
             }
 
-            // Generator config clone: APS target/tolerance + conveyor.
+            // Generator config clone: APS target/tolerance + conveyor + fallback color count.
+            // FallbackColors is the color count for the PROCEDURAL grid path (UseImageSource=false),
+            // which is the primary path used by the harness and tests. Without this, tier.MaxColors
+            // only affects the image→grid path and has NO effect on procedurally generated levels.
             if (baseProfile.GeneratorConfig is YAKGeneratorConfig baseGc)
             {
                 var gc = Object.Instantiate(baseGc);
                 gc.TargetAPS = tier.TargetAps;
                 gc.ApsTolerance = tier.ApsTolerance;
                 gc.ConveyorCount = Mathf.Max(1, tier.ConveyorSlots);
+                gc.FallbackColors = Mathf.Max(1, tier.MaxColors);
                 owned.Add(gc);
                 Set(profile, "_generatorConfig", gc);
             }
