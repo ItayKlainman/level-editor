@@ -15,7 +15,18 @@ next-session TODO set.
 
 ---
 
-## 1. Difficulty-COMPLEXITY — a second, independent difficulty axis (HEADLINE — entirely missing)
+## 1. Difficulty-COMPLEXITY — a second, independent difficulty axis (DONE 2026-06-28)
+
+> **DONE** — shipped on `feat/yak-complexity-axis` per the spec/plan dated 2026-06-28
+> (`docs/superpowers/specs/2026-06-28-yak-complexity-axis-design.md`,
+> `docs/superpowers/plans/2026-06-28-yak-complexity-axis.md`). Added `YakClickPattern`
+> (Score metric + pattern-first `Build`), pattern-first spool assignment in
+> `YAKSpoolAutofiller`, measured complexity through the average player + analyzer +
+> autofiller complexity gate, and `Complexity` on `TierPreset` / curve window / batch stats.
+> **Open flag:** R27's written table (used as source of truth: C1–2⇒2, C3–5⇒3, C6–8⇒4,
+> C9–10⇒5) disagrees with his `max(2, min(5, 1 + C/2))` formula at C3 and C8 — pending
+> boss confirmation. Complexity is MEASURED-but-uncalibrated, same honesty stance as APS.
+
 
 Our system models spool-**size** difficulty and **measures** APS, but has **no control over
 click-pattern complexity** — how varied / non-obvious the optimal solve sequence is. The boss
