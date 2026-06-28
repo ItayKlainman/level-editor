@@ -60,5 +60,60 @@ namespace Hoppa.YAK.Tests
             Assert.Less(a, c, "round-robin must score below runs+jumps");
             Assert.LessOrEqual(a, b, "round-robin must not exceed mild-deviation");
         }
+
+        private static int[] ColumnCounts(int[] pattern, int k)
+        {
+            var counts = new int[k];
+            foreach (int c in pattern) counts[c]++;
+            return counts;
+        }
+
+        [Test]
+        public void Build_HasExactLength_AndBalancedQuota()
+        {
+            var rng = new System.Random(123);
+            int[] p = YakClickPattern.Build(numColumns: 3, numSpools: 10, complexity: 5, rng);
+            Assert.AreEqual(10, p.Length);
+            var counts = ColumnCounts(p, 3);
+            foreach (int c in counts) Assert.That(c, Is.InRange(2, 4)); // 10/3 ≈ 3 ± 1
+            Assert.AreEqual(10, counts[0] + counts[1] + counts[2]);
+        }
+
+        [Test]
+        public void Build_NeverPureRoundRobin_EvenAtComplexity1()
+        {
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var rng = new System.Random(seed);
+                int[] p = YakClickPattern.Build(3, 9, 1, rng);
+                bool isRr = true;
+                for (int i = 1; i < p.Length; i++)
+                    if (p[i] != (p[i - 1] + 1) % 3) { isRr = false; break; }
+                Assert.IsFalse(isRr, $"seed {seed}: pattern must never be pure round-robin (R25)");
+            }
+        }
+
+        [Test]
+        public void Build_ComplexityRaisesMeasuredScore()
+        {
+            // Averaged over seeds, higher complexity → higher measured Score.
+            float lowSum = 0f, highSum = 0f; int trials = 25;
+            for (int seed = 1; seed <= trials; seed++)
+            {
+                lowSum  += YakClickPattern.Score(YakClickPattern.Build(4, 20, 1,  new System.Random(seed)), 4);
+                highSum += YakClickPattern.Score(YakClickPattern.Build(4, 20, 10, new System.Random(seed)), 4);
+            }
+            Assert.Less(lowSum / trials, highSum / trials,
+                "mean measured complexity at C=10 must exceed C=1");
+        }
+
+        [Test]
+        public void Build_DegenerateInputs()
+        {
+            Assert.AreEqual(0, YakClickPattern.Build(3, 0, 5, new System.Random(1)).Length);
+            int[] oneCol = YakClickPattern.Build(1, 5, 9, new System.Random(1));
+            Assert.AreEqual(5, oneCol.Length);
+            foreach (int c in oneCol) Assert.AreEqual(0, c); // only column available
+        }
     }
 }
