@@ -43,6 +43,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         // Seed for reproducible Monte-Carlo playouts. 0 = analyzer derives its
         // own deterministic seed (e.g. from a structural hash).
         public int Seed = 0;
+
+        // When true the analyzer also measures the click-pattern complexity of the
+        // average player's winning runs (LevelAnalysisResult.ComplexityEstimate).
+        // Costs nothing extra for callers that leave it false.
+        public bool MeasureComplexity = false;
     }
 
     public enum AnalysisMode

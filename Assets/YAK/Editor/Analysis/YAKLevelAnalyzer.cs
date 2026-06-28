@@ -112,6 +112,7 @@ namespace Hoppa.YAK.Editor
                     var est = player.Estimate(model, new YakAveragePlayer.Config
                     {
                         Epsilon = cfg.Epsilon, Lookahead = cfg.Lookahead, Runs = runs, Seed = seed,
+                        MeasureComplexity = req != null && req.MeasureComplexity,
                     });
                     result.WinRate = est.WinRate;
                     result.RolloutsRun = est.Runs;
@@ -119,6 +120,7 @@ namespace Hoppa.YAK.Editor
                     result.ApsEstimate = aps;
                     result.ApsCalibrated = cfg.ApsCalibrated;
                     result.Band = cfg.BandFor(aps);
+                    result.ComplexityEstimate = est.ComplexityEstimate;
 
                     // Rollout rescue: on large grids (e.g. 30×30) the exact solver
                     // hits its node budget and returns TimedOut — exhaustive search
