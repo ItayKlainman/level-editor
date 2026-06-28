@@ -93,6 +93,39 @@ namespace Hoppa.YAK.Tests
             }
         }
 
+        private static bool IsPureSuccessorCycle(int[] p, int k)
+        {
+            for (int i = 1; i < p.Length; i++)
+                if (p[i] != (p[i - 1] + 1) % k) return false;
+            return p.Length >= 2;
+        }
+
+        [Test]
+        public void Build_NeverPureRoundRobin_TinyPatterns()
+        {
+            // R25 must hold even for tiny patterns. The PerturbSwap fallback has to
+            // break pure k=2 round-robin where every 2-apart pair is equal.
+            // n == 2 over k == 2 is the one degenerate length that CANNOT be broken:
+            // quota [1,1] forces [a,b], whose only swap [b,a] is also a successor
+            // cycle — so it is intentionally excluded here.
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                foreach (int n in new[] { 4, 3 })
+                {
+                    int[] p = YakClickPattern.Build(2, n, 1, new System.Random(seed));
+                    Assert.IsFalse(IsPureSuccessorCycle(p, 2),
+                        $"seed {seed}, k=2 n={n}: pattern must never be pure round-robin (R25)");
+                }
+            }
+        }
+
+        [Test]
+        public void Build_NullRng_Throws()
+        {
+            Assert.Throws<System.ArgumentNullException>(
+                () => YakClickPattern.Build(3, 9, 1, null));
+        }
+
         [Test]
         public void Build_ComplexityRaisesMeasuredScore()
         {

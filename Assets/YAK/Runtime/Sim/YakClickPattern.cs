@@ -63,13 +63,16 @@ namespace Hoppa.YAK.Sim
         // round-robin cycle (R25).
         public static int[] Build(int numColumns, int numSpools, int complexity, Random rng)
         {
+            // Determinism contract: production always passes a seeded RNG. A silent
+            // time-seeded fallback would make Build non-reproducible, so reject null.
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+
             int k = numColumns < 1 ? 1 : numColumns;
             int n = numSpools < 0 ? 0 : numSpools;
             var result = new int[n];
             if (n == 0) return result;
             if (k == 1) return result; // all zeros — only column
 
-            rng ??= new Random();
             int maxRepeat = MaxRepeat(complexity);
             float c01 = Clamp01((complexity - 1) / 9f);
 
@@ -142,9 +145,20 @@ namespace Hoppa.YAK.Sim
 
         private static void PerturbSwap(int[] p, Random rng)
         {
-            // Find any two positions with different columns at least 2 apart and swap.
+            // Preferred: swap two differing positions at least 2 apart. This breaks
+            // the successor chain without introducing a new adjacency artifact.
             for (int a = 0; a < p.Length; a++)
                 for (int b = a + 2; b < p.Length; b++)
+                    if (p[a] != p[b]) { (p[a], p[b]) = (p[b], p[a]); return; }
+
+            // Fallback for tiny patterns (e.g. pure k=2 round-robin, where every
+            // 2-apart pair is equal so the loop above no-ops): swap ANY two differing
+            // positions, adjacent included. An adjacent differing swap still breaks the
+            // (prev+1)%k successor relation at a downstream seam for n >= 3.
+            // (A length-2 [a,b] pattern is the one exception: its only swap [b,a] is
+            // also a successor cycle, so R25 is structurally impossible at n == 2.)
+            for (int a = 0; a < p.Length; a++)
+                for (int b = a + 1; b < p.Length; b++)
                     if (p[a] != p[b]) { (p[a], p[b]) = (p[b], p[a]); return; }
         }
 

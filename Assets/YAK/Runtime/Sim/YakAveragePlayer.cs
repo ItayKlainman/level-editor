@@ -52,7 +52,8 @@ namespace Hoppa.YAK.Sim
             float eps = cfg.Epsilon < 0f ? 0f : (cfg.Epsilon > 1f ? 1f : cfg.Epsilon);
 
             double complexitySum = 0; int complexitySamples = 0;
-            var taps = cfg.MeasureComplexity ? new List<int>(model.TotalSpools) : null;
+            // Capacity hint: a playout can append up to maxMoves = TotalSpools + 2 taps.
+            var taps = cfg.MeasureComplexity ? new List<int>(model.TotalSpools + 2) : null;
 
             int wins = 0;
             for (int r = 0; r < runs; r++)

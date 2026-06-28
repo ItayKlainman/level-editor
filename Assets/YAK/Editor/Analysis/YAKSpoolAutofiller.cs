@@ -107,9 +107,15 @@ namespace Hoppa.YAK.Editor
                 }
 
                 double apsDist  = Math.Abs(analysis.ApsEstimate - targetAps);
-                double cplxDist = Math.Abs(analysis.ComplexityEstimate - targetComplexity);
                 bool apsOk  = apsDist  <= cfg.ApsTolerance;
-                bool cplxOk = cplxDist <= cfg.ComplexityTolerance;
+
+                // ComplexityEstimate <= 0 is the "not measured" sentinel (Score never
+                // returns < 1, e.g. no winning Monte-Carlo run scored a click pattern).
+                // Treat it as UNKNOWN: degrade this candidate to APS-only acceptance and
+                // ranking instead of penalising it as if it genuinely had complexity 0.
+                bool measured = analysis.ComplexityEstimate > 0f;
+                double cplxDist = measured ? Math.Abs(analysis.ComplexityEstimate - targetComplexity) : 0.0;
+                bool cplxOk = !measured || cplxDist <= cfg.ComplexityTolerance;
                 if (apsOk && cplxOk)
                 {
                     result.TopSection = JObject.FromObject(top);
