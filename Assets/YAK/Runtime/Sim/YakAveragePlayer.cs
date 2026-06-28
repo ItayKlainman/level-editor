@@ -26,6 +26,7 @@ namespace Hoppa.YAK.Sim
             public int   Lookahead; // >=1 plies of greedy planning
             public int   Runs;      // playout count
             public int   Seed;      // base RNG seed (0 = time-based)
+            public bool  MeasureComplexity; // when true, score winning-run click patterns
 
             public static Config Default => new Config { Epsilon = 0.1f, Lookahead = 1, Runs = 400, Seed = 12345 };
         }
@@ -35,6 +36,8 @@ namespace Hoppa.YAK.Sim
             public float WinRate; // wins / runs
             public int   Runs;
             public float Aps;     // 1/WinRate, or +Infinity when no playout won
+            public float ComplexityEstimate; // mean YakClickPattern.Score over winning runs (0 = none/not measured)
+            public int   ComplexitySamples;  // winning runs scored
         }
 
         // Hard cap used when converting a zero win-rate to a finite APS for
@@ -48,11 +51,23 @@ namespace Hoppa.YAK.Sim
             int lookahead = cfg.Lookahead > 0 ? cfg.Lookahead : 1;
             float eps = cfg.Epsilon < 0f ? 0f : (cfg.Epsilon > 1f ? 1f : cfg.Epsilon);
 
+            double complexitySum = 0; int complexitySamples = 0;
+            var taps = cfg.MeasureComplexity ? new List<int>(model.TotalSpools) : null;
+
             int wins = 0;
             for (int r = 0; r < runs; r++)
             {
                 var rng = new Random(unchecked(seed * 1000003 + r));
-                if (Playout(model, eps, lookahead, rng)) wins++;
+                taps?.Clear();
+                if (Playout(model, eps, lookahead, rng, taps))
+                {
+                    wins++;
+                    if (taps != null && taps.Count > 0)
+                    {
+                        complexitySum += YakClickPattern.Score(taps, model.Columns);
+                        complexitySamples++;
+                    }
+                }
             }
 
             float winRate = (float)wins / runs;
@@ -61,10 +76,12 @@ namespace Hoppa.YAK.Sim
                 WinRate = winRate,
                 Runs    = runs,
                 Aps     = winRate > 0f ? 1f / winRate : float.PositiveInfinity,
+                ComplexityEstimate = complexitySamples > 0 ? (float)(complexitySum / complexitySamples) : 0f,
+                ComplexitySamples  = complexitySamples,
             };
         }
 
-        private static bool Playout(YakLevelModel model, float eps, int lookahead, Random rng)
+        private static bool Playout(YakLevelModel model, float eps, int lookahead, Random rng, List<int> taps)
         {
             var s = new YakSimState(model);
             int maxMoves = model.TotalSpools + 2; // QHead is monotonic → bounded
@@ -104,6 +121,7 @@ namespace Hoppa.YAK.Sim
                 }
 
                 s.ApplyMove(chosen);
+                taps?.Add(chosen);
             }
             return s.IsWin();
         }
