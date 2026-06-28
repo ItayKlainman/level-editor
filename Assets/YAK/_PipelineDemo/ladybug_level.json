@@ -1,0 +1,3872 @@
+{
+  "schemaVersion": "yak.v1",
+  "levelId": "image_260624_130218",
+  "displayName": "Image · a-ladybug_c49826ae",
+  "metadata": {
+    "author": "itay0",
+    "createdAt": "2026-06-24T13:02:18.6004984Z",
+    "modifiedAt": "2026-06-24T13:02:18.6004984Z",
+    "tags": [],
+    "notes": "",
+    "aps": 0.0
+  },
+  "grid": {
+    "width": 30,
+    "height": 30,
+    "rowOrder": "bottomUp",
+    "cells": [
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Red"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "BrownDark"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "White"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "GreyLight"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Grey"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      },
+      {
+        "type": "yak.wool",
+        "colorId": "Black"
+      }
+    ]
+  },
+  "topSection": {
+    "columns": [
+      {
+        "spools": [
+          {
+            "colorId": "Red",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "BrownDark",
+            "capacity": 25,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Grey",
+            "capacity": 27,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Red",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "GreyLight",
+            "capacity": 22,
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "GreyLight",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "White",
+            "capacity": 13,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Red",
+            "capacity": 15,
+            "hidden": false
+          },
+          {
+            "colorId": "White",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "Grey",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "White",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "GreyLight",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "GreyLight",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Red",
+            "capacity": 21,
+            "hidden": false
+          }
+        ]
+      },
+      {
+        "spools": [
+          {
+            "colorId": "Black",
+            "capacity": 21,
+            "hidden": false
+          },
+          {
+            "colorId": "Grey",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Grey",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "BrownDark",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Black",
+            "capacity": 20,
+            "hidden": false
+          },
+          {
+            "colorId": "Grey",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "GreyLight",
+            "capacity": 19,
+            "hidden": false
+          },
+          {
+            "colorId": "White",
+            "capacity": 19,
+            "hidden": false
+          }
+        ]
+      }
+    ]
+  },
+  "gameData": {
+    "conveyorCount": 5
+  }
+}
