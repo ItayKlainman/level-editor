@@ -66,6 +66,8 @@ namespace Hoppa.YAK.Editor
 
             int slots = ResolveSlots(doc, cfg);
             float targetAps = (req != null && req.TargetAPS.HasValue) ? req.TargetAPS.Value : cfg.DefaultApsTarget;
+            int targetComplexity = (req != null && req.TargetComplexity.HasValue)
+                ? Mathf.Clamp(req.TargetComplexity.Value, 1, 10) : cfg.DefaultComplexity;
             int rootSeed = (req != null && req.Seed != 0) ? req.Seed : new System.Random().Next(1, int.MaxValue);
             result.SeedUsed = rootSeed;
 
@@ -85,7 +87,7 @@ namespace Hoppa.YAK.Editor
                 var ar = new System.Random(attemptSeed);
                 int columns = colMin + ar.Next(colMax - colMin + 1);
 
-                var top = BuildCandidate(perColor, columns, cfg, ar);
+                var top = BuildCandidate(perColor, columns, targetComplexity, cfg, ar);
                 var candDoc = ShallowCopyWithTop(doc, JObject.FromObject(top));
                 var analysis = analyzer.Analyze(candDoc, profile, new AnalysisRequest
                 {
@@ -94,6 +96,7 @@ namespace Hoppa.YAK.Editor
                     NodeBudget   = cfg.SearchNodeBudget,
                     TimeoutMs    = cfg.SearchTimeoutMs,
                     Seed         = attemptSeed,
+                    MeasureComplexity = true,
                 });
                 result.CandidatesTried++;
 
@@ -103,15 +106,21 @@ namespace Hoppa.YAK.Editor
                     continue;
                 }
 
-                double dist = Math.Abs(analysis.ApsEstimate - targetAps);
-                if (dist <= cfg.ApsTolerance)
+                double apsDist  = Math.Abs(analysis.ApsEstimate - targetAps);
+                double cplxDist = Math.Abs(analysis.ComplexityEstimate - targetComplexity);
+                bool apsOk  = apsDist  <= cfg.ApsTolerance;
+                bool cplxOk = cplxDist <= cfg.ComplexityTolerance;
+                if (apsOk && cplxOk)
                 {
                     result.TopSection = JObject.FromObject(top);
                     result.Analysis = analysis;
                     result.Succeeded = true;
                     return Done(result, sw);
                 }
-                if (dist < bestDist) { bestDist = dist; best = top; bestAnalysis = analysis; }
+                // Combined normalized distance for best-effort ranking.
+                double combined = apsDist / Math.Max(1e-3, cfg.ApsTolerance)
+                                + cplxDist / Math.Max(1e-3, cfg.ComplexityTolerance);
+                if (combined < bestDist) { bestDist = combined; best = top; bestAnalysis = analysis; }
             }
 
             // Out of budget — return an honest best-effort.
@@ -121,7 +130,8 @@ namespace Hoppa.YAK.Editor
                 result.Analysis = bestAnalysis;
                 result.Succeeded = false;
                 result.FailureReason =
-                    $"closest solvable APS {bestAnalysis.ApsEstimate:0.0} vs target {targetAps:0.0} (±{cfg.ApsTolerance:0.0}) — target may be unreachable for this grid";
+                    $"closest solvable APS {bestAnalysis.ApsEstimate:0.0}/target {targetAps:0.0} (±{cfg.ApsTolerance:0.0}), " +
+                    $"complexity {bestAnalysis.ComplexityEstimate:0.0}/target {targetComplexity} (±{cfg.ComplexityTolerance:0.0}) — target may be unreachable for this grid";
             }
             else if (firstUnsolvable != null)
             {
@@ -141,7 +151,8 @@ namespace Hoppa.YAK.Editor
         // ── Candidate construction ────────────────────────────────────────────
 
         private static YAKTopSectionData BuildCandidate(
-            Dictionary<string, int> perColor, int columns, YAKSpoolAutofillConfig cfg, System.Random rng)
+            Dictionary<string, int> perColor, int columns, int complexity,
+            YAKSpoolAutofillConfig cfg, System.Random rng)
         {
             // One flat spool list across all colors, capacities summing exactly per color.
             var spools = new List<YAKSpoolEntry>();
@@ -149,7 +160,7 @@ namespace Hoppa.YAK.Editor
                 foreach (var cap in Partition(kv.Value, cfg.MinCapacity, cfg.MaxCapacity, cfg.AvgCapacity, rng))
                     spools.Add(new YAKSpoolEntry { ColorId = kv.Key, Capacity = cap, Hidden = false });
 
-            Shuffle(spools, rng);
+            Shuffle(spools, rng); // color mixing across columns
 
             // Mark a deterministic fraction hidden (post-shuffle → uniform random selection).
             // NOTE: YakAveragePlayer does not yet consult Hidden, so this does NOT move the
@@ -160,8 +171,12 @@ namespace Hoppa.YAK.Editor
 
             var top = new YAKTopSectionData();
             for (int i = 0; i < columns; i++) top.Columns.Add(new YAKSpoolColumn());
+
+            // Pattern-first: build the intended click pattern, then assign the k-th
+            // spool to the column the pattern names (R26). Replaces round-robin i%cols.
+            int[] pattern = Hoppa.YAK.Sim.YakClickPattern.Build(columns, spools.Count, complexity, rng);
             for (int i = 0; i < spools.Count; i++)
-                top.Columns[i % columns].Spools.Add(spools[i]);
+                top.Columns[pattern[i]].Spools.Add(spools[i]);
             return top;
         }
 

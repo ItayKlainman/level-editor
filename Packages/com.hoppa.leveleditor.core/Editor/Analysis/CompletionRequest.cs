@@ -12,6 +12,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         public int    Seed;
         public int?   ConveyorCapacityOverride;
 
+        // Target click-pattern complexity (1..10). Null = the completer's config
+        // default. Composes with TargetAPS — a candidate must satisfy both bands.
+        public int? TargetComplexity;
+
         // Per-mechanic on/off choices the completer understands (names come from
         // ILevelCompleter.MechanicToggles). A checked toggle = "include this
         // mechanic when filling". Null = the completer's defaults apply.

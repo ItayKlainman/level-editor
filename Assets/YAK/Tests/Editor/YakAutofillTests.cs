@@ -131,7 +131,9 @@ namespace Hoppa.YAK.Editor.Tests
         {
             var m = typeof(YAKSpoolAutofiller).GetMethod("BuildCandidate",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            return (Hoppa.YAK.YAKTopSectionData)m.Invoke(null, new object[] { perColor, columns, cfg, rng });
+            // BuildCandidate now takes a complexity argument (pattern-first assignment);
+            // hidden-ratio counts are independent of it, so pass the config default (3).
+            return (Hoppa.YAK.YAKTopSectionData)m.Invoke(null, new object[] { perColor, columns, 3, cfg, rng });
         }
         private static int CountHidden(Hoppa.YAK.YAKTopSectionData t)
         {
