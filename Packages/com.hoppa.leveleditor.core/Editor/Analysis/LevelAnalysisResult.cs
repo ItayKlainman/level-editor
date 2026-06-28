@@ -34,6 +34,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         public float ApsEstimate;
         public bool  ApsCalibrated;
 
+        // Measured click-pattern complexity (1..10) of average-player winning runs.
+        // 0 = not computed (request did not set MeasureComplexity, or no win). Like
+        // APS this is MEASURED-but-uncalibrated — do not present as ground truth.
+        public float ComplexityEstimate;
+
         // Game-defined difficulty band derived from APS (e.g. 1..N on a curve).
         // 0 = unset. The mapping is game-specific; Layer 1 just carries it.
         public int Band;
@@ -63,6 +68,8 @@ namespace Hoppa.LevelEditor.Core.Editor
                 sb.Append(" · APS ").Append(ApsEstimate.ToString("0.0"));
                 if (!ApsCalibrated) sb.Append(" (uncalibrated)");
             }
+            if (ComplexityEstimate > 0f)
+                sb.Append(" · cplx ").Append(ComplexityEstimate.ToString("0.0"));
             sb.Append(" · ");
             sb.Append(StatesExplored).Append(" states · ").Append(ElapsedMs).Append(" ms");
             if (!string.IsNullOrEmpty(FailureReason))

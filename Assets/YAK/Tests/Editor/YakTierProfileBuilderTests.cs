@@ -59,6 +59,25 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
+        public void Build_PushesComplexityOntoAutofillConfig()
+        {
+            var baseProfile = MakeBaseProfile(out _, out _, out _, out _);
+            var tier = new TierPreset { Name = "T", GridWidth = 8, GridHeight = 8, MaxColors = 2,
+                AvgCapacity = 20, ConveyorSlots = 5, ColumnRange = new Vector2Int(2, 3),
+                TargetAps = 2f, ApsTolerance = 0.5f, Complexity = 8 };
+            var built = YAKTierProfileBuilder.Build(baseProfile, tier);
+            try
+            {
+                var af = built.Profile.LevelCompleter as YAKSpoolAutofiller;
+                Assert.IsNotNull(af);
+                var cfg = GetField<YAKSpoolAutofillConfig>(af, "_config");
+                Assert.IsNotNull(cfg);
+                Assert.AreEqual(8, cfg.DefaultComplexity);
+            }
+            finally { built.Cleanup(); }
+        }
+
+        [Test]
         public void Build_DoesNotMutateOriginals()
         {
             var baseProfile = MakeBaseProfile(out var ig, out var af, out var afc, out var gc);

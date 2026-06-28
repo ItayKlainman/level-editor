@@ -23,6 +23,7 @@ namespace Hoppa.YAK.Editor
         [Header("Difficulty target")]
         public float TargetAps = 3f;
         public float ApsTolerance = 0.6f;
+        [Range(1, 10)] public int Complexity = 3;
 
         public TierPreset Clone() => (TierPreset)MemberwiseClone();
     }

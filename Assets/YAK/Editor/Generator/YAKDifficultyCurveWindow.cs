@@ -72,6 +72,9 @@ namespace Hoppa.YAK.Editor
                     p.HiddenRatio, 0f, 1f);
                 p.TargetAps     = EditorGUILayout.FloatField("Target APS", p.TargetAps);
                 p.ApsTolerance  = EditorGUILayout.FloatField("APS Tolerance", p.ApsTolerance);
+                p.Complexity    = EditorGUILayout.IntSlider(
+                    new GUIContent("Complexity (1..10)", "Click-pattern variety target. Measured-but-uncalibrated, like APS."),
+                    Mathf.Clamp(p.Complexity, 1, 10), 1, 10);
                 if (EditorGUI.EndChangeCheck()) Dirty();
                 EditorGUILayout.EndVertical();
             }

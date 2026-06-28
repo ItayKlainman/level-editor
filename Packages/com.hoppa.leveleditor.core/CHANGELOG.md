@@ -8,6 +8,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- YAK Complexity axis (click-pattern difficulty, 1–10): a second difficulty dial orthogonal to
+  spool size. `LevelAnalysisResult.ComplexityEstimate` and `AnalysisRequest.MeasureComplexity`
+  (generic, additive — APS-only callers unaffected) carry a MEASURED-but-uncalibrated complexity
+  of the average player's winning click sequences; `CompletionRequest.TargetComplexity` and
+  `LevelStats.complexity` complete the carrier set. YAK side: new `YakClickPattern` helper
+  (Score metric + pattern-first `Build` honoring the boss's rules R25–R31), pattern-first spool→column
+  assignment in `YAKSpoolAutofiller` (replaces round-robin) with a complexity acceptance gate,
+  and `Complexity` exposed on the difficulty-curve `TierPreset` / window / batch stats + review
+  window. R27 max-repeat follows the boss's written table (C1–2⇒2, C3–5⇒3, C6–8⇒4, C9–10⇒5) —
+  flagged for confirmation where it diverges from his formula.
 - YAK Image Library tool (`Window ▸ Hoppa ▸ YAK ▸ Image Library`): offline auto-fill of the
   generator's source-image folder via the OpenAI Images API. Reads a plain-text ideas list,
   builds a flat-sticker prompt injecting the game's wool palette, and gap-fills one PNG per idea.

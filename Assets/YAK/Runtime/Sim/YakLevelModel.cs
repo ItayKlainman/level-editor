@@ -105,5 +105,35 @@ namespace Hoppa.YAK.Sim
                 gridCols, totalWool,
                 columns, spoolColor, spoolCap, spoolHidden, totalSpools);
         }
+
+        // Test/utility factory: build a model directly from column arrays (no
+        // GridData/top round-trip). gridCols[x] = wool colors bottom→top for grid
+        // column x; spoolColors[c]/spoolCaps[c] = colors/capacities head→back for
+        // spool column c. Hidden defaults to all-false. Mirrors the fields Build sets.
+        public static YakLevelModel FromArrays(int[][] gridCols, int[][] spoolColors, int[][] spoolCaps,
+                                               int conveyorSlots, int numColors, string[] colorNames)
+        {
+            gridCols    ??= System.Array.Empty<int[]>();
+            spoolColors ??= System.Array.Empty<int[]>();
+            spoolCaps   ??= System.Array.Empty<int[]>();
+
+            int totalWool = 0;
+            foreach (var col in gridCols) totalWool += col?.Length ?? 0;
+
+            int columns = spoolColors.Length;
+            var spoolHidden = new bool[columns][];
+            int totalSpools = 0;
+            for (int c = 0; c < columns; c++)
+            {
+                int n = spoolColors[c]?.Length ?? 0;
+                spoolHidden[c] = new bool[n];
+                totalSpools += n;
+            }
+
+            return new YakLevelModel(
+                gridCols.Length, conveyorSlots, numColors, colorNames,
+                gridCols, totalWool,
+                columns, spoolColors, spoolCaps, spoolHidden, totalSpools);
+        }
     }
 }

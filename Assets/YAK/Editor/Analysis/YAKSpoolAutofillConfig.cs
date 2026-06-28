@@ -34,6 +34,12 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Fraction of spools marked hidden (0..1). NOTE: the average-player analyzer does not yet model hidden spools, so measured APS will NOT reflect this difficulty (fast-follow).")]
         [Range(0f, 1f)] public float HiddenRatio = 0f;
 
+        [Header("Click-pattern complexity (1..10)")]
+        [Tooltip("Target click-pattern complexity when the request supplies none. 1 = simple/near-round-robin, 10 = long runs + unpredictable jumps. MEASURED-but-uncalibrated, like APS.")]
+        [Range(1, 10)] public int DefaultComplexity = 3;
+        [Tooltip("Accept a candidate when |measured complexity − target| <= this (in 1..10 units).")]
+        [Min(0f)] public float ComplexityTolerance = 1.5f;
+
         [Header("Search budget")]
         [Tooltip("Random candidate arrangements sampled before returning the best-so-far. Kept modest so batch generation (which auto-fills every candidate) stays fast.")]
         [Min(1)] public int MaxAttempts = 60;
