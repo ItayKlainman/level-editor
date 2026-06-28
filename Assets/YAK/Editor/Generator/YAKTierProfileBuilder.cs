@@ -66,6 +66,7 @@ namespace Hoppa.YAK.Editor
                 cfg.DefaultApsTarget = tier.TargetAps;
                 cfg.ApsTolerance = tier.ApsTolerance;
                 cfg.HiddenRatio = Mathf.Clamp01(tier.HiddenRatio);
+                cfg.DefaultComplexity = Mathf.Clamp(tier.Complexity, 1, 10);
                 Set(af, "_config", cfg);
                 owned.Add(cfg);
                 owned.Add(af);

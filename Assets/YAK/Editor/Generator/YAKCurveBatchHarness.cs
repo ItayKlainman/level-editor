@@ -65,7 +65,7 @@ namespace Hoppa.YAK.Editor
                         if (doc?.Grid == null) continue;
 
                         var an = tp.Profile.LevelAnalyzer.Analyze(doc, tp.Profile,
-                            new AnalysisRequest { RolloutCount = 120, Seed = seed });
+                            new AnalysisRequest { RolloutCount = 120, Seed = seed, MeasureComplexity = true });
                         float delta = an.Status == AnalysisStatus.Solvable
                             ? Mathf.Abs(an.ApsEstimate - tier.TargetAps) : float.MaxValue;
 
@@ -95,6 +95,7 @@ namespace Hoppa.YAK.Editor
                         tier = tier.Name,
                         targetAps = tier.TargetAps,
                         offTarget = offTarget,
+                        complexity = bestAn != null ? bestAn.ComplexityEstimate : 0f,
                     });
                 }
                 finally { tp.Cleanup(); }
