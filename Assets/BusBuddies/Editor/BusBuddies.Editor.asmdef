@@ -1,0 +1,20 @@
+{
+    "name": "Hoppa.BusBuddies.Editor",
+    "rootNamespace": "Hoppa.BusBuddies.Editor",
+    "references": [
+        "Hoppa.LevelEditor.Core.Runtime",
+        "Hoppa.LevelEditor.Core.Editor",
+        "Hoppa.BusBuddies.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
