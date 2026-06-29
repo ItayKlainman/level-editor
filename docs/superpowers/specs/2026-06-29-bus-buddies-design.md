@@ -40,7 +40,7 @@ implement.**
 | Buses ≡ spools | wool spools | colored **Buses** with a fixed passenger count; passengers share the bus colour. |
 | Queue | spool columns | **1–5 vertical bus columns; only the top bus in each column is tappable.** Tapping moves it into the Active Bus Row; the column shifts up. |
 | Active region | conveyor belt (moving) | **Active Bus Row — stationary, max 5 buses.** Active buses auto-release passengers. |
-| Release | — | while an active bus has an accessible matching block: one passenger exits, removes that block, carries it to the **central Hole**; bus count −1. Continues until the bus is empty or no accessible match remains. |
+| Release | — | while an active bus has an accessible matching block: one passenger exits, removes that block, carries it to the **central Hole**; bus count −1. Continues until the bus is empty or no accessible match remains. **Target rule (canonical, editor + game must match):** when several matching blocks are reachable, the passenger takes the one **nearest to the central Hole** (hole at bottom-center, just below the grid; squared-Euclidean distance; tie-break by lowest index). Because there is no gravity, target choice changes which neighbours unlock, so this must be deterministic and identical in both — it also makes the solver exact/sound (only bus-pull order branches). |
 | Bus exit | — | a bus at **0 passengers** leaves the Active Row, freeing a slot. |
 | Overflow / holding | belt capacity + jam | **none.** No belt. |
 | **Win** | — | all blocks collected **and** all buses emptied (queues exhausted + active row empty). |
@@ -127,8 +127,11 @@ board is modeled as a full mutable 2D occupancy.
   slot and `QHead[col]` in range), advance `QHead[col]`, then `ResolveReleases()`.
 - **`ResolveReleases()`:** loop to quiescence — while some active bus has ≥1 accessible block of its
   colour, remove one such block, decrement that bus, free the slot if it hits 0, update accessibility;
-  repeat until no active bus can release. (Order among same-colour buses does not change which blocks
-  of that colour ultimately clear, so a deterministic greedy order is sound.)
+  repeat until no active bus can release. **Which block is removed is the canonical target rule:
+  `FindAccessibleBlock` picks the accessible matching block NEAREST the Hole** (bottom-center,
+  `hx=(W-1)/2`, `hy=-1`; squared-Euclidean; tie-break lowest index). This is deterministic and must
+  match the game; with a single deterministic targeting, only bus-pull order branches, so the solver
+  is sound (no false `Unsolvable` from target-choice ambiguity).
 - **`IsWin()`** = `BlocksLeft == 0 && all QHead exhausted && Active Row empty`.
 - **`IsDeadlock()`** = Active Row full (`ActiveSlots` occupied) **and** no active colour has an
   accessible matching block.
