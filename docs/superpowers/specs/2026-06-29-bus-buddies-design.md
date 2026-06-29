@@ -36,7 +36,7 @@ implement.**
 | Piece | YAK | **Bus Buddies** |
 |---|---|---|
 | Gravity | blocks fall after a hit | **none — a removed block just becomes empty; nothing else moves.** The GDD's "grid collapses" = progressive removal, NOT physics. |
-| Accessibility | bottom row + gravity-exposed | a Pixel Block is **accessible** iff a passenger can reach it from the grid border **through empty cells, moving 4-way (orthogonal only)**. Formally: flood-fill the empty cells 4-connected from the border; a block is accessible iff at least one of its 4 orthogonal neighbours is in that flooded region. **Diagonal pinches do NOT pass** (a block orthogonally enclosed by 4 blocks is locked until a neighbour clears). |
+| Accessibility | bottom row + gravity-exposed | a Pixel Block is **accessible** iff a passenger can reach it from the grid border **through empty cells, moving 4-way (orthogonal only)**. Formally: the region **outside the grid counts as open**, and empty cells are flood-filled 4-connected from the border; a block is accessible iff it sits on the **literal grid edge** (touching the outside) OR at least one of its 4 orthogonal neighbours is a border-connected flooded empty cell. **Diagonal pinches do NOT pass** (a block orthogonally enclosed by 4 blocks is locked until a neighbour clears). This "outside == open" rule is what makes edge blocks always reachable (passengers attack from each frame edge), and the canonical rule the future game must implement. |
 | Buses ≡ spools | wool spools | colored **Buses** with a fixed passenger count; passengers share the bus colour. |
 | Queue | spool columns | **1–5 vertical bus columns; only the top bus in each column is tappable.** Tapping moves it into the Active Bus Row; the column shifts up. |
 | Active region | conveyor belt (moving) | **Active Bus Row — stationary, max 5 buses.** Active buses auto-release passengers. |
@@ -119,9 +119,10 @@ board is modeled as a full mutable 2D occupancy.
 - **State:** `Removed` occupancy (e.g. a `bool[]`/bitset over grid cells) + the live colour lookup,
   `QHead[]` per column, Active Row = up to `ActiveSlots` slots each `{ colorIdx, remaining }`
   (−1/0 = empty), `BlocksLeft`, an **accessibility cache** (the border-connected empty flood).
-- **Accessibility:** `RecomputeAccess()` floods empty cells 4-connected from the border; a block is
-  accessible iff an orthogonal neighbour is flooded. Removing a block updates the flood **incrementally**
-  (the freed cell may connect previously-isolated empty pockets) — avoid a full reflood per removal.
+- **Accessibility:** `RecomputeAccess()` floods empty cells 4-connected from the border (outside the
+  grid counts as open); a block is accessible iff it is on the grid edge or an orthogonal neighbour is
+  flooded. **Sub-phase 1a uses a full reflood per removal (correctness-first);** an incremental flood
+  (re-expanding only from the freed cell) is a deferred performance optimization, not required for 1a.
 - **`ApplyMove(int col)`:** pull the top bus of `col` into the first free Active slot (requires a free
   slot and `QHead[col]` in range), advance `QHead[col]`, then `ResolveReleases()`.
 - **`ResolveReleases()`:** loop to quiescence — while some active bus has ≥1 accessible block of its
