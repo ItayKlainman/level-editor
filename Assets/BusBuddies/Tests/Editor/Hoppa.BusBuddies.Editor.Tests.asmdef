@@ -3,7 +3,9 @@
     "rootNamespace": "Hoppa.BusBuddies.Editor.Tests",
     "references": [
         "Hoppa.LevelEditor.Core.Runtime",
+        "Hoppa.LevelEditor.Core.Editor",
         "Hoppa.BusBuddies.Runtime",
+        "Hoppa.BusBuddies.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
