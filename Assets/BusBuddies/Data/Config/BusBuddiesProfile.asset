@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 705a0ca41a11b1a4eaf43d6aee9a89d1, type: 3}
+  m_Name: BusBuddiesProfile
+  m_EditorClassIdentifier: Hoppa.LevelEditor.Core.Editor::Hoppa.LevelEditor.Core.Editor.GameProfile
+  _schemaId: busbuddies
+  _colorPalette: {fileID: 11400000, guid: ea2e8da24f38f2842abdeb97bab1db37, type: 2}
+  _gridWidth: 30
+  _gridHeight: 30
+  _cellTypes:
+  - {fileID: 11400000, guid: d5b71b3e06c6fd14c928b4d5d2caf1b9, type: 2}
+  - {fileID: 11400000, guid: 7ec596f825d6feb49b39aee5ad606488, type: 2}
+  _rules:
+  - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
+  _exporters: []
+  _topSectionScript: {fileID: 0}
+  _bottomSectionScript: {fileID: 0}
+  _orderPanel: {fileID: 0}
+  _levelGenerator: {fileID: 0}
+  _generatorConfig: {fileID: 0}
+  _levelAnalyzer: {fileID: 11400000, guid: 04a93b9aa5b91a544b8e10e19110a5ef, type: 2}
+  _levelCompleter: {fileID: 0}
+  _canvasOverlay: {fileID: 0}
+  _imageToGrid: {fileID: 0}
+  _extensions: []
+  _spoolsBelowGrid: 1
