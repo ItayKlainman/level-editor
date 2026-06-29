@@ -14,10 +14,11 @@ namespace Hoppa.BusBuddies.Editor.Tests
         private static void SetField(Object obj, string field, Object value)
             => obj.GetType().GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(obj, value);
 
-        private static BusBuddiesAnalyzer MakeAnalyzer(int runs = 60)
+        private static BusBuddiesAnalyzer MakeAnalyzer(int runs = 60, int smallGridThreshold = 64)
         {
             var cfg = ScriptableObject.CreateInstance<BusBuddiesAnalyzerConfig>();
             cfg.Runs = runs;
+            cfg.SmallGridThreshold = smallGridThreshold;
             var ana = ScriptableObject.CreateInstance<BusBuddiesAnalyzer>();
             SetField(ana, "_config", cfg);
             return ana;
@@ -95,6 +96,33 @@ namespace Hoppa.BusBuddies.Editor.Tests
             var b = MakeAnalyzer().Analyze(Doc(g2, q2, 2), null, new AnalysisRequest { Seed = 7 });
             Assert.AreEqual(a.ApsEstimate, b.ApsEstimate);
             Assert.AreEqual(a.WinRate, b.WinRate);
+        }
+
+        [Test]
+        public void LargeGrid_RolloutRescues_UnknownToSolvable_WithNullWinPath()
+        {
+            // SmallGridThreshold=1 forces W*H=2 to skip the exact solver entirely.
+            // The rollout should rescue Unknown -> Solvable; WinPath stays null (no
+            // canonical path on the rescued path — this is the real 30x30 level path).
+            var (grid, q) = TwoCellAB();
+            var r = MakeAnalyzer(runs: 60, smallGridThreshold: 1)
+                .Analyze(Doc(grid, q, 2), null, new AnalysisRequest { Seed = 99 });
+
+            Assert.AreEqual(AnalysisStatus.Solvable, r.Status);
+            Assert.IsTrue(r.Solvable);
+            Assert.IsNull(r.WinPath);       // no canonical path on the rollout-rescue path
+            Assert.Greater(r.ApsEstimate, 0f);
+        }
+
+        [Test]
+        public void BudgetCut_NeverFalseUnsolvable()
+        {
+            // NodeBudget=1 forces BudgetExceeded (TimedOut) on a solvable small grid.
+            // The rollout rescue must upgrade it to Solvable — never Unsolvable.
+            var (grid, q) = TwoCellAB();
+            var r = MakeAnalyzer().Analyze(Doc(grid, q, 2), null,
+                new AnalysisRequest { NodeBudget = 1, Seed = 99 });
+            Assert.AreNotEqual(AnalysisStatus.Unsolvable, r.Status);
         }
     }
 }

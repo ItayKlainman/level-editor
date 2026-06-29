@@ -124,6 +124,12 @@ namespace Hoppa.BusBuddies.Editor
                         result.Solvable = true;
                         result.FailureReason = null;
                     }
+                    // Large grid skipped AND rollout found no win — remain Unknown but explain.
+                    else if (result.Status == AnalysisStatus.Unknown && result.WinRate == 0.0)
+                    {
+                        result.FailureReason =
+                            $"large grid; rollout found no win in {result.RolloutsRun} runs — solvability unknown";
+                    }
                 }
 
                 return Done(result, sw);
