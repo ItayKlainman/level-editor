@@ -6,7 +6,64 @@
 
 ---
 
-## ACTIVE INITIATIVE — Automated level-generation tooling for YAK (A–E, phase-gated)
+## ★ ACTIVE INITIATIVE — Bus Buddies (Food Hunt clone) — as of 2026-06-29
+
+A new game authored through this editor: a re-theme of the live game **Food Hunt**, ~100%
+mechanically identical (buses + passengers theme), built as a **YAK-sibling Layer-2** (configured
+`BusBuddiesProfile.asset` + Layer-2 assets, NOT a subclass — `GameProfile` is sealed).
+- **Backlog:** `docs/BUS-BUDDIES-BACKLOG.md` · **Spec:** `docs/superpowers/specs/2026-06-29-bus-buddies-design.md`
+- **Goal:** generate + export **30 solvable, difficulty-graded levels** for a D1 40%+ validation campaign.
+- **A companion game IS being built now on the YAK codebase** → exporter stays YAK-shaped (buses≡spools,
+  `conveyorCount` key reused for the Active-Bus-Row slot count). The game must implement the SAME
+  canonical rules we define (4-way accessibility + nearest-to-hole targeting).
+
+**Core mechanic (canonical contract):** no gravity (removed blocks vanish, nothing moves); a block is
+accessible if reachable from the frame edge through empty cells **4-way, outside-the-grid counts as open**
+(edge blocks always reachable); tap pulls the top bus of a queue column into a stationary **Active Bus
+Row (max 5)** which auto-empties into reachable matching blocks; **passenger targets the matching block
+NEAREST the Hole** (bottom-center, squared-Euclidean, tie-break lowest index — makes the solver sound);
+WIN = board cleared + all buses empty; LOSE = 5 active slots full + none can release (deadlock).
+
+### SHIPPED to master (all pushed to origin)
+- **Task 4** — image→grid options (subject-only Empty + black Outline) — master `2a26059`.
+- **Spec** approved — master (`a3c3212`).
+- **Sub-phase 1a — engine** — master `ea8ee76`. Pure-C# `Assets/BusBuddies/Runtime/Sim/`
+  (BusLevelModel / BusSimState / BusSolver / BusAveragePlayer) + cells + queue data + 23 tests.
+- **Sub-phase 1b-i — author & analyze** — master `52bfbd9`. `Hoppa.BusBuddies.Editor` asmdef + BB
+  cell brushes + `BusBuddiesPalette.asset` (8 colors: red/blue/green/yellow/orange/purple/pink/cyan)
+  + `BBColorBalanceRule` + `BusBuddiesAnalyzer`(+config, wraps 1a onto ILevelAnalyzer) +
+  `BusBuddiesProfile.asset` (wires palette/cells/rule/analyzer; 30×30; `_spoolsBelowGrid=true`).
+- **Full EditMode suite: 255/255 green.** Both engine + analyzer opus-reviewed.
+
+### ⏭️ TOMORROW — pick up at sub-phase 1b-ii (author half)
+1. **Write the 1b-ii plan** (`docs/superpowers/plans/2026-06-29-bus-buddies-1b-ii-autofill-queue.md`)
+   against the realized 1a/1b APIs — outline already in the 1b-i plan's tail. Two pieces:
+   - **`BusBuddiesAutofiller : LevelCompleterAsset` + config** — mirror `YAKSpoolAutofiller`
+     (tally blocks/color → partition into bus capacities summing exactly → assign to 1–5 columns →
+     gate on `BusBuddiesAnalyzer`). **Fully TDD-able.** Then wire profile `_levelCompleter`.
+   - **`BusBuddiesQueuePanel : TopSectionPanel`** — mirror `YAKSpoolSectionPanel` (author bus columns:
+     color/capacity/hidden/connected). **Manual/IMGUI — no unit tests**, ship with a manual checklist.
+     Then wire profile `_bottomSectionScript`.
+2. **Then the LEAD's in-editor eyeball** becomes meaningful (open Level Editor on `BusBuddiesProfile`:
+   paint pixels, author buses, Validation balances, Analyze → Solvable + APS + Band). Deferred from 1b-i.
+3. **Then sub-phase 1c** — `BusBuddiesImageToGrid` (reuse Task-4 helpers, default Empty+Outline) +
+   YAK-shaped exporter (+color source) + generator + batch/curve harness → generate the 30 levels.
+
+### Deferred / blocked-on-game (not actionable until the game exists)
+- **APS calibration** — APS is measured but uncalibrated (no Bus Buddies player data; shares YAK's "Gap B").
+- **Prove a generated level plays in the real game** (YAK "Gap C" analog).
+- **3 mechanics' difficulty modeling** (Hidden cube / Hidden Bus / Connected Bus) — authorable+exportable
+  later, accurate scoring deferred. **Export-schema sync** when the game firms up (thin seam exists).
+
+### Op notes (Unity MCP, this session)
+- Use the **direct `mcp__ai-game-developer__*` tools**, NOT `npx unity-mcp-cli` (CLI 500s on a stale token).
+- Adding a new asmdef triggers a Unity **domain reload** → Editor-API calls 500 for ~tens of seconds; retry.
+- **`git add` the FOLDER** in every commit so Unity `.meta` sidecars ship (1a missed them; caught at push).
+- Team-workflow tracker: `.claude/teams/board.md` (Active table + Journal). Improvements: `/retro`.
+
+---
+
+## (previous initiative) — Automated level-generation tooling for YAK (A–E, phase-gated)
 
 Plan: `C:\Users\itay0\.claude\plans\no-thanks-i-want-velvety-frost.md` · Spec: `docs/level-tooling-megaprompt.md`.
 Five systems built as phases A–E; **stop for explicit approval at each gate.** Generic logic →
