@@ -8,11 +8,11 @@ using UnityEngine;
 namespace Hoppa.YAK.Editor
 {
     // Converts a source image into a YAK level grid: a clean, blocky,
-    // palette-quantized 30×30 of wool tiles with NO empty cells (background is a
-    // real neutral color). Pipeline:
-    //   downscale (area average) → segment subject/background → quantize subject
-    //   to the profile palette (perceptual) → fill background with the most
-    //   contrasting neutral → merge down to the color cap → emit LevelDocument.
+    // palette-quantized 30×30 of wool tiles. Pipeline:
+    //   downscale (area average) → segment subject/background
+    //   → compute outline mask (if enabled) → quantize subject to the profile palette
+    //   → fill background (neutral or empty) → apply outline → merge down to color cap
+    //   → emit LevelDocument.
     //
     // Colors are produced as palette string ColorIds (PascalCase YAK enum names);
     // int/enum mapping stays in YAKLevelExporter / YAKStaticManagerColorSource.
@@ -21,12 +21,28 @@ namespace Hoppa.YAK.Editor
     {
         public enum SegmentationMode { BorderRing, Alpha, MostSaturated }
 
+        // How background cells are emitted.
+        // FillNeutral (default) preserves the original all-wool, no-empty behavior.
+        // Empty emits YAKEmptyCell for non-outline background cells.
+        public enum BackgroundFill { FillNeutral, Empty }
+
         [Header("Colors")]
         [Tooltip("Maximum number of distinct colors in the output (background neutral counts toward this).")]
         [Min(2)] public int ColorCap = 6;
 
         [Tooltip("Candidate background neutrals, most-preferred first. The one with the greatest luminance distance from the subject's dominant color is chosen.")]
         public string[] BackgroundNeutrals = { "Grey", "GreyLight", "GreyDark", "DarkGrey", "White", "Black" };
+
+        [Header("Background")]
+        [Tooltip("FillNeutral: background cells become the most-contrasting neutral (original behavior). Empty: background cells become YAKEmptyCell (required for Bus Buddies flood-accessibility).")]
+        public BackgroundFill Background = BackgroundFill.FillNeutral;
+
+        [Header("Outline")]
+        [Tooltip("Paint background cells that are orthogonally adjacent to the subject with OutlineColorId, producing a silhouette outline.")]
+        public bool OutlineSubject = false;
+
+        [Tooltip("Palette ColorId used for the outline. Falls back to the darkest palette color if absent.")]
+        public string OutlineColorId = "Black";
 
         [Header("Segmentation")]
         [Tooltip("How subject is separated from background.")]
@@ -57,19 +73,51 @@ namespace Hoppa.YAK.Editor
             var ids = new string[W * H];
             for (int i = 0; i < ids.Length; i++) ids[i] = NearestId(avg[i], palette);
 
-            // 4) Background fill: most contrasting neutral vs subject's dominant.
-            string subjectDominant = MostFrequent(ids, isBg, wantBackground: false) ?? ids[0];
-            string bgId = ChooseBackgroundNeutral(subjectDominant, palette);
-            if (bgId != null)
-                for (int i = 0; i < ids.Length; i++) if (isBg[i]) ids[i] = bgId;
+            // 3b) Compute outline mask BEFORE any bg mutation (preserves original isBg[]).
+            //     isOutline[i] = bg cell orthogonally adjacent to at least one subject cell.
+            bool[] isOutline = OutlineSubject ? ComputeOutlineMask(isBg, W, H) : null;
 
-            // 5) Merge down to the color cap (least-used → nearest neighbour).
-            MergeToCap(ids, palette, ColorCap);
+            // 4) Background body: fill non-outline bg cells.
+            if (Background == BackgroundFill.FillNeutral)
+            {
+                string subjectDominant = MostFrequent(ids, isBg, wantBackground: false) ?? ids[0];
+                string bgId = ChooseBackgroundNeutral(subjectDominant, palette);
+                if (bgId != null)
+                    for (int i = 0; i < ids.Length; i++)
+                        if (isBg[i] && (isOutline == null || !isOutline[i])) ids[i] = bgId;
+            }
+            // Empty mode: non-outline bg cells will emit YAKEmptyCell at step 7; ids[i] is irrelevant for them.
 
-            // 6) Emit LevelDocument — all wool, zero empties.
+            // 5) Apply outline color (counts toward ColorCap, protected from merge).
+            string resolvedOutlineId = null;
+            if (OutlineSubject && isOutline != null)
+            {
+                resolvedOutlineId = ResolveOutlineId(palette);
+                if (resolvedOutlineId != null)
+                    for (int i = 0; i < ids.Length; i++)
+                        if (isOutline[i]) ids[i] = resolvedOutlineId;
+            }
+
+            // Build isEmpty mask: cells that will emit YAKEmptyCell (non-outline bg, Empty mode only).
+            bool[] isEmpty = null;
+            if (Background == BackgroundFill.Empty)
+            {
+                isEmpty = new bool[W * H];
+                for (int i = 0; i < isEmpty.Length; i++)
+                    isEmpty[i] = isBg[i] && (isOutline == null || !isOutline[i]);
+            }
+
+            // 6) Merge down to color cap.
+            //    • Empties are excluded from count and merge loop (they are not a palette color).
+            //    • resolvedOutlineId is protected from being chosen as the least (never silently vanishes).
+            MergeToCap(ids, palette, ColorCap, isEmpty, resolvedOutlineId);
+
+            // 7) Emit LevelDocument. Empty bg cell → YAKEmptyCell; all others → YAKWoolCell.
             var grid = new GridData<ICellData>(W, H);
             for (int i = 0; i < ids.Length; i++)
-                grid.Cells[i] = new YAKWoolCell { ColorId = ids[i] };
+                grid.Cells[i] = (isEmpty != null && isEmpty[i])
+                    ? (ICellData)new YAKEmptyCell()
+                    : new YAKWoolCell { ColorId = ids[i] };
 
             string nowIso = DateTime.UtcNow.ToString("o");
             return new LevelDocument
@@ -81,6 +129,49 @@ namespace Hoppa.YAK.Editor
                 Grid          = grid,
                 GameData      = new JObject { ["conveyorCount"] = Mathf.Max(1, DefaultConveyorCount) },
             };
+        }
+
+        // ── Outline mask ────────────────────────────────────────────────────────
+
+        // Pure helper — also callable from BusBuddiesImageToGrid.
+        // Returns a mask where true = this bg cell is orthogonally adjacent to a subject cell.
+        public static bool[] ComputeOutlineMask(bool[] isBg, int W, int H)
+        {
+            var mask = new bool[W * H];
+            for (int i = 0; i < mask.Length; i++)
+            {
+                if (!isBg[i]) continue; // only bg cells can be outline
+                int x = i % W, y = i / W;
+                if ((x > 0     && !isBg[i - 1]) ||
+                    (x < W - 1 && !isBg[i + 1]) ||
+                    (y > 0     && !isBg[i - W]) ||
+                    (y < H - 1 && !isBg[i + W]))
+                    mask[i] = true;
+            }
+            return mask;
+        }
+
+        // Resolve the outline color id: try OutlineColorId first, then darkest-by-luminance fallback.
+        private string ResolveOutlineId(List<PaletteColor> palette)
+        {
+            // Exact match in palette.
+            foreach (var p in palette)
+                if (string.Equals(p.Id, OutlineColorId, StringComparison.Ordinal)) return p.Id;
+
+            // Fall back to darkest palette color by luminance.
+            if (palette.Count == 0)
+            {
+                Debug.LogWarning("[YAKImageToGrid] No palette colors for outline; skipping outline.");
+                return null;
+            }
+            string darkest = null; float darkestLum = float.MaxValue;
+            foreach (var p in palette)
+            {
+                float lum = Luminance(p.C);
+                if (lum < darkestLum) { darkestLum = lum; darkest = p.Id; }
+            }
+            Debug.LogWarning($"[YAKImageToGrid] Outline color '{OutlineColorId}' not in palette; using darkest '{darkest}' instead.");
+            return darkest;
         }
 
         // ── Palette ───────────────────────────────────────────────────────────
@@ -291,19 +382,33 @@ namespace Hoppa.YAK.Editor
 
         // ── Color-cap merge ─────────────────────────────────────────────────────
 
-        private static void MergeToCap(string[] ids, List<PaletteColor> palette, int cap)
+        // Merges the least-used color into its nearest perceptual neighbour until
+        // the number of distinct non-empty colors is within cap.
+        //   isEmpty:     cells that will emit YAKEmptyCell; excluded from count and merge.
+        //   protectedId: this color id is never chosen as the "least" to merge away.
+        private static void MergeToCap(string[] ids, List<PaletteColor> palette, int cap,
+                                       bool[] isEmpty = null, string protectedId = null)
         {
             cap = Mathf.Max(1, cap);
             while (true)
             {
                 var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-                foreach (var id in ids) { counts.TryGetValue(id, out var n); counts[id] = n + 1; }
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    if (isEmpty != null && isEmpty[i]) continue; // skip empty cells
+                    counts.TryGetValue(ids[i], out var n);
+                    counts[ids[i]] = n + 1;
+                }
                 if (counts.Count <= cap) break;
 
-                // Least-used color is merged into its nearest perceptual neighbour
-                // among the OTHER present colors.
+                // Least-used color, skipping the protected outline id.
                 string least = null; int leastN = int.MaxValue;
-                foreach (var kv in counts) if (kv.Value < leastN) { leastN = kv.Value; least = kv.Key; }
+                foreach (var kv in counts)
+                {
+                    if (protectedId != null && string.Equals(kv.Key, protectedId, StringComparison.Ordinal)) continue;
+                    if (kv.Value < leastN) { leastN = kv.Value; least = kv.Key; }
+                }
+                if (least == null) break; // only protected color left (or nothing left)
 
                 Color leastColor = ColorOf(least, palette);
                 string target = null; double bestD = double.PositiveInfinity;
@@ -316,7 +421,9 @@ namespace Hoppa.YAK.Editor
                 if (target == null) break; // only one color left
 
                 for (int i = 0; i < ids.Length; i++)
-                    if (string.Equals(ids[i], least, StringComparison.Ordinal)) ids[i] = target;
+                    if ((isEmpty == null || !isEmpty[i]) &&
+                        string.Equals(ids[i], least, StringComparison.Ordinal))
+                        ids[i] = target;
             }
         }
 
