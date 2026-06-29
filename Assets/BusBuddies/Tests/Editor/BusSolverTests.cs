@@ -48,5 +48,26 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.AreEqual(BusSolver.Outcome.Unsolvable, res.Outcome);
             Assert.IsNull(res.WinPath);
         }
+
+        [Test]
+        public void Solve_BudgetExhausted_NeverReturnsUnsolvable()
+        {
+            // A genuinely solvable level (2x2 same as above) run through a solver
+            // with maxNodes=1 — the budget is exhausted before the search completes.
+            // The result MUST be BudgetExceeded, NEVER Unsolvable (honesty rule).
+            // WinPath must be null on a budget cut.
+            var grid = new[] { 0, 1, 1, 0 };
+            var m = BusLevelModel.FromArrays(grid, 2, 2,
+                busColors: new[] { new[] { 0 }, new[] { 1 } },
+                busCaps:   new[] { new[] { 2 }, new[] { 2 } },
+                activeSlots: 2, numColors: 2, colorNames: new[] { "A", "B" });
+
+            var solver = new BusSolver(maxNodes: 1, timeoutMs: 5_000);
+            var res = solver.Solve(m);
+
+            Assert.AreEqual(BusSolver.Outcome.BudgetExceeded, res.Outcome,
+                "a budget cut on a solvable level must return BudgetExceeded, not Unsolvable");
+            Assert.IsNull(res.WinPath, "WinPath must be null when budget is exhausted");
+        }
     }
 }

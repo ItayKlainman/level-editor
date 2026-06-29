@@ -105,12 +105,36 @@ namespace Hoppa.BusBuddies.Sim
             return Cell[i] < 0 && flood[i];
         }
 
-        // First cell index with the given accessible colour, or -1.
+        // Canonical passenger-targeting rule: among all accessible blocks of `color`,
+        // pick the one NEAREST to the central Hole (bottom-center, one row below the
+        // grid). Tie-break: lowest flat index (deterministic).
+        //
+        // WHY THIS MATTERS: with no gravity, the choice of which block to remove
+        // directly changes which neighbours become accessible next. The game must
+        // implement the identical rule so simulator and gameplay agree on unlock
+        // sequences. Nearest-to-hole is the agreed canonical rule.
+        //
+        // Hole position: hx = (W-1)/2.0 (horizontally centered), hy = -1.0 (one row
+        // below the bottom edge, row-0-bottom convention).
         private int FindAccessibleBlock(int color)
         {
+            double hx = (M.W - 1) / 2.0;
+            const double hy = -1.0;
+            int bestIdx = -1;
+            double bestDist = double.MaxValue;
             for (int i = 0; i < Cell.Length; i++)
-                if (_accessible[i] && Cell[i] == color) return i;
-            return -1;
+            {
+                if (!_accessible[i] || Cell[i] != color) continue;
+                int x = i % M.W, y = i / M.W;
+                double dx = x - hx, dy = y - hy;
+                double dist = dx * dx + dy * dy;
+                if (dist < bestDist || (dist == bestDist && i < bestIdx))
+                {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+            return bestIdx;
         }
 
         public int FreeSlot()
@@ -131,10 +155,12 @@ namespace Hoppa.BusBuddies.Sim
         }
 
         // Pull the head bus of `col` onto the first free Active slot, then resolve.
-        // Returns blocks removed. Caller must ensure CanPull(col) and FreeSlot() >= 0.
+        // Returns blocks removed. Defensive: returns 0 without mutating state when
+        // the precondition (!CanPull(col) || FreeSlot()<0) is violated.
         public int ApplyMove(int col)
         {
             int slot = FreeSlot();
+            if (slot < 0 || !CanPull(col)) return 0;
             int head = QHead[col];
             ActiveColor[slot] = M.BusColor[col][head];
             ActiveRem[slot] = M.BusCap[col][head];
