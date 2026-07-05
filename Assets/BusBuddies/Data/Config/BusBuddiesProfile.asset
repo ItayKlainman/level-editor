@@ -23,12 +23,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
   _exporters: []
   _topSectionScript: {fileID: 0}
-  _bottomSectionScript: {fileID: 0}
+  _bottomSectionScript: {fileID: 11500000, guid: a4ff2e5558743a94fab623c310999a36, type: 3}
   _orderPanel: {fileID: 0}
   _levelGenerator: {fileID: 0}
   _generatorConfig: {fileID: 0}
   _levelAnalyzer: {fileID: 11400000, guid: 04a93b9aa5b91a544b8e10e19110a5ef, type: 2}
-  _levelCompleter: {fileID: 0}
+  _levelCompleter: {fileID: 11400000, guid: 60392c87b22d400459462b42267ffd39, type: 2}
   _canvasOverlay: {fileID: 0}
   _imageToGrid: {fileID: 0}
   _extensions: []
