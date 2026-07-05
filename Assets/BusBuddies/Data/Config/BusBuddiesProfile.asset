@@ -28,7 +28,7 @@ MonoBehaviour:
   _levelGenerator: {fileID: 0}
   _generatorConfig: {fileID: 0}
   _levelAnalyzer: {fileID: 11400000, guid: 04a93b9aa5b91a544b8e10e19110a5ef, type: 2}
-  _levelCompleter: {fileID: 0}
+  _levelCompleter: {fileID: 11400000, guid: 60392c87b22d400459462b42267ffd39, type: 2}
   _canvasOverlay: {fileID: 0}
   _imageToGrid: {fileID: 0}
   _extensions: []
