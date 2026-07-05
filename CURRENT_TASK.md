@@ -33,27 +33,37 @@ WIN = board cleared + all buses empty; LOSE = 5 active slots full + none can rel
   cell brushes + `BusBuddiesPalette.asset` (8 colors: red/blue/green/yellow/orange/purple/pink/cyan)
   + `BBColorBalanceRule` + `BusBuddiesAnalyzer`(+config, wraps 1a onto ILevelAnalyzer) +
   `BusBuddiesProfile.asset` (wires palette/cells/rule/analyzer; 30×30; `_spoolsBelowGrid=true`).
-- **Full EditMode suite: 255/255 green.** Both engine + analyzer opus-reviewed.
+- **Sub-phase 1b-ii — author half (autofiller + queue panel)** — master `74aa848` (2026-07-05).
+  `BusBuddiesAutofiller : LevelCompleterAsset` + config (bus-scaled cap 3–12/avg6, ColumnRange 1–5,
+  APS-only gating — no complexity axis; `Partition` copied from YAK) + `BusBuddiesQueuePanel :
+  TopSectionPanel` (author color/capacity/hidden, add/del/reorder/move, HEAD=Buses[0]; connected-bus
+  UI deferred). Wired `_levelCompleter` + `_bottomSectionScript`. 7 TDD tests.
+- **Sub-phase 1c — generation pipeline** — master `8d8c53f` (2026-07-05). `BusBuddiesImageToGrid`
+  (Empty-bg + outline defaults, emits BB cells, outline=purple/tunable) + `BusBuddiesLevelGenerator`
+  + config (analyzer-gated; procedural fallback all-pixel) + `BusBuddiesBatchHarness` + a mirrored
+  BB difficulty-curve stack (config/tier-builder[clone-safe]/curve-harness/window) + a seeded default
+  30-level 5-tier curve asset. Wired `_imageToGrid` / `_levelGenerator` / `_generatorConfig`. 16 TDD tests.
+- **Full EditMode suite: 278/278 green.** Engine + analyzer + autofiller + generator all opus-reviewed.
 
-### ⏭️ TOMORROW — pick up at sub-phase 1b-ii (author half)
-1. **Write the 1b-ii plan** (`docs/superpowers/plans/2026-06-29-bus-buddies-1b-ii-autofill-queue.md`)
-   against the realized 1a/1b APIs — outline already in the 1b-i plan's tail. Two pieces:
-   - **`BusBuddiesAutofiller : LevelCompleterAsset` + config** — mirror `YAKSpoolAutofiller`
-     (tally blocks/color → partition into bus capacities summing exactly → assign to 1–5 columns →
-     gate on `BusBuddiesAnalyzer`). **Fully TDD-able.** Then wire profile `_levelCompleter`.
-   - **`BusBuddiesQueuePanel : TopSectionPanel`** — mirror `YAKSpoolSectionPanel` (author bus columns:
-     color/capacity/hidden/connected). **Manual/IMGUI — no unit tests**, ship with a manual checklist.
-     Then wire profile `_bottomSectionScript`.
-2. **Then the LEAD's in-editor eyeball** becomes meaningful (open Level Editor on `BusBuddiesProfile`:
-   paint pixels, author buses, Validation balances, Analyze → Solvable + APS + Band). Deferred from 1b-i.
-3. **Then sub-phase 1c** — `BusBuddiesImageToGrid` (reuse Task-4 helpers, default Empty+Outline) +
-   YAK-shaped exporter (+color source) + generator + batch/curve harness → generate the 30 levels.
+### ⏭️ TOMORROW — the LEAD's in-editor eyeball (the whole pipeline is now runnable)
+Open the Level Editor on `BusBuddiesProfile` and exercise the flows by hand:
+1. **Author + auto-fill:** paint BBPixelCells → Bus Queue panel renders below the grid (bottom bus =
+   HEAD) → **Auto-fill** → buses appear, `BBColorBalanceRule` green → **Analyze** → Solvable + APS + Band.
+2. **Image → grid:** 🖼 Image mode → pick an image → Convert (Empty bg + purple outline) → Use This Level.
+3. **Generate:** ✨ Generate → single procedural/image level, analyzer-gated Solvable.
+4. **Batch / curve:** run `BusBuddiesBatchHarness` (menu) or the Difficulty Curve window → Batch Review
+   window → import the good ones. Tune the default curve asset bands + outline color to taste.
 
-### Deferred / blocked-on-game (not actionable until the game exists)
+### Deferred / blocked-on-game (not actionable until the BB game exists)
+- **Exporter (1c Task 4) NOT built** — BB game doesn't exist yet → no target schema. Build when the
+  game defines its level format (or lead provides a provisional schema).
 - **APS calibration** — APS is measured but uncalibrated (no Bus Buddies player data; shares YAK's "Gap B").
 - **Prove a generated level plays in the real game** (YAK "Gap C" analog).
 - **3 mechanics' difficulty modeling** (Hidden cube / Hidden Bus / Connected Bus) — authorable+exportable
-  later, accurate scoring deferred. **Export-schema sync** when the game firms up (thin seam exists).
+  later, accurate scoring deferred. Connected-bus authoring UI also deferred (ConnectedId carried as data).
+- **Fast-follows (both inherited from YAK, present in both games):** `HashBlock` int.MinValue →
+  negative-modulo IndexOOB (rare); `PickSourceImage` disk-branch Texture2D leak (editor-only); the
+  column-remove-frame `ArgumentOutOfRangeException` in `BusBuddiesQueuePanel`/`YAKSpoolSectionPanel`.
 
 ### Op notes (Unity MCP, this session)
 - Use the **direct `mcp__ai-game-developer__*` tools**, NOT `npx unity-mcp-cli` (CLI 500s on a stale token).
