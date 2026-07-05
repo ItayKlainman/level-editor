@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+# Bus Buddies default 30-level difficulty curve. SEEDED SENSIBLE DEFAULTS — all
+# values are TUNABLE via the Difficulty Curve window (Window ▸ Hoppa ▸ BusBuddies
+# ▸ Difficulty Curve). 30×30 board throughout; a gentle→steep APS ramp and a
+# low→high MaxColors ramp across five tiers. Exact numbers are placeholders to be
+# calibrated once real player APS data exists.
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 786cdec8f044c6340b651165ff74f228, type: 3}
+  m_Name: BusBuddiesDifficultyCurve
+  m_EditorClassIdentifier: Hoppa.BusBuddies.Editor::Hoppa.BusBuddies.Editor.BusBuddiesDifficultyCurveConfig
+  Presets:
+  - Name: Intro
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 3
+    AvgCapacity: 6
+    CapacitySlack: 0
+    ConveyorSlots: 5
+    ColumnRange: {x: 2, y: 3}
+    HiddenRatio: 0
+    TargetAps: 1.5
+    ApsTolerance: 0.6
+  - Name: Easy
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 4
+    AvgCapacity: 7
+    CapacitySlack: 0
+    ConveyorSlots: 5
+    ColumnRange: {x: 2, y: 4}
+    HiddenRatio: 0
+    TargetAps: 2.5
+    ApsTolerance: 0.6
+  - Name: Medium
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 5
+    AvgCapacity: 8
+    CapacitySlack: 0.1
+    ConveyorSlots: 5
+    ColumnRange: {x: 3, y: 4}
+    HiddenRatio: 0.1
+    TargetAps: 3.5
+    ApsTolerance: 0.6
+  - Name: Hard
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 6
+    AvgCapacity: 9
+    CapacitySlack: 0.15
+    ConveyorSlots: 5
+    ColumnRange: {x: 3, y: 5}
+    HiddenRatio: 0.15
+    TargetAps: 4.5
+    ApsTolerance: 0.7
+  - Name: Expert
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 7
+    AvgCapacity: 10
+    CapacitySlack: 0.2
+    ConveyorSlots: 5
+    ColumnRange: {x: 4, y: 5}
+    HiddenRatio: 0.2
+    TargetAps: 5.5
+    ApsTolerance: 0.8
+  Curve:
+  - TierName: Intro
+    LevelCount: 5
+  - TierName: Easy
+    LevelCount: 7
+  - TierName: Medium
+    LevelCount: 8
+  - TierName: Hard
+    LevelCount: 6
+  - TierName: Expert
+    LevelCount: 4
