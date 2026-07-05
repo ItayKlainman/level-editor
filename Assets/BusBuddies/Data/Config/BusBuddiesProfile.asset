@@ -23,7 +23,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
   _exporters: []
   _topSectionScript: {fileID: 0}
-  _bottomSectionScript: {fileID: 0}
+  _bottomSectionScript: {fileID: 11500000, guid: a4ff2e5558743a94fab623c310999a36, type: 3}
   _orderPanel: {fileID: 0}
   _levelGenerator: {fileID: 0}
   _generatorConfig: {fileID: 0}
