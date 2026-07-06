@@ -40,7 +40,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         private void DrawRemaps(SerializedProperty remaps)
         {
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Color Remap", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(
+                new GUIContent("Color Remap",
+                    "Force a color from the source image to become a specific palette color — eyedrop the color off the source image, then raise Reach until it catches."),
+                EditorStyles.boldLabel);
 
             string[] ids = ActivePalette?.ColorIds?.ToArray();
 
@@ -91,7 +94,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                 var added = remaps.GetArrayElementAtIndex(newIndex);
                 added.FindPropertyRelative("Source").colorValue        = Color.white;
                 added.FindPropertyRelative("TargetColorId").stringValue = "";
-                added.FindPropertyRelative("Reach").floatValue         = 0.15f;
+                added.FindPropertyRelative("Reach").floatValue         = 0.2f;
             }
         }
     }

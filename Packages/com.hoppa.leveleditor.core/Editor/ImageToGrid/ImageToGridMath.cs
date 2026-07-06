@@ -20,7 +20,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public string TargetColorId = "";
 
         [Tooltip("0 = exact color only; higher widens the range of nearby colors caught.")]
-        [Range(0f, 1f)] public float Reach = 0.15f;
+        [Range(0f, 1f)] public float Reach = 0.2f;
     }
 
     public static class ImageToGridMath
