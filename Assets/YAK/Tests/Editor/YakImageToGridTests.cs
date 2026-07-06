@@ -288,6 +288,80 @@ namespace Hoppa.YAK.Editor.Tests
             UnityEngine.Object.DestroyImmediate(src);
         }
 
+        // ── Task 5 (color control): dominant default + color remap ─────────────
+
+        [Test]
+        public void Convert_RemapsLimeToGreen_SubjectBecomesGreen()
+        {
+            // A solid lime block on a black border. Without a remap, lime quantizes to
+            // Yellow (redmean-nearest); the lime→Green remap must force it to Green.
+            var converter = ScriptableObject.CreateInstance<YAKImageToGrid>();
+            converter.Sampling = SampleMode.Dominant;
+            converter.ColorRemaps = new List<ColorRemap>
+            {
+                new ColorRemap { Source = new Color(0.72f, 0.85f, 0.15f), TargetColorId = "Green", Reach = 0.35f },
+            };
+            var profile = MakeProfile(16, 16, PalGreenYellow()); // palette contains Green and Yellow
+            var tex = MakeSolidBlockTexture(new Color(0.72f, 0.85f, 0.15f));
+
+            var doc = converter.Convert(tex, profile);
+
+            Assert.IsTrue(HasColor(doc, "Green"), "remapped subject should contain Green");
+            Assert.IsFalse(HasColor(doc, "Yellow"), "lime should no longer land on Yellow");
+
+            UnityEngine.Object.DestroyImmediate(tex);
+            UnityEngine.Object.DestroyImmediate(converter);
+        }
+
+        [Test]
+        public void Convert_DominantDefault_IsCleanerThanAverage_OnTwoToneSubject()
+        {
+            // Sanity: default Sampling is Dominant (field default), not AreaAverage.
+            var converter = ScriptableObject.CreateInstance<YAKImageToGrid>();
+            Assert.AreEqual(SampleMode.Dominant, converter.Sampling);
+            UnityEngine.Object.DestroyImmediate(converter);
+        }
+
+        private static bool HasColor(LevelDocument doc, string colorId)
+        {
+            foreach (var cell in doc.Grid.Cells)
+                if (cell is IColoredCell c && c.ColorId == colorId) return true;
+            return false;
+        }
+
+        // Small texture: subject-filled center, black border so segmentation finds a subject.
+        private static Texture2D MakeSolidBlockTexture(Color subject)
+        {
+            int w = 16, h = 16;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var px = new Color[w * h];
+            for (int i = 0; i < px.Length; i++) px[i] = Color.black; // border/background
+            for (int y = 3; y < h - 3; y++)
+                for (int x = 3; x < w - 3; x++)
+                    px[y * w + x] = subject;
+            tex.SetPixels(px);
+            tex.Apply();
+            return tex;
+        }
+
+        // Palette containing both Green and Yellow so the lime→Green remap is meaningful
+        // (lime is redmean-nearest to Yellow, so the remap is what lands it on Green).
+        private static ColorPaletteAsset PalGreenYellow()
+        {
+            var entries = new List<ColorEntry>
+            {
+                new ColorEntry { Id = "Green",  DisplayName = "Green",  Color = Color.green },
+                new ColorEntry { Id = "Yellow", DisplayName = "Yellow", Color = new Color(1f, 1f, 0f) },
+                new ColorEntry { Id = "Grey",   DisplayName = "Grey",   Color = new Color(0.5f, 0.5f, 0.5f) },
+                new ColorEntry { Id = "White",  DisplayName = "White",  Color = Color.white },
+                new ColorEntry { Id = "Black",  DisplayName = "Black",  Color = Color.black },
+            };
+            var pal = ScriptableObject.CreateInstance<ColorPaletteAsset>();
+            typeof(ColorPaletteAsset).GetField("_entries", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(pal, entries);
+            return pal;
+        }
+
         // ── Builders ──────────────────────────────────────────────────────────
 
         private static ColorPaletteAsset Pal()
@@ -351,6 +425,9 @@ namespace Hoppa.YAK.Editor.Tests
             c.Background = background;
             c.OutlineSubject = outlineSubject;
             c.OutlineColorId = outlineColorId;
+            // Pin all legacy tests to area-average so their expectations remain valid
+            // regression guards for that path (the new default is Dominant).
+            c.Sampling = SampleMode.AreaAverage;
             return c;
         }
 
