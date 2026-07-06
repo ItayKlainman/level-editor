@@ -81,9 +81,6 @@ namespace Hoppa.LevelEditor.Core.EditorTests
             Assert.AreEqual("Red", ImageToGridMath.NearestId(outp[0], Palette()));
         }
 
-        static bool InPalette(string id, List<PaletteColor> p)
-        { foreach (var e in p) if (e.Id == id) return true; return false; }
-
         [Test]
         public void NormalizedDistance_IsZeroForSame_AndOneForBlackWhite()
         {
@@ -135,6 +132,97 @@ namespace Hoppa.LevelEditor.Core.EditorTests
         {
             Assert.IsNull(ImageToGridMath.ResolveRemap(Color.green, null, Palette()));
             Assert.IsNull(ImageToGridMath.ResolveRemap(Color.green, new List<ColorRemap>(), Palette()));
+        }
+
+        [Test]
+        public void ResolveRemap_EquidistantSources_EarliestEntryWins()
+        {
+            // Two remaps with identical Sources (Color.red) equidistant from a red cell.
+            // Distances tie at 0; the tie must resolve to the EARLIEST entry ("Red").
+            var remaps = new List<ColorRemap> {
+                new ColorRemap { Source = Color.red, TargetColorId = "Red",   Reach = 1f },
+                new ColorRemap { Source = Color.red, TargetColorId = "Green", Reach = 1f },
+            };
+            Assert.AreEqual("Red", ImageToGridMath.ResolveRemap(Color.red, remaps, Palette()));
+        }
+
+        // ── Characterization: MergeToCap ───────────────────────────────────────
+        [Test]
+        public void MergeToCap_CollapsesToCap_ButKeepsProtectedRareColor()
+        {
+            // 12 cells over 4 distinct colors; a lone "Yellow" is the rare protected color.
+            // Two trailing cells are masked empty (excluded from the count, never merged).
+            var ids = new[]
+            {
+                "Red", "Red", "Red", "Red",   // 4
+                "Green", "Green", "Green",     // 3
+                "Blue", "Blue",                // 2
+                "Yellow",                      // 1  (protected, rare)
+                "Empty", "Empty",              // masked out
+            };
+            var isEmpty = new[]
+            {
+                false, false, false, false,
+                false, false, false,
+                false, false,
+                false,
+                true, true,
+            };
+
+            ImageToGridMath.MergeToCap(ids, Palette(), cap: 2, isEmpty: isEmpty, protectedId: "Yellow");
+
+            var distinctNonEmpty = new HashSet<string>();
+            for (int i = 0; i < ids.Length; i++)
+                if (!isEmpty[i]) distinctNonEmpty.Add(ids[i]);
+
+            Assert.LessOrEqual(distinctNonEmpty.Count, 2, "distinct non-empty colors must collapse to the cap");
+            Assert.IsTrue(distinctNonEmpty.Contains("Yellow"), "the protected rare color must survive the merge");
+            Assert.AreEqual("Empty", ids[10], "masked-empty cells must be left untouched");
+            Assert.AreEqual("Empty", ids[11], "masked-empty cells must be left untouched");
+        }
+
+        // ── Characterization: BorderRing ───────────────────────────────────────
+        [Test]
+        public void BorderRing_FlagsEdgeConnectedBackground_NotDisconnectedInteriorIsland()
+        {
+            // 5x5: red frame (dominant border color) with a green interior, plus a lone
+            // red pixel at the center. The center red is NOT connected to the border
+            // through red cells, so it must NOT be flagged background.
+            const int W = 5, H = 5;
+            var avg = new Color[W * H];
+            for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                bool onBorder = x == 0 || y == 0 || x == W - 1 || y == H - 1;
+                avg[y * W + x] = onBorder ? Color.red : Color.green;
+            }
+            int center = 2 * W + 2;
+            avg[center] = Color.red; // isolated red island, walled off by green
+
+            var bg = ImageToGridMath.BorderRing(avg, W, H, Palette());
+
+            Assert.IsTrue(bg[0], "top-left border cell is edge-connected background");
+            Assert.IsTrue(bg[W - 1], "top-right border cell is edge-connected background");
+            Assert.IsFalse(bg[center], "disconnected interior red island must NOT be background");
+            Assert.IsFalse(bg[1 * W + 2], "green interior cell must NOT be background");
+        }
+
+        // ── Characterization: BySaturation ─────────────────────────────────────
+        [Test]
+        public void BySaturation_ClassifiesLowSaturationAsBackground_NotHighSaturation()
+        {
+            // Two greys (saturation 0) and two vivid colors (saturation 1).
+            // Median lands on the vivid end, so greys fall below it → background;
+            // vivid colors are at/above the median → not background.
+            var grey = new Color(0.5f, 0.5f, 0.5f);
+            var avg = new[] { grey, grey, Color.red, Color.green };
+
+            var bg = ImageToGridMath.BySaturation(avg, 4, 1);
+
+            Assert.IsTrue(bg[0], "low-saturation grey must be classified background");
+            Assert.IsTrue(bg[1], "low-saturation grey must be classified background");
+            Assert.IsFalse(bg[2], "high-saturation red must NOT be background");
+            Assert.IsFalse(bg[3], "high-saturation green must NOT be background");
         }
     }
 }

@@ -58,6 +58,7 @@ namespace Hoppa.LevelEditor.Core.Editor
                                           IReadOnlyList<PaletteColor> palette)
         {
             if (remaps == null || remaps.Count == 0) return null;
+            if (palette == null) return null;
             string best = null; float bestDist = float.PositiveInfinity;
             for (int i = 0; i < remaps.Count; i++)
             {

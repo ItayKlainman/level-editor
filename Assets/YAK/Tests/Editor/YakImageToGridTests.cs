@@ -314,7 +314,7 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
-        public void Convert_DominantDefault_IsCleanerThanAverage_OnTwoToneSubject()
+        public void Sampling_DefaultsToDominant()
         {
             // Sanity: default Sampling is Dominant (field default), not AreaAverage.
             var converter = ScriptableObject.CreateInstance<YAKImageToGrid>();
