@@ -105,6 +105,32 @@ namespace Hoppa.LevelEditor.Core.Editor
                 int y1 = Mathf.Max(y0 + 1, (int)((long)(gy + 1) * sh / H));
                 x1 = Mathf.Min(x1, sw); y1 = Mathf.Min(y1, sh);
 
+                if (mode == SampleMode.Dominant && palette != null && palette.Count > 0)
+                {
+                    // Bin each source pixel by nearest palette color; keep per-bin sums.
+                    int k = palette.Count;
+                    var binCount = new int[k];
+                    var binR = new float[k]; var binG = new float[k]; var binB = new float[k]; var binA = new float[k];
+                    int total = 0;
+                    for (int y = y0; y < y1; y++)
+                    for (int x = x0; x < x1; x++)
+                    {
+                        var c = src[y * sw + x];
+                        int bi = NearestIndex(c, palette);
+                        binCount[bi]++; binR[bi] += c.r; binG[bi] += c.g; binB[bi] += c.b; binA[bi] += c.a;
+                        total++;
+                    }
+                    if (total > 0)
+                    {
+                        int maj = 0;
+                        for (int i = 1; i < k; i++) if (binCount[i] > binCount[maj]) maj = i; // ties keep lower index
+                        int m = binCount[maj];
+                        outp[gy * W + gx] = new Color(binR[maj] / m, binG[maj] / m, binB[maj] / m, binA[maj] / m);
+                        continue;
+                    }
+                    // total == 0 → fall through to the average path below (empty region).
+                }
+
                 // AreaAverage (also the fallback for Dominant on an empty region).
                 float r = 0, g = 0, b = 0, a = 0; int n = 0;
                 for (int y = y0; y < y1; y++)
