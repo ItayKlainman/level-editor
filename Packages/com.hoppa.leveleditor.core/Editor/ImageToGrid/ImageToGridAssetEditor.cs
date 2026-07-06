@@ -14,6 +14,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         // Set by the Image panel each frame before drawing; null when inspected elsewhere.
         public static ColorPaletteAsset ActivePalette;
 
+        // Measured bottom (yMax) of the last drawn inspector, published so the host
+        // panel can size its embedded area to fit. 0 until the first repaint.
+        public static float LastContentHeight;
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -26,6 +30,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 DrawRemaps(remaps);
 
             serializedObject.ApplyModifiedProperties();
+
+            // Publish the real bottom of the drawn inspector so the host panel can
+            // size its embedded area to fit (avoids clipping the buttons below).
+            if (Event.current.type == EventType.Repaint)
+                LastContentHeight = GUILayoutUtility.GetLastRect().yMax;
         }
 
         private void DrawRemaps(SerializedProperty remaps)
@@ -56,9 +65,15 @@ namespace Hoppa.LevelEditor.Core.Editor
 
                     if (ids != null && ids.Length > 0)
                     {
-                        int cur = Mathf.Max(0, System.Array.IndexOf(ids, target.stringValue));
-                        int next = EditorGUILayout.Popup("Target", cur, ids);
-                        target.stringValue = ids[next];
+                        int idx = System.Array.IndexOf(ids, target.stringValue);
+                        EditorGUI.BeginChangeCheck();
+                        int next = EditorGUILayout.Popup("Target", Mathf.Max(0, idx), ids);
+                        if (EditorGUI.EndChangeCheck())
+                            target.stringValue = ids[next];
+                        else if (idx < 0 && string.IsNullOrEmpty(target.stringValue))
+                            target.stringValue = ids[next];        // new entry: seed a real default once
+                        if (idx < 0 && !string.IsNullOrEmpty(target.stringValue))
+                            EditorGUILayout.HelpBox($"Target '{target.stringValue}' is not in the current palette.", MessageType.Warning);
                     }
                     else
                     {
@@ -70,7 +85,14 @@ namespace Hoppa.LevelEditor.Core.Editor
             }
 
             if (GUILayout.Button("+ Add remap"))
-                remaps.InsertArrayElementAtIndex(remaps.arraySize);
+            {
+                int newIndex = remaps.arraySize;
+                remaps.InsertArrayElementAtIndex(newIndex);
+                var added = remaps.GetArrayElementAtIndex(newIndex);
+                added.FindPropertyRelative("Source").colorValue        = Color.white;
+                added.FindPropertyRelative("TargetColorId").stringValue = "";
+                added.FindPropertyRelative("Reach").floatValue         = 0.15f;
+            }
         }
     }
 }
