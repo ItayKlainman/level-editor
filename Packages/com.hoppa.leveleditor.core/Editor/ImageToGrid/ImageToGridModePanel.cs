@@ -72,7 +72,7 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void DrawParams(Rect rect, GameProfile profile)
         {
-            var scrollContent = new Rect(0f, 0f, rect.width - 16f, 720f);
+            var scrollContent = new Rect(0f, 0f, rect.width - 16f, 900f);
             _paramScroll = GUI.BeginScrollView(rect, _paramScroll, scrollContent);
 
             float y = Pad;
@@ -93,7 +93,8 @@ namespace Hoppa.LevelEditor.Core.Editor
             if (_showAdvanced)
             {
                 EnsureConfigEditor(profile.ImageToGrid);
-                var advRect = new Rect(Pad, y, w, 320f);
+                ImageToGridAssetEditor.ActivePalette = profile.ColorPalette; // publish for the remap dropdown
+                var advRect = new Rect(Pad, y, w, 420f);                     // was 320f — room for remaps
                 GUILayout.BeginArea(advRect);
                 if (_configEditor != null) _configEditor.OnInspectorGUI();
                 GUILayout.EndArea();
