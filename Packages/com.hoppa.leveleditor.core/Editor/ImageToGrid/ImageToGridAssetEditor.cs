@@ -29,7 +29,14 @@ namespace Hoppa.LevelEditor.Core.Editor
             ["Background"]         = new GUIContent("Background",     "What the area around the subject becomes — a neutral fill or empty cells."),
             ["OutlineSubject"]     = new GUIContent("Outline",       "An optional dark silhouette ring drawn around the subject."),
             ["Segmentation"]       = new GUIContent("Segmentation",  "How the tool decides which pixels are the subject vs the background."),
-            ["DefaultActiveSlots"] = new GUIContent("Active Bus Row","How many active-row slots the new level starts with."),
+        };
+
+        // Level-defaults that are driven programmatically (by the difficulty-curve /
+        // batch tier builder) and authored in the Summary panel — not image settings,
+        // so they are hidden from this image-conversion inspector.
+        private static readonly HashSet<string> HiddenProps = new HashSet<string>
+        {
+            "m_Script", "ColorRemaps", "DefaultConveyorCount", "DefaultActiveSlots",
         };
 
         private static readonly GUIContent RemapHeader = new GUIContent(
@@ -48,7 +55,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             while (prop.NextVisible(enterChildren))
             {
                 enterChildren = false;
-                if (prop.name == "m_Script" || prop.name == "ColorRemaps") continue;
+                if (HiddenProps.Contains(prop.name)) continue;
 
                 if (SectionHeaders.TryGetValue(prop.name, out var header))
                 {
