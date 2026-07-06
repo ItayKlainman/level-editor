@@ -72,28 +72,39 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void DrawParams(Rect rect, GameProfile profile)
         {
-            var scrollContent = new Rect(0f, 0f, rect.width - 16f, 720f);
+            float scrollH     = Mathf.Max(900f, ImageToGridAssetEditor.LastContentHeight + 320f);
+            var scrollContent = new Rect(0f, 0f, rect.width - 16f, scrollH);
             _paramScroll = GUI.BeginScrollView(rect, _paramScroll, scrollContent);
 
             float y = Pad;
             float w = scrollContent.width - Pad * 2f;
 
-            GUI.Label(new Rect(Pad, y, w, HeaderH), "Image → Grid", EditorStyles.boldLabel);
+            GUI.Label(new Rect(Pad, y, w, HeaderH),
+                new GUIContent("Image → Grid", "Turn a source picture into a level grid."),
+                EditorStyles.boldLabel);
             y += HeaderH + 4f;
 
-            GUI.Label(new Rect(Pad, y, w, RowH), "Source image", EditorStyles.miniLabel);
+            GUI.Label(new Rect(Pad, y, w, RowH),
+                new GUIContent("Source image", "The picture to convert — drag one in or click to pick."),
+                EditorStyles.miniLabel);
             y += RowH;
             _source = (Texture2D)EditorGUI.ObjectField(
                 new Rect(Pad, y, w, 64f), _source, typeof(Texture2D), false);
             y += 64f + 6f;
 
             // Advanced — the converter asset's own inspector (color cap, neutrals, …).
-            _showAdvanced = EditorGUI.Foldout(new Rect(Pad, y, w, RowH), _showAdvanced, "Advanced", true);
+            _showAdvanced = EditorGUI.Foldout(new Rect(Pad, y, w, RowH), _showAdvanced,
+                new GUIContent("Advanced", "Conversion settings: colors, background, outline, segmentation, sampling, and remaps."), true);
             y += RowH + 2f;
             if (_showAdvanced)
             {
                 EnsureConfigEditor(profile.ImageToGrid);
-                var advRect = new Rect(Pad, y, w, 320f);
+                ImageToGridAssetEditor.ActivePalette = profile.ColorPalette; // publish for the remap dropdown
+                // Size the embedded inspector to the measured content so the remap
+                // list + buttons aren't clipped. Floor handles the first frame
+                // (LastContentHeight == 0 until the inspector has drawn once).
+                float advH  = Mathf.Max(200f, ImageToGridAssetEditor.LastContentHeight + 8f);
+                var advRect = new Rect(Pad, y, w, advH);
                 GUILayout.BeginArea(advRect);
                 if (_configEditor != null) _configEditor.OnInspectorGUI();
                 GUILayout.EndArea();
