@@ -26,33 +26,27 @@ namespace Hoppa.YAK.Editor
         // Empty emits YAKEmptyCell for non-outline background cells.
         public enum BackgroundFill { FillNeutral, Empty }
 
-        [Header("Sampling")]
         [Tooltip("Dominant (default): each square takes its majority color — truer, less muddy. AreaAverage: legacy blur.")]
         public SampleMode Sampling = SampleMode.Dominant;
 
-        [Header("Color Remap")]
         [Tooltip("Optional: force chosen source colors to specific palette colors (e.g. a lime frog → Green). Empty = automatic nearest-color matching.")]
         public List<ColorRemap> ColorRemaps = new List<ColorRemap>();
 
-        [Header("Colors")]
         [Tooltip("Maximum number of distinct colors in the output (background neutral counts toward this).")]
         [Min(2)] public int ColorCap = 6;
 
         [Tooltip("Candidate background neutrals, most-preferred first. The one with the greatest luminance distance from the subject's dominant color is chosen.")]
         public string[] BackgroundNeutrals = { "Grey", "GreyLight", "GreyDark", "DarkGrey", "White", "Black" };
 
-        [Header("Background")]
         [Tooltip("FillNeutral: background cells become the most-contrasting neutral (original behavior). Empty: background cells become YAKEmptyCell (required for Bus Buddies flood-accessibility).")]
         public BackgroundFill Background = BackgroundFill.FillNeutral;
 
-        [Header("Outline")]
         [Tooltip("Paint background cells that are orthogonally adjacent to the subject with OutlineColorId, producing a silhouette outline.")]
         public bool OutlineSubject = false;
 
         [Tooltip("Palette ColorId used for the outline. Falls back to the darkest palette color if absent.")]
         public string OutlineColorId = "Black";
 
-        [Header("Segmentation")]
         [Tooltip("How subject is separated from background.")]
         public SegmentationMode Segmentation = SegmentationMode.BorderRing;
 

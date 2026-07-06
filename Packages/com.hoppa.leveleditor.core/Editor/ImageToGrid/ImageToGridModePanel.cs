@@ -79,17 +79,22 @@ namespace Hoppa.LevelEditor.Core.Editor
             float y = Pad;
             float w = scrollContent.width - Pad * 2f;
 
-            GUI.Label(new Rect(Pad, y, w, HeaderH), "Image → Grid", EditorStyles.boldLabel);
+            GUI.Label(new Rect(Pad, y, w, HeaderH),
+                new GUIContent("Image → Grid", "Turn a source picture into a level grid."),
+                EditorStyles.boldLabel);
             y += HeaderH + 4f;
 
-            GUI.Label(new Rect(Pad, y, w, RowH), "Source image", EditorStyles.miniLabel);
+            GUI.Label(new Rect(Pad, y, w, RowH),
+                new GUIContent("Source image", "The picture to convert — drag one in or click to pick."),
+                EditorStyles.miniLabel);
             y += RowH;
             _source = (Texture2D)EditorGUI.ObjectField(
                 new Rect(Pad, y, w, 64f), _source, typeof(Texture2D), false);
             y += 64f + 6f;
 
             // Advanced — the converter asset's own inspector (color cap, neutrals, …).
-            _showAdvanced = EditorGUI.Foldout(new Rect(Pad, y, w, RowH), _showAdvanced, "Advanced", true);
+            _showAdvanced = EditorGUI.Foldout(new Rect(Pad, y, w, RowH), _showAdvanced,
+                new GUIContent("Advanced", "Conversion settings: colors, background, outline, segmentation, sampling, and remaps."), true);
             y += RowH + 2f;
             if (_showAdvanced)
             {

@@ -27,33 +27,27 @@ namespace Hoppa.BusBuddies.Editor
     {
         public enum SegmentationMode { BorderRing, Alpha, MostSaturated }
 
-        [Header("Sampling")]
         [Tooltip("Dominant (default): each square takes its majority color — truer, less muddy. AreaAverage: legacy blur.")]
         public SampleMode Sampling = SampleMode.Dominant;
 
-        [Header("Color Remap")]
         [Tooltip("Optional: force chosen source colors to specific palette colors (e.g. a lime frog → green). Empty = automatic nearest-color matching.")]
         public List<ColorRemap> ColorRemaps = new List<ColorRemap>();
 
-        [Header("Colors")]
         [Tooltip("Maximum number of distinct pixel colors in the output (outline color counts toward this). Empty background cells do not count.")]
         [Min(2)] public int ColorCap = 6;
 
         [Tooltip("Candidate background neutrals — retained for parity with YAK, but unused in Bus Buddies (background is always emitted as empty cells).")]
         public string[] BackgroundNeutrals = { "Grey", "GreyLight", "GreyDark", "DarkGrey", "White", "Black" };
 
-        [Header("Outline")]
         [Tooltip("Paint background cells orthogonally adjacent to the subject with OutlineColorId, producing a silhouette outline of pixel cells. On by default for Bus Buddies.")]
         public bool OutlineSubject = true;
 
         [Tooltip("Palette ColorId used for the outline. Falls back to the darkest palette color if absent.")]
         public string OutlineColorId = "Black";
 
-        [Header("Segmentation")]
         [Tooltip("How subject is separated from background.")]
         public SegmentationMode Segmentation = SegmentationMode.BorderRing;
 
-        [Header("Active Bus Row")]
         [Tooltip("Active-row slot count stamped into GameData[\"conveyorCount\"] on the new level.")]
         [Min(1)] public int DefaultActiveSlots = 5;
 
