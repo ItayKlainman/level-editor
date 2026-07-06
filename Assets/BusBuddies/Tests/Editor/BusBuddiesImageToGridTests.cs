@@ -202,6 +202,82 @@ namespace Hoppa.BusBuddies.Editor.Tests
             UnityEngine.Object.DestroyImmediate(src);
         }
 
+        // ── Task 5 (color control): dominant default + color remap ─────────────
+
+        [Test]
+        public void Convert_RemapsLimeToGreen_SubjectBecomesGreen()
+        {
+            // A solid lime block on a black border. Without a remap, lime quantizes to
+            // yellow (redmean-nearest); the lime→green remap must force it to green.
+            // OutlineSubject=false isolates the subject fill for the assertion.
+            var converter = ScriptableObject.CreateInstance<BusBuddiesImageToGrid>();
+            converter.Sampling = SampleMode.Dominant;
+            converter.OutlineSubject = false;
+            converter.ColorRemaps = new List<ColorRemap>
+            {
+                new ColorRemap { Source = new Color(0.72f, 0.85f, 0.15f), TargetColorId = "green", Reach = 0.35f },
+            };
+            var profile = MakeProfile(16, 16, PalGreenYellow()); // palette contains green and yellow
+            var tex = MakeSolidBlockTexture(new Color(0.72f, 0.85f, 0.15f));
+
+            var doc = converter.Convert(tex, profile);
+
+            Assert.IsTrue(HasPixelColor(doc, "green"), "remapped subject should contain green");
+            Assert.IsFalse(HasPixelColor(doc, "yellow"), "lime should no longer land on yellow");
+
+            UnityEngine.Object.DestroyImmediate(tex);
+            UnityEngine.Object.DestroyImmediate(converter);
+        }
+
+        [Test]
+        public void Convert_DefaultSampling_IsDominant()
+        {
+            var converter = ScriptableObject.CreateInstance<BusBuddiesImageToGrid>();
+            Assert.AreEqual(SampleMode.Dominant, converter.Sampling);
+            UnityEngine.Object.DestroyImmediate(converter);
+        }
+
+        private static bool HasPixelColor(LevelDocument doc, string colorId)
+        {
+            foreach (var cell in doc.Grid.Cells)
+                if (cell is IColoredCell c && c.ColorId == colorId) return true;
+            return false;
+        }
+
+        // Small texture: subject-filled center, black border so segmentation finds a subject.
+        private static Texture2D MakeSolidBlockTexture(Color subject)
+        {
+            int w = 16, h = 16;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var px = new Color[w * h];
+            for (int i = 0; i < px.Length; i++) px[i] = Color.black; // border/background
+            for (int y = 3; y < h - 3; y++)
+                for (int x = 3; x < w - 3; x++)
+                    px[y * w + x] = subject;
+            tex.SetPixels(px);
+            tex.Apply();
+            return tex;
+        }
+
+        // Palette containing both green and yellow (lowercase BB ids) so the lime→green
+        // remap is meaningful: lime is redmean-nearest to yellow, so the remap is what
+        // lands it on green.
+        private static ColorPaletteAsset PalGreenYellow()
+        {
+            var entries = new List<ColorEntry>
+            {
+                new ColorEntry { Id = "green",  DisplayName = "Green",  Color = Color.green },
+                new ColorEntry { Id = "yellow", DisplayName = "Yellow", Color = new Color(1f, 1f, 0f) },
+                new ColorEntry { Id = "grey",   DisplayName = "Grey",   Color = new Color(0.5f, 0.5f, 0.5f) },
+                new ColorEntry { Id = "white",  DisplayName = "White",  Color = Color.white },
+                new ColorEntry { Id = "black",  DisplayName = "Black",  Color = Color.black },
+            };
+            var pal = ScriptableObject.CreateInstance<ColorPaletteAsset>();
+            typeof(ColorPaletteAsset).GetField("_entries", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(pal, entries);
+            return pal;
+        }
+
         // ── Builders ──────────────────────────────────────────────────────────
 
         private static ColorPaletteAsset Pal()
@@ -260,6 +336,9 @@ namespace Hoppa.BusBuddies.Editor.Tests
             c.BackgroundNeutrals = new[] { "Grey", "White", "Black" };
             c.Segmentation = BusBuddiesImageToGrid.SegmentationMode.BorderRing;
             c.OutlineColorId = outlineColorId;
+            // Pin all legacy tests to area-average so their expectations remain valid
+            // regression guards for that path (the new default is Dominant).
+            c.Sampling = SampleMode.AreaAverage;
             return c;
         }
 

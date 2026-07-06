@@ -12,20 +12,28 @@ namespace Hoppa.BusBuddies.Editor
     // BBPixelCell tiles surrounded by BBEmptyCell background (no-gravity flood
     // accessibility needs real empties, not a neutral fill). Pipeline mirrors
     // YAKImageToGrid but with Bus-Buddies defaults baked in:
-    //   downscale (area average) → segment subject/background
+    //   downscale (area average or dominant) → segment subject/background
     //   → compute outline mask → quantize subject to the profile palette
-    //   → outline ring becomes BBPixelCell(OutlineColorId) → non-outline background
-    //     becomes BBEmptyCell → merge subject/outline colors down to the cap
+    //     (applying any color remap, else nearest) → outline ring becomes
+    //     BBPixelCell(OutlineColorId) → non-outline background becomes BBEmptyCell
+    //   → merge subject/outline colors down to the cap
     //   → emit LevelDocument, stamping GameData["conveyorCount"] = DefaultActiveSlots.
     //
-    // Copy-mirror of YAKImageToGrid's helpers (per the Partition-copied precedent):
-    // BB.Editor deliberately does NOT reference the YAK.Editor assembly, so the pure
-    // image helpers (including ComputeOutlineMask) are duplicated here rather than
-    // reused across the assembly boundary.
+    // All pure color math routes through the shared ImageToGridMath in
+    // Hoppa.LevelEditor.Core.Editor; only texture IO (ReadablePixels), the
+    // segmentation policy wrapper, and outline-id resolution stay local.
     [CreateAssetMenu(menuName = "Hoppa/BusBuddies/Image To Grid")]
     public sealed class BusBuddiesImageToGrid : ImageToGridAsset
     {
         public enum SegmentationMode { BorderRing, Alpha, MostSaturated }
+
+        [Header("Sampling")]
+        [Tooltip("Dominant (default): each square takes its majority color — truer, less muddy. AreaAverage: legacy blur.")]
+        public SampleMode Sampling = SampleMode.Dominant;
+
+        [Header("Color Remap")]
+        [Tooltip("Optional: force chosen source colors to specific palette colors (e.g. a lime frog → green). Empty = automatic nearest-color matching.")]
+        public List<ColorRemap> ColorRemaps = new List<ColorRemap>();
 
         [Header("Colors")]
         [Tooltip("Maximum number of distinct pixel colors in the output (outline color counts toward this). Empty background cells do not count.")]
@@ -56,22 +64,24 @@ namespace Hoppa.BusBuddies.Editor
             int W = Mathf.Max(1, profile.GridWidth);
             int H = Mathf.Max(1, profile.GridHeight);
 
-            var palette = BuildPalette(profile);
+            var palette = ImageToGridMath.BuildPalette(profile);
             if (palette.Count == 0) throw new InvalidOperationException("Profile palette is empty.");
 
-            // 1) Read + downscale (area average). avg[y*W+x], y=0 = bottom row.
+            // 1) Read + downscale (area average or dominant). avg[y*W+x], y=0 = bottom row.
             var (src, sw, sh) = ReadablePixels(source);
-            var avg = Downscale(src, sw, sh, W, H);
+            var avg = ImageToGridMath.Downscale(src, sw, sh, W, H, Sampling, palette);
 
             // 2) Segment subject vs background.
             bool[] isBg = Segment(avg, W, H, palette);
 
-            // 3) Quantize every cell to its nearest palette color id.
+            // 3) Quantize: apply any color remap, else nearest palette color id.
             var ids = new string[W * H];
-            for (int i = 0; i < ids.Length; i++) ids[i] = NearestId(avg[i], palette);
+            for (int i = 0; i < ids.Length; i++)
+                ids[i] = ImageToGridMath.ResolveRemap(avg[i], ColorRemaps, palette)
+                         ?? ImageToGridMath.NearestId(avg[i], palette);
 
             // 3b) Outline mask BEFORE any bg mutation (bg cell adjacent to a subject cell).
-            bool[] isOutline = OutlineSubject ? ComputeOutlineMask(isBg, W, H) : null;
+            bool[] isOutline = OutlineSubject ? ImageToGridMath.ComputeOutlineMask(isBg, W, H) : null;
 
             // 4) Apply outline color (a real pixel color, protected from the cap merge).
             string resolvedOutlineId = null;
@@ -90,7 +100,7 @@ namespace Hoppa.BusBuddies.Editor
 
             // 6) Merge subject/outline colors down to the cap (empties excluded from
             //    both the count and the merge; the outline id is protected).
-            MergeToCap(ids, palette, ColorCap, isEmpty, resolvedOutlineId);
+            ImageToGridMath.MergeToCap(ids, palette, ColorCap, isEmpty, resolvedOutlineId);
 
             // 7) Emit LevelDocument. Empty cell → BBEmptyCell; everything else → BBPixelCell.
             var grid = new GridData<ICellData>(W, H);
@@ -111,23 +121,7 @@ namespace Hoppa.BusBuddies.Editor
             };
         }
 
-        // ── Outline mask (copy-mirrored from YAKImageToGrid.ComputeOutlineMask) ──
-
-        private static bool[] ComputeOutlineMask(bool[] isBg, int W, int H)
-        {
-            var mask = new bool[W * H];
-            for (int i = 0; i < mask.Length; i++)
-            {
-                if (!isBg[i]) continue; // only bg cells can be outline
-                int x = i % W, y = i / W;
-                if ((x > 0     && !isBg[i - 1]) ||
-                    (x < W - 1 && !isBg[i + 1]) ||
-                    (y > 0     && !isBg[i - W]) ||
-                    (y < H - 1 && !isBg[i + W]))
-                    mask[i] = true;
-            }
-            return mask;
-        }
+        // ── Outline color resolution ─────────────────────────────────────────────
 
         // Resolve the outline color id: OutlineColorId first, then darkest fallback.
         private string ResolveOutlineId(List<PaletteColor> palette)
@@ -143,30 +137,17 @@ namespace Hoppa.BusBuddies.Editor
             string darkest = null; float darkestLum = float.MaxValue;
             foreach (var p in palette)
             {
-                float lum = Luminance(p.C);
+                float lum = ImageToGridMath.Luminance(p.C);
                 if (lum < darkestLum) { darkestLum = lum; darkest = p.Id; }
             }
             Debug.LogWarning($"[BusBuddiesImageToGrid] Outline color '{OutlineColorId}' not in palette; using darkest '{darkest}' instead.");
             return darkest;
         }
 
-        // ── Palette ───────────────────────────────────────────────────────────
+        // ── Pixel access ─────────────────────────────────────────────────────────
 
-        private struct PaletteColor { public string Id; public Color C; }
-
-        private static List<PaletteColor> BuildPalette(GameProfile profile)
-        {
-            var list = new List<PaletteColor>();
-            var pal = profile.ColorPalette;
-            if (pal == null) return list;
-            foreach (var id in pal.ColorIds)
-                if (pal.TryGetColor(id, out var c))
-                    list.Add(new PaletteColor { Id = id, C = c });
-            return list;
-        }
-
-        // ── Pixel access + downscale ────────────────────────────────────────────
-
+        // Returns a readable RGBA copy regardless of the source's import settings
+        // (blit through a temporary RenderTexture). Pixels are row-major, y=0 = bottom.
         private static (Color[] px, int w, int h) ReadablePixels(Texture2D tex)
         {
             var rt = RenderTexture.GetTemporary(tex.width, tex.height, 0, RenderTextureFormat.ARGB32);
@@ -183,31 +164,6 @@ namespace Hoppa.BusBuddies.Editor
             return (px, tex.width, tex.height);
         }
 
-        private static Color[] Downscale(Color[] src, int sw, int sh, int W, int H)
-        {
-            var outp = new Color[W * H];
-            for (int gy = 0; gy < H; gy++)
-            for (int gx = 0; gx < W; gx++)
-            {
-                int x0 = (int)((long)gx * sw / W);
-                int x1 = Mathf.Max(x0 + 1, (int)((long)(gx + 1) * sw / W));
-                int y0 = (int)((long)gy * sh / H);
-                int y1 = Mathf.Max(y0 + 1, (int)((long)(gy + 1) * sh / H));
-                x1 = Mathf.Min(x1, sw); y1 = Mathf.Min(y1, sh);
-
-                float r = 0, g = 0, b = 0, a = 0; int n = 0;
-                for (int y = y0; y < y1; y++)
-                for (int x = x0; x < x1; x++)
-                {
-                    var c = src[y * sw + x];
-                    r += c.r; g += c.g; b += c.b; a += c.a; n++;
-                }
-                if (n == 0) n = 1;
-                outp[gy * W + gx] = new Color(r / n, g / n, b / n, a / n);
-            }
-            return outp;
-        }
-
         // ── Segmentation ────────────────────────────────────────────────────────
 
         private bool[] Segment(Color[] avg, int W, int H, List<PaletteColor> palette)
@@ -220,153 +176,21 @@ namespace Hoppa.BusBuddies.Editor
                     bool any = false;
                     for (int i = 0; i < bg.Length; i++) { if (avg[i].a < 0.5f) { bg[i] = true; any = true; } }
                     if (any) return bg;
-                    return BorderRing(avg, W, H, palette);
+                    return ImageToGridMath.BorderRing(avg, W, H, palette);
                 }
                 case SegmentationMode.MostSaturated:
-                    return BySaturation(avg, W, H);
+                    return ImageToGridMath.BySaturation(avg, W, H);
                 default:
                 {
-                    var bg = BorderRing(avg, W, H, palette);
-                    float frac = Fraction(bg);
+                    var bg = ImageToGridMath.BorderRing(avg, W, H, palette);
+                    float frac = ImageToGridMath.Fraction(bg);
                     if (frac < 0.05f || frac > 0.95f)
                     {
                         Debug.Log($"[BusBuddiesImageToGrid] BorderRing segmentation ambiguous (bg {frac:P0}); falling back to MostSaturated.");
-                        return BySaturation(avg, W, H);
+                        return ImageToGridMath.BySaturation(avg, W, H);
                     }
                     return bg;
                 }
-            }
-        }
-
-        private static bool[] BorderRing(Color[] avg, int W, int H, List<PaletteColor> palette)
-        {
-            var ids = new int[W * H];
-            for (int i = 0; i < ids.Length; i++) ids[i] = NearestIndex(avg[i], palette);
-
-            var border = new Dictionary<int, int>();
-            void Tally(int idx) { border.TryGetValue(ids[idx], out var n); border[ids[idx]] = n + 1; }
-            for (int x = 0; x < W; x++) { Tally(x); Tally((H - 1) * W + x); }
-            for (int y = 0; y < H; y++) { Tally(y * W); Tally(y * W + (W - 1)); }
-
-            int dom = -1, best = -1;
-            foreach (var kv in border) if (kv.Value > best) { best = kv.Value; dom = kv.Key; }
-
-            var bg = new bool[W * H];
-            if (dom < 0) return bg;
-            var queue = new Queue<int>();
-            void Seed(int idx) { if (ids[idx] == dom && !bg[idx]) { bg[idx] = true; queue.Enqueue(idx); } }
-            for (int x = 0; x < W; x++) { Seed(x); Seed((H - 1) * W + x); }
-            for (int y = 0; y < H; y++) { Seed(y * W); Seed(y * W + (W - 1)); }
-            while (queue.Count > 0)
-            {
-                int idx = queue.Dequeue();
-                int cx = idx % W, cy = idx / W;
-                void Visit(int nx, int ny)
-                {
-                    if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
-                    int n = ny * W + nx;
-                    if (!bg[n] && ids[n] == dom) { bg[n] = true; queue.Enqueue(n); }
-                }
-                Visit(cx + 1, cy); Visit(cx - 1, cy); Visit(cx, cy + 1); Visit(cx, cy - 1);
-            }
-            return bg;
-        }
-
-        private static bool[] BySaturation(Color[] avg, int W, int H)
-        {
-            int n = W * H;
-            var sat = new float[n];
-            var sorted = new float[n];
-            for (int i = 0; i < n; i++)
-            {
-                Color.RGBToHSV(avg[i], out _, out var s, out _);
-                sat[i] = s; sorted[i] = s;
-            }
-            Array.Sort(sorted);
-            float median = sorted[n / 2];
-            var bg = new bool[n];
-            for (int i = 0; i < n; i++) bg[i] = sat[i] < median;
-            return bg;
-        }
-
-        private static float Fraction(bool[] mask)
-        {
-            int c = 0; foreach (var b in mask) if (b) c++;
-            return mask.Length == 0 ? 0f : (float)c / mask.Length;
-        }
-
-        // ── Quantization (perceptual redmean) ───────────────────────────────────
-
-        private static string NearestId(Color c, List<PaletteColor> palette)
-            => palette[NearestIndex(c, palette)].Id;
-
-        private static int NearestIndex(Color c, List<PaletteColor> palette)
-        {
-            int best = 0; double bestD = double.PositiveInfinity;
-            for (int i = 0; i < palette.Count; i++)
-            {
-                double d = RedmeanDist(c, palette[i].C);
-                if (d < bestD) { bestD = d; best = i; }
-            }
-            return best;
-        }
-
-        private static double RedmeanDist(Color a, Color b)
-        {
-            double r1 = a.r * 255.0, g1 = a.g * 255.0, b1 = a.b * 255.0;
-            double r2 = b.r * 255.0, g2 = b.g * 255.0, b2 = b.b * 255.0;
-            double rmean = (r1 + r2) * 0.5;
-            double dr = r1 - r2, dg = g1 - g2, db = b1 - b2;
-            return (2 + rmean / 256.0) * dr * dr + 4.0 * dg * dg + (2 + (255.0 - rmean) / 256.0) * db * db;
-        }
-
-        private static float Luminance(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-
-        private static Color ColorOf(string id, List<PaletteColor> palette)
-        {
-            foreach (var p in palette) if (string.Equals(p.Id, id, StringComparison.Ordinal)) return p.C;
-            return Color.gray;
-        }
-
-        // ── Color-cap merge (copy-mirrored from YAKImageToGrid.MergeToCap) ──────
-
-        private static void MergeToCap(string[] ids, List<PaletteColor> palette, int cap,
-                                       bool[] isEmpty = null, string protectedId = null)
-        {
-            cap = Mathf.Max(1, cap);
-            while (true)
-            {
-                var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-                for (int i = 0; i < ids.Length; i++)
-                {
-                    if (isEmpty != null && isEmpty[i]) continue;
-                    counts.TryGetValue(ids[i], out var n);
-                    counts[ids[i]] = n + 1;
-                }
-                if (counts.Count <= cap) break;
-
-                string least = null; int leastN = int.MaxValue;
-                foreach (var kv in counts)
-                {
-                    if (protectedId != null && string.Equals(kv.Key, protectedId, StringComparison.Ordinal)) continue;
-                    if (kv.Value < leastN) { leastN = kv.Value; least = kv.Key; }
-                }
-                if (least == null) break;
-
-                Color leastColor = ColorOf(least, palette);
-                string target = null; double bestD = double.PositiveInfinity;
-                foreach (var kv in counts)
-                {
-                    if (string.Equals(kv.Key, least, StringComparison.Ordinal)) continue;
-                    double d = RedmeanDist(leastColor, ColorOf(kv.Key, palette));
-                    if (d < bestD) { bestD = d; target = kv.Key; }
-                }
-                if (target == null) break;
-
-                for (int i = 0; i < ids.Length; i++)
-                    if ((isEmpty == null || !isEmpty[i]) &&
-                        string.Equals(ids[i], least, StringComparison.Ordinal))
-                        ids[i] = target;
             }
         }
     }
