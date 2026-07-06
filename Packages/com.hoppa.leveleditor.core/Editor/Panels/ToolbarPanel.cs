@@ -43,6 +43,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly GUIContent LabelOrder    = new GUIContent("⇅ Order",  "Manage level order in the master config");
         private static readonly GUIContent LabelGenerate = new GUIContent("✨ Generate", "Generate a level from parameters");
         private static readonly GUIContent LabelImage    = new GUIContent("🖼 Image", "Convert a source image into a level grid");
+        private static readonly GUIContent LabelGuide    = new GUIContent("? Guide", "Open the level editor guide in your browser");
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -105,6 +106,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 if (newImg != ImageMode) OnImageToggle?.Invoke();
                 x += 72f + Gap;
             }
+
+            // Separator + Guide (a stateless help action — opens the rendered guide in the browser)
+            EditorGUI.DrawRect(new Rect(x, y, 1f, BtnH), SepColor); x += 1f + Gap;
+            if (GUI.Button(new Rect(x, y, 62f, BtnH), LabelGuide)) LevelEditorGuide.Open();
+            x += 62f + Gap;
 
             // Level name
             if (session?.Document != null)
