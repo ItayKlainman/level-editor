@@ -80,5 +80,61 @@ namespace Hoppa.LevelEditor.Core.EditorTests
             var outp = ImageToGridMath.Downscale(src, 2, 1, 1, 1, SampleMode.Dominant, Palette());
             Assert.AreEqual("Red", ImageToGridMath.NearestId(outp[0], Palette()));
         }
+
+        static bool InPalette(string id, List<PaletteColor> p)
+        { foreach (var e in p) if (e.Id == id) return true; return false; }
+
+        [Test]
+        public void NormalizedDistance_IsZeroForSame_AndOneForBlackWhite()
+        {
+            Assert.AreEqual(0f, ImageToGridMath.NormalizedDistance(Color.green, Color.green), 1e-4);
+            Assert.AreEqual(1f, ImageToGridMath.NormalizedDistance(Color.black, Color.white), 1e-3);
+        }
+
+        [Test]
+        public void ResolveRemap_InReach_ReturnsTarget()
+        {
+            var remaps = new List<ColorRemap> {
+                new ColorRemap { Source = new Color(0.7f, 0.85f, 0.15f), TargetColorId = "Green", Reach = 0.3f },
+            };
+            // A lime-ish cell close to the source → forced to Green.
+            var id = ImageToGridMath.ResolveRemap(new Color(0.72f, 0.83f, 0.18f), remaps, Palette());
+            Assert.AreEqual("Green", id);
+        }
+
+        [Test]
+        public void ResolveRemap_OutOfReach_ReturnsNull()
+        {
+            var remaps = new List<ColorRemap> {
+                new ColorRemap { Source = new Color(0.7f, 0.85f, 0.15f), TargetColorId = "Green", Reach = 0.02f },
+            };
+            Assert.IsNull(ImageToGridMath.ResolveRemap(Color.blue, remaps, Palette()));
+        }
+
+        [Test]
+        public void ResolveRemap_ClosestSourceWins()
+        {
+            var remaps = new List<ColorRemap> {
+                new ColorRemap { Source = Color.red,   TargetColorId = "Red",   Reach = 1f },
+                new ColorRemap { Source = Color.green, TargetColorId = "Green", Reach = 1f },
+            };
+            Assert.AreEqual("Green", ImageToGridMath.ResolveRemap(new Color(0.1f, 0.8f, 0.1f), remaps, Palette()));
+        }
+
+        [Test]
+        public void ResolveRemap_TargetNotInPalette_IsIgnored()
+        {
+            var remaps = new List<ColorRemap> {
+                new ColorRemap { Source = Color.green, TargetColorId = "Magenta", Reach = 1f },
+            };
+            Assert.IsNull(ImageToGridMath.ResolveRemap(Color.green, remaps, Palette()));
+        }
+
+        [Test]
+        public void ResolveRemap_NullOrEmpty_ReturnsNull()
+        {
+            Assert.IsNull(ImageToGridMath.ResolveRemap(Color.green, null, Palette()));
+            Assert.IsNull(ImageToGridMath.ResolveRemap(Color.green, new List<ColorRemap>(), Palette()));
+        }
     }
 }

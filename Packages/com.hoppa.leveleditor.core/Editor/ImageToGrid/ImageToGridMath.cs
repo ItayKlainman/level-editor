@@ -48,6 +48,32 @@ namespace Hoppa.LevelEditor.Core.Editor
             return (2 + rmean / 256.0) * dr * dr + 4.0 * dg * dg + (2 + (255.0 - rmean) / 256.0) * db * db;
         }
 
+        // Redmean distance normalized so identical = 0 and black↔white ≈ 1.
+        public static float NormalizedDistance(Color a, Color b)
+            => (float)(Math.Sqrt(RedmeanDist(a, b)) / Math.Sqrt(RefDist));
+
+        // Returns the TargetColorId of the closest in-reach remap whose target exists
+        // in the palette, or null if none apply. Ties resolve to the earliest entry.
+        public static string ResolveRemap(Color cellColor, IReadOnlyList<ColorRemap> remaps,
+                                          IReadOnlyList<PaletteColor> palette)
+        {
+            if (remaps == null || remaps.Count == 0) return null;
+            string best = null; float bestDist = float.PositiveInfinity;
+            for (int i = 0; i < remaps.Count; i++)
+            {
+                var rm = remaps[i];
+                if (rm == null || string.IsNullOrEmpty(rm.TargetColorId)) continue;
+                bool inPalette = false;
+                for (int p = 0; p < palette.Count; p++)
+                    if (string.Equals(palette[p].Id, rm.TargetColorId, StringComparison.Ordinal)) { inPalette = true; break; }
+                if (!inPalette) continue;
+
+                float d = NormalizedDistance(cellColor, rm.Source);
+                if (d <= rm.Reach && d < bestDist) { bestDist = d; best = rm.TargetColorId; }
+            }
+            return best;
+        }
+
         public static int NearestIndex(Color c, IReadOnlyList<PaletteColor> palette)
         {
             int best = 0; double bestD = double.PositiveInfinity;
