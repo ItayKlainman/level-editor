@@ -181,6 +181,138 @@ namespace Hoppa.LevelEditor.Core.EditorTests
             Assert.AreEqual("Empty", ids[11], "masked-empty cells must be left untouched");
         }
 
+        // ── Despeckle ──────────────────────────────────────────────────────────
+        [Test]
+        public void Despeckle_RemovesSmallSubjectIsland_KeepsLargerBlob()
+        {
+            const int W = 5, H = 5;
+            var isBg = new bool[W * H];
+            for (int i = 0; i < isBg.Length; i++) isBg[i] = true;   // all background
+            isBg[11] = isBg[12] = isBg[13] = false;                 // 3-cell subject blob (row 2)
+            isBg[0] = false;                                        // lone 1-cell subject island
+
+            ImageToGridMath.Despeckle(isBg, W, H, minRegion: 3);
+
+            Assert.IsTrue(isBg[0], "1-cell island (< minRegion) must be reclassified as background");
+            Assert.IsFalse(isBg[11], "the 3-cell blob (>= minRegion) must remain subject");
+            Assert.IsFalse(isBg[12]);
+            Assert.IsFalse(isBg[13]);
+        }
+
+        [Test]
+        public void Despeckle_FillsSmallInteriorHole_KeepsLargeHole()
+        {
+            const int W = 5, H = 5;
+            var small = new bool[W * H];   // all subject except one interior pinhole
+            small[12] = true;              // center (2,2), interior, size 1
+            ImageToGridMath.Despeckle(small, W, H, minRegion: 3);
+            Assert.IsFalse(small[12], "a 1-cell interior background hole (< minRegion) must be filled to subject");
+
+            var large = new bool[W * H];   // all subject except a 2x2 interior hole
+            large[6] = large[7] = large[11] = large[12] = true;   // (1,1),(2,1),(1,2),(2,2)
+            ImageToGridMath.Despeckle(large, W, H, minRegion: 3);
+            Assert.IsTrue(large[6], "a 4-cell interior hole (>= minRegion) must survive (e.g. a donut hole)");
+            Assert.IsTrue(large[12]);
+        }
+
+        [Test]
+        public void AbsorbBackgroundHalo_RemovesHaloNearBgColor_KeepsContrastingSubject()
+        {
+            const int W = 5, H = 5;
+            // Background = blue (every border cell). Subject is a plus-shape; two of its edge cells
+            // are near-blue halo (must absorb), the core cells are red (far from blue → must keep).
+            var isBg = new bool[W * H];
+            for (int i = 0; i < isBg.Length; i++) isBg[i] = true;
+            foreach (int i in new[] { 12, 7, 17, 11, 13 }) isBg[i] = false; // plus-shape subject
+            var avg = new Color[W * H];
+            for (int i = 0; i < avg.Length; i++) avg[i] = Color.blue;   // background is blue
+            avg[12] = Color.red; avg[11] = Color.red; avg[13] = Color.red; // subject core (keep)
+            avg[7]  = new Color(0.10f, 0.10f, 0.90f); // near-blue halo (absorb)
+            avg[17] = new Color(0.00f, 0.05f, 0.95f); // near-blue halo (absorb)
+
+            ImageToGridMath.AbsorbBackgroundHalo(isBg, avg, W, H, maxDist: 0.2f, maxLayers: 3);
+
+            Assert.IsFalse(isBg[12], "red core must survive (far from blue bg)");
+            Assert.IsFalse(isBg[11]); Assert.IsFalse(isBg[13]);
+            Assert.IsTrue(isBg[7],  "near-background-color halo must be absorbed");
+            Assert.IsTrue(isBg[17]);
+        }
+
+        [Test]
+        public void AbsorbBackgroundHalo_NoBackground_OrZeroLayers_IsNoOp()
+        {
+            var noBg = new[] { false, false, false, false };
+            var copy = (bool[])noBg.Clone();
+            ImageToGridMath.AbsorbBackgroundHalo(noBg, new[] { Color.red, Color.red, Color.red, Color.red }, 4, 1, 0.2f, 3);
+            CollectionAssert.AreEqual(copy, noBg, "no background cells → no-op");
+
+            var isBg = new[] { true, false, false, true };
+            var copy2 = (bool[])isBg.Clone();
+            ImageToGridMath.AbsorbBackgroundHalo(isBg, new[] { Color.blue, Color.red, Color.red, Color.blue }, 4, 1, 0.2f, 0);
+            CollectionAssert.AreEqual(copy2, isBg, "maxLayers 0 → no-op");
+        }
+
+        [Test]
+        public void ErodeSubject_PeelsOuterLayer_AndStripsThinRing()
+        {
+            const int W = 5, H = 5;
+            // 3x3 subject block centered in a 5x5 → after 1 erosion only the center cell (12) survives.
+            var isBg = new bool[W * H];
+            for (int i = 0; i < isBg.Length; i++) isBg[i] = true;
+            foreach (int i in new[] { 6, 7, 8, 11, 12, 13, 16, 17, 18 }) isBg[i] = false;
+
+            ImageToGridMath.ErodeSubject(isBg, W, H, iterations: 1);
+
+            Assert.IsFalse(isBg[12], "the interior cell survives one erosion");
+            Assert.IsTrue(isBg[6],  "outer-ring subject cells are peeled to background");
+            Assert.IsTrue(isBg[7]);
+            Assert.IsTrue(isBg[11]);
+        }
+
+        [Test]
+        public void ErodeSubject_ZeroIterations_IsNoOp()
+        {
+            var isBg = new[] { true, false, false, true };
+            var copy = (bool[])isBg.Clone();
+            ImageToGridMath.ErodeSubject(isBg, 4, 1, iterations: 0);
+            CollectionAssert.AreEqual(copy, isBg);
+        }
+
+        [Test]
+        public void KeepLargestSubjectComponent_RemovesSmallerStrayBlobs()
+        {
+            const int W = 5, H = 5;
+            var isBg = new bool[W * H];
+            for (int i = 0; i < isBg.Length; i++) isBg[i] = true;   // all background
+            isBg[11] = isBg[12] = isBg[13] = false;                 // 3-cell main blob
+            isBg[0] = false;                                        // stray dot
+            isBg[24] = false;                                       // stray dot
+
+            ImageToGridMath.KeepLargestSubjectComponent(isBg, W, H);
+
+            Assert.IsFalse(isBg[11], "the largest blob survives"); Assert.IsFalse(isBg[12]); Assert.IsFalse(isBg[13]);
+            Assert.IsTrue(isBg[0],  "stray dots (smaller components) become background");
+            Assert.IsTrue(isBg[24]);
+        }
+
+        [Test]
+        public void KeepLargestSubjectComponent_SingleComponent_Unchanged()
+        {
+            var isBg = new[] { true, false, false, true };
+            var copy = (bool[])isBg.Clone();
+            ImageToGridMath.KeepLargestSubjectComponent(isBg, 4, 1);
+            CollectionAssert.AreEqual(copy, isBg, "a single subject component must be left intact");
+        }
+
+        [Test]
+        public void Despeckle_MinRegionOneOrLess_IsNoOp()
+        {
+            var isBg = new[] { false, true, false, true };
+            var copy = (bool[])isBg.Clone();
+            ImageToGridMath.Despeckle(isBg, 4, 1, minRegion: 1);
+            CollectionAssert.AreEqual(copy, isBg, "minRegion <= 1 must not mutate the mask");
+        }
+
         // ── Characterization: BorderRing ───────────────────────────────────────
         [Test]
         public void BorderRing_FlagsEdgeConnectedBackground_NotDisconnectedInteriorIsland()

@@ -1,2 +1,38 @@
 # YAK level ideas — one per line. '#' lines are comments.
 a ladybug
+
+# Fruits & snacks
+red apple
+a slice of watermelon
+bunch of grapes
+a banana
+a strawberry
+a slice of pizza
+an ice cream cone
+a donut
+a cupcake
+a pretzel
+
+# Animals
+a cat
+a dog
+a penguin
+an owl
+a bee
+a snail
+a fox
+a turtle
+a panda
+a dolphin
+
+# House objects
+a teapot
+an alarm clock
+a light bulb
+a house key
+an umbrella
+a mug of coffee
+a potted plant
+a pair of scissors
+a table lamp
+a rubber duck

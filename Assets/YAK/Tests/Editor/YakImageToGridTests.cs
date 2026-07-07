@@ -428,6 +428,13 @@ namespace Hoppa.YAK.Editor.Tests
             // Pin all legacy tests to area-average so their expectations remain valid
             // regression guards for that path (the new default is Dominant).
             c.Sampling = SampleMode.AreaAverage;
+            // Pin the halo-cleanup steps OFF: these legacy tests use tiny synthetic subjects
+            // (a 4x4 block) that erosion+despeckle would legitimately wipe. The cleanup steps
+            // are exercised by their own unit tests in ImageToGridMathTests.
+            c.HaloAbsorbLayers = 0;
+            c.SubjectErodeIterations = 0;
+            c.KeepLargestSubjectOnly = false;
+            c.DespeckleMinRegion = 0;
             return c;
         }
 

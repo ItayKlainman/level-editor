@@ -12,13 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e61d5e8c3ad6874478383163198b48d8, type: 3}
   m_Name: YAKImageToGrid
   m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKImageToGrid
+  Sampling: 1
+  ColorRemaps: []
   ColorCap: 6
   BackgroundNeutrals:
-  - Grey
-  - GreyLight
-  - GreyDark
-  - DarkGrey
   - White
   - Black
+  - Black
+  Background: 1
+  OutlineSubject: 0
+  OutlineColorId: Black
   Segmentation: 0
+  HaloAbsorbLayers: 3
+  HaloMaxDistance: 0.28
+  SubjectErodeIterations: 0
+  KeepLargestSubjectOnly: 1
+  DespeckleMinRegion: 6
   DefaultConveyorCount: 5

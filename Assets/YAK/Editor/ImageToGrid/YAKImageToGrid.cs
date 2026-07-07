@@ -50,6 +50,21 @@ namespace Hoppa.YAK.Editor
         [Tooltip("How subject is separated from background.")]
         public SegmentationMode Segmentation = SegmentationMode.BorderRing;
 
+        [Header("Halo / background cleanup")]
+        [Tooltip("Absorb the halo ring stickers put around a subject: peel this many layers of subject-edge cells whose color resembles the background (the anti-aliased white/grey/cyan/tinted glow) back into the background — while leaving the contrasting subject fill intact. 0 = off.")]
+        [Min(0)] public int HaloAbsorbLayers = 3;
+        [Tooltip("How close to the background color an edge cell must be to count as halo (normalized 0..1). Higher absorbs more (risking subject edges close to the bg color); lower is more conservative.")]
+        [Range(0f, 1f)] public float HaloMaxDistance = 0.28f;
+
+        [Tooltip("Peel this many cell-layers off the whole subject edge (blunt erosion) — usually leave 0 now that halo-absorb handles the glow ring; raise only for stubborn edges. Over-erodes thin subjects.")]
+        [Min(0)] public int SubjectErodeIterations = 0;
+
+        [Tooltip("Keep only the single largest subject blob, dropping stray arcs/dots that survive segmentation from a glowing/anti-aliased source background. Ideal for single-subject stickers.")]
+        public bool KeepLargestSubjectOnly = true;
+
+        [Tooltip("Despeckle: subject islands (and interior background pinholes) smaller than this many cells are reclassified, removing the stray edge pixels left by anti-aliased/glowing source backgrounds. 0/1 = off.")]
+        [Min(0)] public int DespeckleMinRegion = 6;
+
         [Tooltip("Default conveyor (belt slot) count written to the new level's GameData.")]
         [Min(1)] public int DefaultConveyorCount = 5;
 
@@ -68,8 +83,13 @@ namespace Hoppa.YAK.Editor
             var (src, sw, sh) = ReadablePixels(source);
             var avg = ImageToGridMath.Downscale(src, sw, sh, W, H, Sampling, palette);
 
-            // 2) Segment subject vs background.
+            // 2) Segment subject vs background, then clean up: absorb the bright glow-halo ring,
+            //    (optionally) erode the whole edge, keep the largest blob, despeckle islands/pinholes.
             bool[] isBg = Segment(avg, W, H, palette);
+            ImageToGridMath.AbsorbBackgroundHalo(isBg, avg, W, H, HaloMaxDistance, HaloAbsorbLayers);
+            ImageToGridMath.ErodeSubject(isBg, W, H, SubjectErodeIterations);
+            if (KeepLargestSubjectOnly) ImageToGridMath.KeepLargestSubjectComponent(isBg, W, H);
+            ImageToGridMath.Despeckle(isBg, W, H, DespeckleMinRegion);
 
             // 3) Quantize: apply any color remap, else nearest palette color id.
             var ids = new string[W * H];

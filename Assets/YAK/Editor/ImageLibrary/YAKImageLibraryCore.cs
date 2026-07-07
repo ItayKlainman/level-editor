@@ -44,8 +44,10 @@ namespace Hoppa.YAK.Editor
 
         public const string DefaultStylePreamble =
             "A single centered {idea}, flat vector sticker style, bold solid fill colors, " +
-            "thick clean shapes, plain solid background. No gradients, no shading, no text, " +
-            "no drop shadows, no photorealism.";
+            "thick clean shapes. Fill the ENTIRE background with one flat uniform solid color — " +
+            "absolutely no gradient, no vignette, no glow, no radial lighting, no background texture. " +
+            "Do NOT draw any white outline, sticker border, drop shadow, or halo around the subject. " +
+            "No shading, no text, no photorealism, no frame or border.";
 
         public static string BuildPrompt(string idea, IReadOnlyList<string> colorDescriptors, string stylePreamble)
         {

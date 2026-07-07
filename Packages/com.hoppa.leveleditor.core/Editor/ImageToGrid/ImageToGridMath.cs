@@ -113,6 +113,157 @@ namespace Hoppa.LevelEditor.Core.Editor
             return mask.Length == 0 ? 0f : (float)c / mask.Length;
         }
 
+        // Cleans speckle out of a subject/background mask (4-connectivity):
+        //   • subject islands (connected !isBg regions) smaller than minRegion → background,
+        //   • interior background holes (isBg regions not touching the border) smaller than
+        //     minRegion → subject (fills pinholes; large holes like a donut center survive).
+        // Removes the stray edge pixels left when an anti-aliased source background doesn't
+        // exactly match the flood's dominant color. minRegion <= 1 is a no-op. Mutates isBg.
+        public static void Despeckle(bool[] isBg, int W, int H, int minRegion)
+        {
+            if (isBg == null || minRegion <= 1) return;
+            int n = W * H;
+            var visited = new bool[n];
+            var comp = new List<int>();
+            var stack = new Stack<int>();
+
+            // Pass 1: small subject islands → background.
+            for (int start = 0; start < n; start++)
+            {
+                if (isBg[start] || visited[start]) continue;
+                FloodComponent(isBg, visited, stack, comp, start, W, H, wantBg: false, out _);
+                if (comp.Count < minRegion)
+                    foreach (var idx in comp) isBg[idx] = true;
+            }
+
+            // Pass 2: small interior background holes → subject.
+            for (int i = 0; i < n; i++) visited[i] = false;
+            for (int start = 0; start < n; start++)
+            {
+                if (!isBg[start] || visited[start]) continue;
+                FloodComponent(isBg, visited, stack, comp, start, W, H, wantBg: true, out bool touchesBorder);
+                if (!touchesBorder && comp.Count < minRegion)
+                    foreach (var idx in comp) isBg[idx] = false;
+            }
+        }
+
+        // Grows the background inward through the subject's halo ring — the anti-aliased blend
+        // where the subject edge fades into the sticker's background/glow. Any subject cell
+        // adjacent to background (or the grid border) whose DOWNSCALED color is within `maxDist`
+        // (normalized redmean, 0..1) of the mean background color becomes background, repeated up
+        // to maxLayers times. Catches a halo of ANY color (white, grey, pale-cyan, the source's
+        // own bg tint) because the halo always resembles the background — while leaving the
+        // contrasting subject fill intact. The background reference color is measured once, from
+        // the initial background. No-op if maxLayers <= 0, avg is null, or there are no background
+        // cells. Mutates isBg.
+        public static void AbsorbBackgroundHalo(bool[] isBg, Color[] avg, int W, int H,
+                                                float maxDist, int maxLayers)
+        {
+            if (isBg == null || avg == null || maxLayers <= 0) return;
+            double sr = 0, sg = 0, sb = 0; int bn = 0;
+            for (int i = 0; i < isBg.Length; i++)
+                if (isBg[i]) { sr += avg[i].r; sg += avg[i].g; sb += avg[i].b; bn++; }
+            if (bn == 0) return;
+            Color bgColor = new Color((float)(sr / bn), (float)(sg / bn), (float)(sb / bn));
+
+            for (int it = 0; it < maxLayers; it++)
+            {
+                var toBg = new List<int>();
+                for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    if (isBg[i]) continue;
+                    bool adjBg = x == 0 || y == 0 || x == W - 1 || y == H - 1
+                                 || isBg[i - 1] || isBg[i + 1] || isBg[i - W] || isBg[i + W];
+                    if (!adjBg) continue;
+                    if (NormalizedDistance(avg[i], bgColor) <= maxDist) toBg.Add(i);
+                }
+                if (toBg.Count == 0) break;
+                foreach (var i in toBg) isBg[i] = true;
+            }
+        }
+
+        // Peels `iterations` layers off the subject: any subject cell touching the grid
+        // border or orthogonally adjacent to a background cell becomes background, repeated.
+        // Strips the thin halo ring and boundary speckle left by a glowing/anti-aliased
+        // source background (which segmentation leaves fused to the subject). iterations <= 0
+        // is a no-op. Mutates isBg.
+        public static void ErodeSubject(bool[] isBg, int W, int H, int iterations)
+        {
+            if (isBg == null || iterations <= 0) return;
+            for (int it = 0; it < iterations; it++)
+            {
+                var toBg = new List<int>();
+                for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    if (isBg[i]) continue;
+                    bool edge = x == 0 || y == 0 || x == W - 1 || y == H - 1
+                                || isBg[i - 1] || isBg[i + 1] || isBg[i - W] || isBg[i + W];
+                    if (edge) toBg.Add(i);
+                }
+                foreach (var i in toBg) isBg[i] = true;
+            }
+        }
+
+        // Reduces the subject to its single largest 4-connected component: every subject
+        // cell that isn't part of the biggest blob becomes background. Ideal for single-
+        // subject stickers, where stray arcs/dots left by a glowing or anti-aliased source
+        // background survive segmentation as small separate blobs. No-op with 0 or 1 subject
+        // component. Mutates isBg.
+        public static void KeepLargestSubjectComponent(bool[] isBg, int W, int H)
+        {
+            if (isBg == null) return;
+            int n = W * H;
+            var visited = new bool[n];
+            var comp = new List<int>();
+            var stack = new Stack<int>();
+            var components = new List<List<int>>();
+            List<int> largest = null; int largestSize = 0;
+            for (int start = 0; start < n; start++)
+            {
+                if (isBg[start] || visited[start]) continue;
+                FloodComponent(isBg, visited, stack, comp, start, W, H, wantBg: false, out _);
+                var snapshot = new List<int>(comp);
+                components.Add(snapshot);
+                if (snapshot.Count > largestSize) { largestSize = snapshot.Count; largest = snapshot; }
+            }
+            if (largest == null) return;
+            foreach (var c in components)
+                if (!ReferenceEquals(c, largest))
+                    foreach (var idx in c) isBg[idx] = true;
+        }
+
+        // Iterative flood of the connected component containing `start` whose isBg value
+        // equals `wantBg`. Fills `comp` with its cell indices and reports whether it touches
+        // the grid border. Marks every visited cell in `visited`.
+        private static void FloodComponent(bool[] isBg, bool[] visited, Stack<int> stack,
+                                           List<int> comp, int start, int W, int H,
+                                           bool wantBg, out bool touchesBorder)
+        {
+            comp.Clear(); stack.Clear();
+            touchesBorder = false;
+            visited[start] = true; stack.Push(start);
+            while (stack.Count > 0)
+            {
+                int idx = stack.Pop();
+                comp.Add(idx);
+                int x = idx % W, y = idx / W;
+                if (x == 0 || y == 0 || x == W - 1 || y == H - 1) touchesBorder = true;
+                if (x > 0)     TryPush(isBg, visited, stack, idx - 1, wantBg);
+                if (x < W - 1) TryPush(isBg, visited, stack, idx + 1, wantBg);
+                if (y > 0)     TryPush(isBg, visited, stack, idx - W, wantBg);
+                if (y < H - 1) TryPush(isBg, visited, stack, idx + W, wantBg);
+            }
+        }
+
+        private static void TryPush(bool[] isBg, bool[] visited, Stack<int> stack, int nn, bool wantBg)
+        {
+            if (!visited[nn] && isBg[nn] == wantBg) { visited[nn] = true; stack.Push(nn); }
+        }
+
         private static Color ColorOf(string id, IReadOnlyList<PaletteColor> palette)
         {
             foreach (var p in palette) if (string.Equals(p.Id, id, StringComparison.Ordinal)) return p.C;

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: YAKGeneratorConfig
   m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKGeneratorConfig
   UseImageSource: 1
-  SourceImageFolder: 
+  SourceImageFolder: Assets/YAK/SourceImages
   TargetAPS: 3
   ApsTolerance: 0.6
   AnalyzerRollouts: 120
