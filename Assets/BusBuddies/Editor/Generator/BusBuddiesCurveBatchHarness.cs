@@ -60,7 +60,7 @@ namespace Hoppa.BusBuddies.Editor
                         int seed = rng.Next(1, int.MaxValue);
                         LevelGeneratorResult gen;
                         try { gen = tp.Profile.LevelGenerator.Generate(
-                            new LevelGeneratorRequest { Seed = seed, TargetAPS = tier.TargetAps }, tp.Profile); }
+                            new LevelGeneratorRequest { Seed = seed }, tp.Profile); }
                         catch (Exception e) { Debug.LogError($"[BusBuddiesCurve] L{i} generate threw: {e.Message}"); continue; }
 
                         var doc = gen?.Document;
@@ -68,8 +68,9 @@ namespace Hoppa.BusBuddies.Editor
 
                         var an = tp.Profile.LevelAnalyzer.Analyze(doc, tp.Profile,
                             new AnalysisRequest { RolloutCount = 120, Seed = seed });
-                        float delta = an.Status == AnalysisStatus.Solvable
-                            ? Mathf.Abs(an.ApsEstimate - tier.TargetAps) : float.MaxValue;
+                        // Difficulty is designer-controlled; APS is a read-out. Accept
+                        // the first solvable candidate, else keep the closest we have.
+                        float delta = an.Status == AnalysisStatus.Solvable ? 0f : float.MaxValue;
 
                         if (gen.Succeeded) { best = doc; bestAn = an; bestDelta = delta; accepted = true; }
                         else if (delta < bestDelta) { best = doc; bestAn = an; bestDelta = delta; }
@@ -79,6 +80,8 @@ namespace Hoppa.BusBuddies.Editor
 
                     string id = $"level_{i}";
                     best.LevelId = id;
+                    // Persist the tier's difficulty knobs into the saved level.
+                    BusBuddiesTierProfileBuilder.StampDifficulty(best, tier);
                     bool offTarget = !accepted;
 
                     File.WriteAllText(Path.Combine(stagingDir, id + ".json"), serializer.Save(best, registry));
@@ -95,7 +98,7 @@ namespace Hoppa.BusBuddies.Editor
                         band = bestAn != null ? bestAn.Band : 0,
                         distinctColors = 0,
                         tier = tier.Name,
-                        targetAps = tier.TargetAps,
+                        targetAps = 0f, // no per-tier APS target under the designer model
                         offTarget = offTarget,
                     });
                 }

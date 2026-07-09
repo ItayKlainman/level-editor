@@ -22,6 +22,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         private TopSectionPanel _topSection    = new EmptyTopSectionPanel();
         private TopSectionPanel _bottomSection = new EmptyTopSectionPanel();
 
+        // Optional game-specific right-column section, provided by the profile.
+        // Cached and rebuilt when the active profile changes.
+        private ProfileRightPanel _rightPanel;
+        private GameProfile       _rightPanelProfile;
+
         private LevelEditorSession _session;
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
@@ -262,16 +267,27 @@ namespace Hoppa.LevelEditor.Core.Editor
                     HandleBottomSplitter(centerX, bodyY + innerH - botH, centerW, minBotH, maxBotH, bodyY, innerH);
             }
 
-            // ── Right column: validation + summary [+ autofill] ──────────
+            // ── Right column: validation + summary [+ autofill] [+ profile panel] ──
             float rightX = w - RightW + 1f;
             bool  showAutofill = _profile?.LevelAnalyzer != null;
+
+            // Optional game-specific right-panel section (Layer 2 provides it via
+            // GameProfile). Lazily instantiated and cached per profile.
+            if (!ReferenceEquals(_rightPanelProfile, _profile))
+            {
+                _rightPanel = _profile != null ? _profile.CreateRightPanel() : null;
+                _rightPanelProfile = _profile;
+            }
+            bool  showRightPanel = _rightPanel != null;
+            float rightPanelH = showRightPanel ? Mathf.Min(_rightPanel.PreferredHeight, innerH * 0.45f) : 0f;
+            float upperH = innerH - rightPanelH; // region shared by validation/summary/autofill
 
             float validRatio   = showAutofill ? 0.40f : 0.50f;
             float summaryRatio = showAutofill ? 0.30f : 0.50f;
 
-            float validH   = Mathf.Floor(innerH * validRatio);
-            float summaryH = Mathf.Floor(innerH * summaryRatio);
-            float autoH    = showAutofill ? innerH - validH - summaryH : 0f;
+            float validH   = Mathf.Floor(upperH * validRatio);
+            float summaryH = Mathf.Floor(upperH * summaryRatio);
+            float autoH    = showAutofill ? upperH - validH - summaryH : 0f;
 
             var clicked = _validation.OnGUI(new Rect(rightX, bodyY, RightW, validH), _session.LastValidation);
             if (clicked.HasValue) _session.SelectedCell = clicked;
@@ -289,6 +305,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                 float autoY = bodyY + validH + summaryH;
                 EditorGUI.DrawRect(new Rect(rightX, autoY, RightW, 1f), Divider);
                 _autofill.OnGUI(new Rect(rightX, autoY + 1f, RightW, autoH - 1f), _session, _profile);
+            }
+
+            if (showRightPanel)
+            {
+                float rpY = bodyY + upperH;
+                EditorGUI.DrawRect(new Rect(rightX, rpY, RightW, 1f), Divider);
+                _rightPanel.OnGUI(new Rect(rightX, rpY + 1f, RightW, rightPanelH - 1f), _session, _profile);
             }
 
             if (GUI.changed) Repaint();

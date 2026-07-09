@@ -43,9 +43,9 @@ namespace Hoppa.BusBuddies.Editor.Tests
         public void Build_AppliesTierKnobs_ToTransientProfile()
         {
             var baseProfile = MakeBaseProfile(out _, out _, out _, out _);
-            var tier = new TierPreset { Name="Easy", GridWidth=10, GridHeight=10, MaxColors=2,
-                AvgCapacity=9, ConveyorSlots=7, ColumnRange=new Vector2Int(2,3),
-                HiddenRatio=0.25f, TargetAps=1.5f, ApsTolerance=0.4f };
+            var tier = new TierPreset { Name="Easy", GridWidth=10, GridHeight=10, MaxColors=2, ConveyorSlots=7,
+                Difficulty = new BusBuddiesDifficultySettings { BusesChunks=5, DeviationPercent=0.2f,
+                    Columns=2, Difficulty=4, NoSingleBusColor=true, RoundToFive=true } };
 
             var built = BusBuddiesTierProfileBuilder.Build(baseProfile, tier);
             try
@@ -56,13 +56,15 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 Assert.AreEqual(2, bIg.ColorCap);
                 Assert.AreEqual(7, bIg.DefaultActiveSlots);
                 var bAfc = GetField<BusBuddiesAutofillConfig>(built.Profile.LevelCompleter, "_config");
-                Assert.AreEqual(9, bAfc.AvgCapacity);
+                // Tier difficulty knobs become the config's fresh-level defaults.
+                Assert.AreEqual(5, bAfc.DefaultChunks);
+                Assert.AreEqual(0.2f, bAfc.DefaultDeviation, 1e-5f);
+                Assert.AreEqual(2, bAfc.DefaultColumns);
+                Assert.AreEqual(4, bAfc.DefaultDifficulty);
+                Assert.IsTrue(bAfc.DefaultNoSingleBusColor);
+                Assert.IsTrue(bAfc.DefaultRoundToFive);
                 Assert.AreEqual(7, bAfc.DefaultActiveSlots);
-                Assert.AreEqual(0.25f, bAfc.HiddenRatio);
-                Assert.AreEqual(new Vector2Int(2,3), bAfc.ColumnRange);
-                Assert.AreEqual(1.5f, bAfc.DefaultApsTarget);
                 var bGc = (BusBuddiesGeneratorConfig)built.Profile.GeneratorConfig;
-                Assert.AreEqual(1.5f, bGc.TargetAPS);
                 Assert.AreEqual(7, bGc.ConveyorCount);
                 Assert.AreEqual(2, bGc.FallbackColors, "FallbackColors must equal tier.MaxColors for procedural path");
             }
@@ -70,19 +72,42 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void StampDifficulty_WritesTierSettingsIntoGeneratedLevel()
+        {
+            var tier = new TierPreset { Name="Mid", GridWidth=8, GridHeight=8, MaxColors=3, ConveyorSlots=5,
+                Difficulty = new BusBuddiesDifficultySettings { BusesChunks=4, DeviationPercent=0.3f,
+                    Columns=3, Difficulty=5, NoSingleBusColor=true, RoundToFive=false } };
+            var doc = new LevelDocument
+            {
+                SchemaVersion = "busbuddies", LevelId = "gen",
+                Grid = new Hoppa.LevelEditor.Core.GridData<Hoppa.LevelEditor.Core.ICellData>(1, 1),
+            };
+
+            BusBuddiesTierProfileBuilder.StampDifficulty(doc, tier);
+
+            var read = BusBuddiesDifficultySettings.ReadFrom(doc, null);
+            Assert.AreEqual(4, read.BusesChunks);
+            Assert.AreEqual(0.3f, read.DeviationPercent, 1e-5f);
+            Assert.AreEqual(3, read.Columns);
+            Assert.AreEqual(5, read.Difficulty);
+            Assert.IsTrue(read.NoSingleBusColor);
+            Assert.IsFalse(read.RoundToFive);
+        }
+
+        [Test]
         public void Build_DoesNotMutateOriginals()
         {
             var baseProfile = MakeBaseProfile(out var ig, out var af, out var afc, out var gc);
-            ig.ColorCap = 6; afc.AvgCapacity = 8; gc.TargetAPS = 3f;
-            var tier = new TierPreset { Name="X", GridWidth=8, GridHeight=8, MaxColors=2,
-                AvgCapacity=11, ConveyorSlots=5, ColumnRange=new Vector2Int(2,3), TargetAps=1f, ApsTolerance=0.5f };
+            ig.ColorCap = 6; afc.DefaultChunks = 3; gc.TargetAPS = 3f;
+            var tier = new TierPreset { Name="X", GridWidth=8, GridHeight=8, MaxColors=2, ConveyorSlots=5,
+                Difficulty = new BusBuddiesDifficultySettings { BusesChunks=5, Columns=2, Difficulty=1 } };
 
             var built = BusBuddiesTierProfileBuilder.Build(baseProfile, tier);
             built.Cleanup();
 
-            Assert.AreEqual(6,  ig.ColorCap,      "original ImageToGrid must be untouched");
-            Assert.AreEqual(8,  afc.AvgCapacity,  "original autofill config must be untouched");
-            Assert.AreEqual(3f, gc.TargetAPS,     "original generator config must be untouched");
+            Assert.AreEqual(6,  ig.ColorCap,       "original ImageToGrid must be untouched");
+            Assert.AreEqual(3,  afc.DefaultChunks, "original autofill config must be untouched");
+            Assert.AreEqual(3f, gc.TargetAPS,      "original generator config must be untouched");
             Assert.AreEqual(30, baseProfile.GridWidth, "original profile grid must be untouched");
         }
 
@@ -94,8 +119,8 @@ namespace Hoppa.BusBuddies.Editor.Tests
             var profile = MakeFullProfile();
             var curve = ScriptableObject.CreateInstance<BusBuddiesDifficultyCurveConfig>();
             curve.Presets = new List<TierPreset> {
-                new TierPreset { Name="Tiny", GridWidth=6, GridHeight=6, MaxColors=2, AvgCapacity=6,
-                                 ConveyorSlots=6, ColumnRange=new Vector2Int(2,3), TargetAps=2f, ApsTolerance=50f },
+                new TierPreset { Name="Tiny", GridWidth=6, GridHeight=6, MaxColors=2, ConveyorSlots=6,
+                                 Difficulty = new BusBuddiesDifficultySettings { BusesChunks=1, Columns=2, Difficulty=1 } },
             };
             curve.Curve = new List<CurveSegment> { new CurveSegment { TierName="Tiny", LevelCount=2 } };
 

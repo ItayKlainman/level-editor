@@ -36,6 +36,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region BELOW the grid (e.g. a spool queue that lives at the bottom of the game screen).\nThe abstract base type is the same as top section — the slot it renders in is decided by which field you assign it to.")]
         [SerializeField] private MonoScript _bottomSectionScript;
 
+        [Tooltip("Optional: assign a ProfileRightPanel subclass script to render a game-specific section in the RIGHT column (beneath Spool Analysis).\nExample: BusBuddiesDifficultyPanel — leave empty for none.")]
+        [SerializeField] private MonoScript _rightPanelScript;
+
         [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
         [SerializeField] private EditorPanelAsset _orderPanel;
 
@@ -111,6 +114,17 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         public TopSectionPanel CreateTopSection() => InstantiateSection(_topSectionScript);
         public TopSectionPanel CreateBottomSection() => InstantiateSection(_bottomSectionScript);
+
+        // Instantiate the profile's optional right-column panel (a ProfileRightPanel
+        // subclass). Returns null when no valid script is assigned.
+        public ProfileRightPanel CreateRightPanel()
+        {
+            if (_rightPanelScript == null) return null;
+            var type = _rightPanelScript.GetClass();
+            if (type == null || !typeof(ProfileRightPanel).IsAssignableFrom(type)) return null;
+            try   { return (ProfileRightPanel)Activator.CreateInstance(type); }
+            catch { return null; }
+        }
 
         private static TopSectionPanel InstantiateSection(MonoScript script)
         {
