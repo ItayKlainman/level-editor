@@ -27,8 +27,12 @@ namespace Hoppa.BusBuddies.Editor
 
             foreach (var kv in perColor)
             {
+                // Ordinal (exact) match — colors are keyed with StringComparer.Ordinal
+                // everywhere else in the pipeline (perColor, the main-color HashSet,
+                // BusBuddiesDigArranger's color grouping); case-insensitive matching
+                // here would be the odd one out.
                 if (excludeOutline && outlineId != null &&
-                    string.Equals(kv.Key, outlineId, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(kv.Key, outlineId, StringComparison.Ordinal))
                     continue;
 
                 float share = kv.Value / (float)total;

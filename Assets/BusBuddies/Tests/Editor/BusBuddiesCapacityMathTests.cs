@@ -113,5 +113,47 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.GreaterOrEqual(caps.Count, 2, "No-1-bus forces a split");
             Assert.AreEqual(0, NonMultiplesOf5(caps), "the split stays on multiples of 5");
         }
+
+        // ── MED-1: Deviation and Round-to-5 are INDEPENDENT knobs. Round-to-5
+        // must not collapse the [min,max] window down to a fixed avg-derived bus
+        // count — a wide deviation window must still produce a spread of bus
+        // capacities, not a uniform ~avg size, while staying multiples of 5. ──
+        [Test]
+        public void RoundToFive_HighDeviation_ProducesSpreadOfCapacities_WithinWindow()
+        {
+            // Chunks 3 -> avg 20; Deviation 80% -> half=round(20*0.8)=16 -> [4,36].
+            int avg = BusBuddiesCapacityMath.Avg(3, 10, 5);
+            BusBuddiesCapacityMath.Window(avg, 0.8f, out int min, out int max);
+            Assert.AreEqual(4, min);
+            Assert.AreEqual(36, max);
+
+            var caps = BusBuddiesCapacityMath.PartitionColor(200, min, max, avg, false, true, new System.Random(3));
+
+            Assert.AreEqual(200, Sum(caps), "must still sum exactly");
+            Assert.GreaterOrEqual(caps.Count, 2);
+
+            int belowMin = 0;
+            foreach (var c in caps)
+            {
+                Assert.LessOrEqual(c, max, "no bus exceeds the deviation window's max");
+                if (c < min) belowMin++;
+            }
+            Assert.LessOrEqual(belowMin, 1, "at most the trailing remainder may fall below min (mirrors Partition)");
+
+            Assert.GreaterOrEqual(new HashSet<int>(caps).Count, 2,
+                "a wide deviation window must still produce a SPREAD of capacities, not a uniform avg-derived size");
+            Assert.LessOrEqual(NonMultiplesOf5(caps), 1, "round-to-5 stays best-effort multiples of 5");
+        }
+
+        [Test]
+        public void RoundToFive_ZeroDeviation_StillWorks_TightWindow()
+        {
+            // dev=0 -> min=max=avg (20). Round-to-5 has no multiple-of-5 room inside
+            // a single-point window, so it degrades to the accepted non-multiple
+            // exception while still summing exactly.
+            var caps = BusBuddiesCapacityMath.PartitionColor(47, 20, 20, 20, false, true, new System.Random(1));
+            Assert.AreEqual(47, Sum(caps));
+            foreach (var c in caps) Assert.Greater(c, 0);
+        }
     }
 }

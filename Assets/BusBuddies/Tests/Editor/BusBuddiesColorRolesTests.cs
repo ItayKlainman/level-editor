@@ -33,10 +33,19 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.IsFalse(main.Contains("Black"), "outline color must not be 'main' when excluded");
         }
 
+        // LOW-4: outline matching is Ordinal (exact), consistent with how colors
+        // are keyed everywhere else in the pipeline — no case-insensitive fallback.
         [Test]
-        public void Classify_OutlineMatch_IsCaseInsensitive()
+        public void Classify_OutlineMatch_IsOrdinal_NotCaseInsensitive()
         {
             var main = BusBuddiesColorRoles.ClassifyMain(Excel(), 0.10f, "black", true);
+            Assert.IsTrue(main.Contains("Black"), "\"black\" != \"Black\" under Ordinal — outline exclusion must not apply");
+        }
+
+        [Test]
+        public void Classify_OutlineMatch_ExactCase_IsExcluded()
+        {
+            var main = BusBuddiesColorRoles.ClassifyMain(Excel(), 0.10f, "Black", true);
             Assert.IsFalse(main.Contains("Black"));
         }
 

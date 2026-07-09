@@ -19,25 +19,33 @@ namespace Hoppa.BusBuddies.Editor
         // burial until `isSolvable` accepts an arrangement. Returns the first
         // solvable arrangement, else the Difficulty-1 baseline (honest — the
         // caller decides how to report an unsolvable baseline). isSolvable may be
-        // null (accept the requested difficulty as-is).
+        // null (accept the requested difficulty as-is). `columnPhase` rotates
+        // which column each flat-order bus lands in (see BuildArrangement) — the
+        // caller varies this across search attempts to widen the solvability
+        // search without touching the fixed designer knobs.
         public static BusQueueData Arrange(
             IReadOnlyList<BusEntry> buses, ISet<string> mainColors, int columns, int difficulty,
-            System.Random rng, Func<BusQueueData, bool> isSolvable)
+            System.Random rng, Func<BusQueueData, bool> isSolvable, int columnPhase = 0)
         {
             int d = Mathf.Clamp(difficulty, 1, 5);
             BusQueueData last = null;
             for (; d >= 1; d--)
             {
-                last = BuildArrangement(buses, mainColors, columns, d, rng);
+                last = BuildArrangement(buses, mainColors, columns, d, rng, columnPhase);
                 if (isSolvable == null || isSolvable(last)) return last;
             }
             return last; // Diff-1 baseline (may be unsolvable — caller reports honestly)
         }
 
         // Single deterministic arrangement at a fixed difficulty (no relaxation).
+        // `columnPhase` offsets the round-robin column assignment (i+phase) % cols
+        // — 0 is the default (column 0 gets flat-order index 0); non-zero phases
+        // rotate which column each bus lands in without changing the head→buried
+        // depth ordering, giving the search a second axis to explore when the
+        // default phase can't reach a solvable arrangement.
         public static BusQueueData BuildArrangement(
             IReadOnlyList<BusEntry> buses, ISet<string> mainColors, int columns, int difficulty,
-            System.Random rng)
+            System.Random rng, int columnPhase = 0)
         {
             int cols = Mathf.Max(1, columns);
             var top = new BusQueueData();
@@ -46,10 +54,12 @@ namespace Hoppa.BusBuddies.Editor
 
             var flat = FlatOrder(buses, mainColors, difficulty);
 
-            // Distribute round-robin across columns; within-column order preserves
-            // the flat (head→buried) order, so column index 0 is the head.
+            // Distribute round-robin across columns (offset by columnPhase); within-
+            // column order preserves the flat (head→buried) order, so column index
+            // 0 is still the head.
+            int phase = ((columnPhase % cols) + cols) % cols;
             for (int i = 0; i < flat.Count; i++)
-                top.Columns[i % cols].Buses.Add(flat[i]);
+                top.Columns[(i + phase) % cols].Buses.Add(flat[i]);
             return top;
         }
 

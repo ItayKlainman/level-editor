@@ -40,9 +40,11 @@ namespace Hoppa.BusBuddies.Editor
 
         // Base partition: split `total` into capacities in [min,max] (jittered
         // around avg) summing EXACTLY to total. If total < min, returns one
-        // undersized bus (= total), the documented exception. Never strands a
-        // remainder below min. (Extracted from the original autofiller so the
-        // rule-aware PartitionColor can build on it.)
+        // undersized bus (= total), the documented exception. The guarantee is
+        // EXACT SUM, not a min-floor on every bus: e.g. avg=10, dev=0 (min=max=10),
+        // total=25 → [10,10,5] — the final chunk can legitimately land below min.
+        // (Extracted from the original autofiller so the rule-aware PartitionColor
+        // can build on it.)
         public static List<int> Partition(int total, int min, int max, int avg, System.Random rng)
         {
             var caps = new List<int>();
@@ -71,7 +73,10 @@ namespace Hoppa.BusBuddies.Editor
 
         // Rule-aware per-color partition. Always sums EXACTLY to total.
         //   roundToFive : prefer capacities that are multiples of 5 (best-effort,
-        //                 minimizes the number of non-multiples).
+        //                 minimizes the number of non-multiples), WITHIN the
+        //                 [min,max] Deviation window — Deviation and Round-to-5
+        //                 are independent knobs, so this never collapses the
+        //                 window down to a fixed bus count derived from avg alone.
         //   noSingleBus : a color that would occupy a single bus is re-split into
         //                 two (respecting round-to-5 when also enabled).
         public static List<int> PartitionColor(
@@ -80,15 +85,9 @@ namespace Hoppa.BusBuddies.Editor
             List<int> caps;
             if (total <= 0) return new List<int>();
 
-            if (roundToFive)
-            {
-                int n = EstimateBusCount(total, avg);
-                caps = RoundFivePartition(total, n);
-            }
-            else
-            {
-                caps = Partition(total, min, max, avg, rng);
-            }
+            caps = roundToFive
+                ? RoundFiveWindowPartition(total, min, max, avg, rng)
+                : Partition(total, min, max, avg, rng);
 
             // No-1-bus wins over round-to-5: split a single bus into two.
             if (noSingleBus && caps.Count == 1 && total >= 2)
@@ -113,59 +112,56 @@ namespace Hoppa.BusBuddies.Editor
             return new List<int> { a, total - a };
         }
 
-        // Distribute `total` across `n` buses maximizing multiples of 5, summing
-        // exactly. When total % 5 != 0 exactly one bus carries the remainder (the
-        // single non-multiple); otherwise every bus is a multiple of 5. Guarantees
-        // positive buses (drops any zero slots).
-        private static List<int> RoundFivePartition(int total, int n)
+        // Deviation-window-aware round-to-5 partition: each bus is snapped to a
+        // multiple of 5 within [min,max] wherever the window contains one
+        // (best-effort — falls back to a non-multiple only when the window is too
+        // narrow to contain any multiple of 5), summing EXACTLY to total. Reuses
+        // the same [min,max] window as the plain Partition, so Deviation still
+        // shapes the capacity spread even when Round-to-5 is on (MED-1: the two
+        // knobs are independent — Round-to-5 must not collapse the window down to
+        // a fixed avg-derived bus count).
+        private static List<int> RoundFiveWindowPartition(int total, int min, int max, int avg, System.Random rng)
         {
             var caps = new List<int>();
             if (total <= 0) return caps;
+            if (max < min) max = min;
+            avg = Mathf.Clamp(avg, min, max);
 
-            int fives = total / 5;       // number of whole 5-blocks
-            int rem   = total % 5;       // 0..4 → the sole non-multiple when > 0
-
-            // Can't make more positive buses than there are 5-blocks (+1 for a
-            // remainder-only bus). Keeps every bus positive.
-            int maxBuses = fives + (rem > 0 ? 1 : 0);
-            if (maxBuses < 1) maxBuses = 1;
-            n = Mathf.Clamp(n, 1, maxBuses);
-
-            if (rem > 0)
+            if (total <= max)
             {
-                // Reserve one bus for the remainder; the rest are pure multiples of 5.
-                int fivesBuses = n - 1;
-                if (fivesBuses >= 1)
-                {
-                    Spread5(caps, fives, fivesBuses); // fives >= fivesBuses (n <= fives+1) → all positive
-                    caps.Add(rem);
-                }
-                else
-                {
-                    // n == 1 → a single bus carries everything (one non-multiple).
-                    caps.Add(total);
-                }
+                caps.Add(total); // single bus (may be < min only when total < min — mirrors Partition)
+                return caps;
             }
-            else
+
+            int remaining = total;
+            while (remaining > max)
             {
-                // Every bus a multiple of 5, spread as evenly as possible (n <= fives).
-                Spread5(caps, fives, n);
+                // Sample a capacity from the deviation window (not just avg ± jitter)
+                // so a wide window actually produces a spread of bus sizes, then snap
+                // it to the nearest in-window multiple of 5.
+                int hi = Mathf.Min(max, remaining - min);
+                if (hi < min) hi = min;
+                int sample = rng != null ? rng.Next(min, hi + 1) : avg;
+                int take = SnapToMultipleOf5InRange(sample, min, hi);
+                if (take <= 0) take = min;
+                caps.Add(take);
+                remaining -= take;
             }
+            caps.Add(remaining); // final chunk — a multiple of 5 when the running remainder allows, else the sole exception
             return caps;
         }
 
-        // Append `count` buses whose capacities are multiples of 5 spreading
-        // `fives` 5-blocks as evenly as possible.
-        private static void Spread5(List<int> caps, int fives, int count)
+        // Nearest multiple of 5 to `value` that stays within [lo,hi], when one
+        // exists in that range; otherwise falls back to clamping `value` into
+        // range (a non-multiple — best-effort, only happens when the window is
+        // narrower than 5).
+        private static int SnapToMultipleOf5InRange(int value, int lo, int hi)
         {
-            if (count <= 0) { if (fives > 0) caps.Add(fives * 5); return; }
-            int baseBlocks = fives / count;
-            int extra = fives % count;
-            for (int i = 0; i < count; i++)
-            {
-                int blocks = baseBlocks + (i < extra ? 1 : 0);
-                caps.Add(blocks * 5);
-            }
+            int m = Mathf.RoundToInt(value / 5f) * 5;
+            if (m < lo) m = Mathf.CeilToInt(lo / 5f) * 5;
+            if (m > hi) m = Mathf.FloorToInt(hi / 5f) * 5;
+            if (m < lo || m > hi) return Mathf.Clamp(value, lo, hi);
+            return m;
         }
     }
 }
