@@ -7,7 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-09
+
 ### Added
+- `ProfileRightPanel` (abstract `ScriptableObject`): a generic Layer-1 hook letting a `GameProfile`
+  inject a game-specific section into the level editor's right-hand column. `GameProfile._rightPanelScript`
+  slot + `CreateRightPanel()` factory (null-safe, type-checked); `LevelEditorWindow` renders it beneath
+  the validation/summary panels when present. Profiles without one (Yarn Kingdom, Yarn Twist) are
+  byte-identical to before. First consumer: the Bus Buddies Difficulty panel (Layer 2).
 - YAK Complexity axis (click-pattern difficulty, 1–10): a second difficulty dial orthogonal to
   spool size. `LevelAnalysisResult.ComplexityEstimate` and `AnalysisRequest.MeasureComplexity`
   (generic, additive — APS-only callers unaffected) carry a MEASURED-but-uncalibrated complexity

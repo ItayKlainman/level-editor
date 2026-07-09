@@ -109,6 +109,44 @@ in the **🖼 Image** panel help:
 
 ---
 
+## Setting the difficulty (Bus Buddies)
+
+Bus Buddies levels have a **Difficulty panel** on the right side of the editor. Instead of
+guessing a difficulty number, you set a few simple sliders and the tool builds the buses to
+match — and it **always keeps the level winnable**.
+
+Here's every knob and what it does:
+
+| Knob | What it does | Turn it up to… |
+|---|---|---|
+| **Buses Chunks (1–5)** | How many pixels ride in each bus. Higher = **bigger, fewer buses**. | make fewer, fuller buses |
+| **Deviation %** | How much bus sizes vary. 0% = every bus the same size; 50% = sizes swing well above and below the average. | get a mix of big and small buses |
+| **Number of Columns (1–5)** | How many bus queues the level uses. | spread buses across more lanes |
+| **Difficulty (1–5)** | How **buried** the main colors are. Low = the colors you need are easy to reach. High = the main colors sit deep in the queues, so the player must **park buses in the active row to dig down to them**. | make the player plan/work more |
+| **☐ No 1-bus color** | Stops any color from being a single bus — splits it into at least two. | cleaner, more interesting spreads |
+| **☐ Round to 5** | Tries to make bus sizes tidy multiples of 5 (10, 15, 20…). Not always possible, but it tries. | neater numbers |
+
+**How the "Difficulty" dig works (the important one):**
+The tool looks at your picture and finds the **main colors** — the ones with the most pixels
+(say, the purple that makes up most of a grape). As you raise Difficulty, it pushes those
+main-color buses toward the **back** of the queues so they're tapped last. But it always leaves
+**a few of each main color near the front** so the level is never stuck from the start — and it
+**runs the robot to confirm the level is still winnable**, easing off if it went too far. So higher
+Difficulty = more digging, never an impossible level.
+
+**How to use it:** open a level, set the six knobs, and click **Apply / Auto-fill** — the buses
+rebuild to match. Your settings are **saved with the level**, so re-opening it shows the same
+values, ready to tweak.
+
+**About APS:** for Bus Buddies, APS is now just a **number the robot reports** (an estimate of how
+hard it turned out) — it no longer drives anything. Your six knobs are the control; APS is the
+readout. *(Yarn Kingdom still uses APS as its target.)*
+
+**Batches:** the same six settings live on each **tier** in the Difficulty Curve, so a whole
+campaign can ramp these knobs from easy to hard.
+
+---
+
 ## Making MANY levels at once
 
 - **Batch** — *Window ▸ Hoppa ▸ [Game] ▸ Run Batch*. Generates a pile of levels, then you
