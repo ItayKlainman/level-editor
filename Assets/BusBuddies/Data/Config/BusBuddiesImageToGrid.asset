@@ -21,6 +21,6 @@ MonoBehaviour:
   - White
   - Black
   OutlineSubject: 1
-  OutlineColorId: purple
+  OutlineColorId: black
   Segmentation: 0
   DefaultActiveSlots: 5
