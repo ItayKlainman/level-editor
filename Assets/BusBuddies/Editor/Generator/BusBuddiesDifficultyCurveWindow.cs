@@ -63,15 +63,17 @@ namespace Hoppa.BusBuddies.Editor
                 p.GridWidth     = EditorGUILayout.IntField("Grid Width", p.GridWidth);
                 p.GridHeight    = EditorGUILayout.IntField("Grid Height", p.GridHeight);
                 p.MaxColors     = EditorGUILayout.IntField("Max Colors", p.MaxColors);
-                p.AvgCapacity   = EditorGUILayout.IntField("Avg Bus Capacity", p.AvgCapacity);
-                p.CapacitySlack = EditorGUILayout.Slider("Capacity Slack", p.CapacitySlack, 0f, 1f);
                 p.ConveyorSlots = EditorGUILayout.IntField("Active Bus Slots", p.ConveyorSlots);
-                p.ColumnRange   = EditorGUILayout.Vector2IntField("Bus Columns [min,max]", p.ColumnRange);
-                p.HiddenRatio   = EditorGUILayout.Slider(
-                    new GUIContent("Hidden Bus %", "APS does not yet model hidden buses — manual difficulty until analyzer support lands."),
-                    p.HiddenRatio, 0f, 1f);
-                p.TargetAps     = EditorGUILayout.FloatField("Target APS", p.TargetAps);
-                p.ApsTolerance  = EditorGUILayout.FloatField("APS Tolerance", p.ApsTolerance);
+
+                if (p.Difficulty == null) p.Difficulty = new BusBuddiesDifficultySettings();
+                var d = p.Difficulty;
+                EditorGUILayout.LabelField("Difficulty (designer model)", EditorStyles.miniBoldLabel);
+                d.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", d.BusesChunks, 1, 5);
+                d.DeviationPercent = EditorGUILayout.Slider("Deviation %", d.DeviationPercent, 0f, 1f);
+                d.Columns          = EditorGUILayout.IntSlider("Columns", d.Columns, 1, 5);
+                d.Difficulty       = EditorGUILayout.IntSlider("Difficulty (dig)", d.Difficulty, 1, 5);
+                d.NoSingleBusColor = EditorGUILayout.ToggleLeft("No 1-bus color", d.NoSingleBusColor);
+                d.RoundToFive      = EditorGUILayout.ToggleLeft("Round to 5", d.RoundToFive);
                 if (EditorGUI.EndChangeCheck()) Dirty();
                 EditorGUILayout.EndVertical();
             }

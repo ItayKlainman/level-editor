@@ -18,17 +18,16 @@ namespace Hoppa.BusBuddies.Editor
         public int GridWidth = 30;
         public int GridHeight = 30;
         [Min(2)] public int MaxColors = 3;
-        [Header("Buses")]
-        [Min(1)] public int AvgCapacity = 8;
-        [Range(0f, 1f)] public float CapacitySlack = 0f;
         [Min(1)] public int ConveyorSlots = 5;   // Active Bus Row slots
-        public Vector2Int ColumnRange = new Vector2Int(2, 5);
-        [Range(0f, 1f)] public float HiddenRatio = 0f;
-        [Header("Difficulty target")]
-        public float TargetAps = 3f;
-        public float ApsTolerance = 0.6f;
+        [Header("Difficulty (designer model — the six knobs)")]
+        public BusBuddiesDifficultySettings Difficulty = new BusBuddiesDifficultySettings();
 
-        public TierPreset Clone() => (TierPreset)MemberwiseClone();
+        public TierPreset Clone()
+        {
+            var c = (TierPreset)MemberwiseClone();
+            c.Difficulty = Difficulty != null ? Difficulty.Clone() : new BusBuddiesDifficultySettings();
+            return c;
+        }
     }
 
     [Serializable]
