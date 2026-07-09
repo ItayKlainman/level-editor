@@ -116,7 +116,14 @@ namespace Hoppa.BusBuddies.Editor.Tests
         // fixed settings+seed combo — captured once via the real
         // BusBuddiesAutofiller.Complete (script-execute, one-off diagnostic) and
         // hardcoded here — so the analyzer-seed / rng dependency can't silently
-        // drift without a test noticing. ──
+        // drift without a test noticing.
+        //
+        // Re-captured after the re-tweak fix to BusBuddiesCapacityMath (bucket
+        // count `k` is now computed upfront from the whole total instead of
+        // discovered by greedy peeling): total=36, avg=15 (Chunks 2), window
+        // [10,20] (Deviation 0.3) now correctly picks k=2 buses (36/15≈2.4→2,
+        // both in-window) instead of the old greedy peel's 3 buses [14,11,11] —
+        // fewer, cleaner buses, still summing exactly to 36. ──
         [Test]
         public void FixedSeed_ProducesLockedByteIdenticalQueue()
         {
@@ -125,9 +132,8 @@ namespace Hoppa.BusBuddies.Editor.Tests
             var res = af.Complete(SingleColorDoc(6, 6, "A", 2, s), MakeProfile(), new CompletionRequest { Seed = 123456 });
 
             const string expected =
-                "{\"columns\":[{\"buses\":[{\"colorId\":\"A\",\"capacity\":14,\"hidden\":false,\"connectedId\":-1}," +
-                "{\"colorId\":\"A\",\"capacity\":11,\"hidden\":false,\"connectedId\":-1}]}," +
-                "{\"buses\":[{\"colorId\":\"A\",\"capacity\":11,\"hidden\":false,\"connectedId\":-1}]}]}";
+                "{\"columns\":[{\"buses\":[{\"colorId\":\"A\",\"capacity\":17,\"hidden\":false,\"connectedId\":-1}]}," +
+                "{\"buses\":[{\"colorId\":\"A\",\"capacity\":19,\"hidden\":false,\"connectedId\":-1}]}]}";
 
             Assert.AreEqual(expected, res.TopSection.ToString(Newtonsoft.Json.Formatting.None),
                 "same settings + seed must byte-match the locked queue — a diff means the analyzer/rng-seed dependency drifted");

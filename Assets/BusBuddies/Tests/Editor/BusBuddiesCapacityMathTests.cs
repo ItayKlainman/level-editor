@@ -155,5 +155,72 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.AreEqual(47, Sum(caps));
             foreach (var c in caps) Assert.Greater(c, 0);
         }
+
+        // ── Re-tweak fix: round-to-5 must never strand a remainder below min
+        // when total allows every bus to stay in-window. Uses the real re-tweak
+        // window (Chunks 4 -> avg 25, Deviation 0.2 -> [20,30]). Previously these
+        // totals stranded a tiny straggler (e.g. 21 -> [20,1], 47 -> a 1/3/4-ish
+        // leftover); now every bus must be >= min. noSingleBus is OFF here so a
+        // total that fits in [min,max] is allowed to stay a single bus (per spec:
+        // 22 -> [22], not [20,2]) — this isolates the window-partition fix from
+        // the separate No-1-bus behaviour covered below. ──
+        [Test]
+        public void RoundToFive_NoStranding_TotalsThatUsedToLeaveAStraggler()
+        {
+            int avg = BusBuddiesCapacityMath.Avg(4, 10, 5); // 25
+            BusBuddiesCapacityMath.Window(avg, 0.2f, out int min, out int max); // [20,30]
+            Assert.AreEqual(20, min);
+            Assert.AreEqual(30, max);
+
+            foreach (var total in new[] { 21, 22, 47 })
+            {
+                var caps = BusBuddiesCapacityMath.PartitionColor(total, min, max, avg, false, true, new System.Random(7));
+                Assert.AreEqual(total, Sum(caps), $"total {total} must sum exactly");
+                foreach (var c in caps)
+                    Assert.GreaterOrEqual(c, min, $"total {total}: every bus must be >= min ({min}), got {c} in [{string.Join(",", caps)}]");
+                Assert.LessOrEqual(NonMultiplesOf5(caps), 1, $"total {total}: round-to-5 stays best-effort (at most one non-multiple)");
+            }
+        }
+
+        [Test]
+        public void RoundToFive_InWindowTotal_StaysSingleBus_EvenNonMultiple()
+        {
+            int avg = BusBuddiesCapacityMath.Avg(4, 10, 5); // 25
+            BusBuddiesCapacityMath.Window(avg, 0.2f, out int min, out int max); // [20,30]
+
+            var caps = BusBuddiesCapacityMath.PartitionColor(22, min, max, avg, false, true, new System.Random(1));
+            CollectionAssert.AreEqual(new[] { 22 }, caps, "a total already in [min,max] is a single bus, not split to hit a multiple of 5");
+        }
+
+        // ── Re-check the No-1-bus path: when NoSingleBusColor forces a split of a
+        // color too small for two in-window buses (total < 2*min), the pair must
+        // still be BALANCED — never a near-zero straggler bus (the old bug: total
+        // 6 -> [5,1]). ──
+        [Test]
+        public void NoSingleBus_ForcedSplitOfSmallTotal_IsBalanced_NoTinyStraggler()
+        {
+            int avg = BusBuddiesCapacityMath.Avg(4, 10, 5); // 25
+            BusBuddiesCapacityMath.Window(avg, 0.2f, out int min, out int max); // [20,30]
+
+            var caps = BusBuddiesCapacityMath.PartitionColor(6, min, max, avg, true, true, new System.Random(1));
+            Assert.AreEqual(6, Sum(caps));
+            Assert.AreEqual(2, caps.Count);
+            foreach (var c in caps) Assert.GreaterOrEqual(c, 2, "no near-zero (1-capacity) straggler bus");
+        }
+
+        [Test]
+        public void NoSingleBus_ForcedSplitOfInWindowTotal_IsBalanced()
+        {
+            int avg = BusBuddiesCapacityMath.Avg(4, 10, 5); // 25
+            BusBuddiesCapacityMath.Window(avg, 0.2f, out int min, out int max); // [20,30]
+
+            // total=22 is in-window as a single bus, but noSingleBus forces a
+            // split; 2*min (40) > 22, so an in-window pair is impossible — must
+            // degrade to a balanced (not degenerate) pair.
+            var caps = BusBuddiesCapacityMath.PartitionColor(22, min, max, avg, true, true, new System.Random(1));
+            Assert.AreEqual(22, Sum(caps));
+            Assert.AreEqual(2, caps.Count);
+            foreach (var c in caps) Assert.GreaterOrEqual(c, 8, "balanced split, not a lopsided straggler");
+        }
     }
 }

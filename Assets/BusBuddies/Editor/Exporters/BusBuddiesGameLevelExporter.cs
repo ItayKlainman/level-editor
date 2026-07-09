@@ -63,6 +63,27 @@ namespace Hoppa.BusBuddies.Editor
         private static int ColorToInt(string colorId)
             => !string.IsNullOrEmpty(colorId) && ColorMap.TryGetValue(colorId, out var v) ? v : 0;
 
+        // Reverse of ColorMap (ordinal → canonical PascalCase BUBColorType name),
+        // built once from the SAME dictionary so importer/exporter can never drift.
+        private static readonly Dictionary<int, string> InverseColorMap = BuildInverse();
+
+        private static Dictionary<int, string> BuildInverse()
+        {
+            var inv = new Dictionary<int, string>();
+            foreach (var kv in ColorMap) inv[kv.Value] = kv.Key; // distinct ordinals → 1:1
+            return inv;
+        }
+
+        // Public name↔ordinal accessors so the round-trip importer reuses this map
+        // rather than hand-rolling a second one. colorId lookup is case-insensitive.
+        public static int ColorIdToOrdinal(string colorId) => ColorToInt(colorId);
+
+        // ordinal → canonical BUBColorType name ("Blue", "BrownVeryDark", …). Returns
+        // false for an unmapped ordinal. Ordinal 0 maps to "None". Callers that want
+        // the palette id lowercase it (palette ids are the lowercased enum names).
+        public static bool TryOrdinalToColorName(int ordinal, out string colorName)
+            => InverseColorMap.TryGetValue(ordinal, out colorName);
+
         public void SetTestDependencies(string outputDir, int defaultSlots)
         {
             _outputDir = outputDir;
