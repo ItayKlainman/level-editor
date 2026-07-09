@@ -7,7 +7,7 @@
       "BusConfigs": [
         {
           "ColorType": 4,
-          "Capacity": 5
+          "Capacity": 4
         },
         {
           "ColorType": 9,
@@ -59,7 +59,7 @@
         },
         {
           "ColorType": 4,
-          "Capacity": 3
+          "Capacity": 4
         },
         {
           "ColorType": 9,

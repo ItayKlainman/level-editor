@@ -7,19 +7,19 @@
       "BusConfigs": [
         {
           "ColorType": 4,
-          "Capacity": 5
+          "Capacity": 3
         },
         {
           "ColorType": 4,
-          "Capacity": 1
+          "Capacity": 3
         },
         {
           "ColorType": 6,
-          "Capacity": 25
+          "Capacity": 30
         },
         {
           "ColorType": 9,
-          "Capacity": 25
+          "Capacity": 20
         }
       ]
     },
@@ -39,7 +39,7 @@
         },
         {
           "ColorType": 3,
-          "Capacity": 18
+          "Capacity": 23
         }
       ]
     },
@@ -47,19 +47,15 @@
       "BusConfigs": [
         {
           "ColorType": 8,
-          "Capacity": 20
+          "Capacity": 30
         },
         {
           "ColorType": 8,
-          "Capacity": 30
+          "Capacity": 20
         },
         {
           "ColorType": 9,
           "Capacity": 25
-        },
-        {
-          "ColorType": 6,
-          "Capacity": 12
         }
       ]
     },
@@ -67,7 +63,7 @@
       "BusConfigs": [
         {
           "ColorType": 9,
-          "Capacity": 25
+          "Capacity": 30
         },
         {
           "ColorType": 9,
@@ -83,15 +79,15 @@
       "BusConfigs": [
         {
           "ColorType": 3,
-          "Capacity": 30
+          "Capacity": 20
         },
         {
           "ColorType": 3,
-          "Capacity": 20
+          "Capacity": 25
         },
         {
           "ColorType": 6,
-          "Capacity": 20
+          "Capacity": 27
         }
       ]
     }

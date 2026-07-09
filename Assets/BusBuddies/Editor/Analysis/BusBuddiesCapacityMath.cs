@@ -41,34 +41,29 @@ namespace Hoppa.BusBuddies.Editor
         // Base partition: split `total` into capacities in [min,max] (jittered
         // around avg) summing EXACTLY to total. If total < min, returns one
         // undersized bus (= total), the documented exception. The guarantee is
-        // EXACT SUM, not a min-floor on every bus: e.g. avg=10, dev=0 (min=max=10),
-        // total=25 → [10,10,5] — the final chunk can legitimately land below min.
+        // EXACT SUM, and — as of the re-tweak fix — every bus lies in [min,max]
+        // whenever that's mathematically achievable for the WHOLE total (bucket
+        // count `k` is computed upfront from `total`, not discovered by greedily
+        // peeling — a greedy peel can wander into an unnecessary shortfall near
+        // the tail even when a valid all-in-window split of the full total
+        // exists). Only a total that's genuinely too small for its forced bucket
+        // count (< min alone, or the `kMax < kMin` gap below) may land under min.
         // (Extracted from the original autofiller so the rule-aware PartitionColor
         // can build on it.)
         public static List<int> Partition(int total, int min, int max, int avg, System.Random rng)
         {
-            var caps = new List<int>();
-            if (total <= 0) return caps;
+            if (total <= 0) return new List<int>();
             if (max < min) max = min;
             avg = Mathf.Clamp(avg, min, max);
 
             if (total <= max)
-            {
-                caps.Add(total); // single bus (may be < min only when total < min — accepted)
-                return caps;
-            }
+                return new List<int> { total }; // single bus (may be < min only when total < min — accepted)
 
-            int remaining = total;
-            while (remaining > max)
-            {
-                int jitter = rng != null ? rng.Next(-1, 2) : 0;
-                int take = Mathf.Clamp(avg + jitter, min, Mathf.Min(max, remaining - min));
-                if (take < min) take = min;
-                caps.Add(take);
-                remaining -= take;
-            }
-            caps.Add(remaining);
-            return caps;
+            int k = ChooseBucketCount(total, min, max, avg, out bool feasible);
+            if (!feasible)
+                return k <= 2 ? BalancedPair(total, max, roundToFive: false) : EvenSplit(total, k, max);
+
+            return DistributeWindow(total, k, min, max, avg, roundToFive: false, rng);
         }
 
         // Rule-aware per-color partition. Always sums EXACTLY to total.
@@ -91,25 +86,35 @@ namespace Hoppa.BusBuddies.Editor
 
             // No-1-bus wins over round-to-5: split a single bus into two.
             if (noSingleBus && caps.Count == 1 && total >= 2)
-                caps = SplitInTwo(total, roundToFive);
+                caps = BalancedPair(total, max, roundToFive);
 
             return caps;
         }
 
         // Split `total` (>= 2) into two positive buses summing exactly to total,
-        // preferring two multiples of 5 when roundToFive is on.
-        private static List<int> SplitInTwo(int total, bool roundToFive)
+        // capped at `max`, preferring one part to land on a multiple of 5 — but
+        // ONLY when the snap keeps the pair reasonably balanced (never strands a
+        // near-zero half; that was the old bug, e.g. total=6 → [5,1]). Used both
+        // by the No-1-bus forced split (PartitionColor) and as the k<=2 fallback
+        // when ChooseBucketCount reports total is genuinely too small to keep 2
+        // buses in-window (total < 2*min) — a clean, balanced pair instead of a
+        // tiny straggler.
+        private static List<int> BalancedPair(int total, int max, bool roundToFive)
         {
             int a = total / 2;
-            if (roundToFive)
+            int b = total - a;
+            if (roundToFive && total >= 10)
             {
-                // Nearest multiple of 5 to total/2 that leaves both parts >= 1.
-                int rounded = Mathf.RoundToInt(a / 5f) * 5;
-                rounded = Mathf.Clamp(rounded, 1, total - 1);
-                a = rounded;
+                int m = Mathf.RoundToInt(a / 5f) * 5;
+                int altB = total - m;
+                bool inRange = m >= 1 && m <= max && altB >= 1 && altB <= max;
+                bool balanced = inRange && Mathf.Min(m, altB) >= total / 3;
+                if (balanced) { a = m; b = altB; }
             }
             a = Mathf.Clamp(a, 1, total - 1);
-            return new List<int> { a, total - a };
+            if (a > max) a = max;
+            b = total - a;
+            return new List<int> { a, b };
         }
 
         // Deviation-window-aware round-to-5 partition: each bus is snapped to a
@@ -120,34 +125,107 @@ namespace Hoppa.BusBuddies.Editor
         // shapes the capacity spread even when Round-to-5 is on (MED-1: the two
         // knobs are independent — Round-to-5 must not collapse the window down to
         // a fixed avg-derived bus count).
+        //
+        // NEW invariant (re-tweak fix): when total >= min, every produced bus lies
+        // in [min,max] — never strand a round-to-5 remainder below min. A total in
+        // [min,max] is a single bus (even non-multiple-of-5, e.g. 22 → [22], not
+        // [20,2]); a total > max splits into `k` buses computed UPFRONT from the
+        // whole total (see ChooseBucketCount) so a valid all-in-window split is
+        // never missed by a greedy peel wandering into an avoidable shortfall near
+        // the tail. Only a total that's genuinely too small to form its forced
+        // bucket count in-window (ChooseBucketCount reports infeasible) falls back
+        // to a balanced (not degenerate) split.
         private static List<int> RoundFiveWindowPartition(int total, int min, int max, int avg, System.Random rng)
         {
-            var caps = new List<int>();
-            if (total <= 0) return caps;
+            if (total <= 0) return new List<int>();
             if (max < min) max = min;
             avg = Mathf.Clamp(avg, min, max);
 
             if (total <= max)
-            {
-                caps.Add(total); // single bus (may be < min only when total < min — mirrors Partition)
-                return caps;
-            }
+                return new List<int> { total }; // single in-window bus, even non-multiple-of-5
 
+            int k = ChooseBucketCount(total, min, max, avg, out bool feasible);
+            if (!feasible)
+                return k <= 2 ? BalancedPair(total, max, roundToFive: true) : EvenSplit(total, k, max);
+
+            return DistributeWindow(total, k, min, max, avg, roundToFive: true, rng);
+        }
+
+        // How many buses `total` (> max) should split into, and whether that
+        // count can keep EVERY bus within [min,max]. kMin = fewest buses that
+        // keep each <= max; kMax = most buses that keep each >= min. Feasible
+        // whenever kMax >= kMin (true unless total falls in the narrow
+        // max < total < kMin*min gap — e.g. window [20,30]: total in (30,40)).
+        // The ideal count (closest to total/avg) is clamped into the feasible
+        // range so Deviation still governs bus count around avg.
+        private static int ChooseBucketCount(int total, int min, int max, int avg, out bool feasible)
+        {
+            int kMin = Mathf.CeilToInt(total / (float)max);
+            int kMax = Mathf.FloorToInt(total / (float)min);
+            feasible = kMax >= kMin;
+            if (!feasible) return kMin;
+            int kIdeal = Mathf.Max(kMin, Mathf.RoundToInt(total / (float)avg));
+            return Mathf.Clamp(kIdeal, kMin, kMax);
+        }
+
+        // Split `total` into exactly `k` buses, each guaranteed in [min,max]
+        // (the caller only calls this when that's feasible for `total`/`k`).
+        // Peels buses one at a time; at every step the sampled range is bounded
+        // on BOTH sides so the REMAINING buckets can still each land in
+        // [min,max] — this is what makes the whole-total upfront `k` actually
+        // pay off (a naive per-step [min, remaining-min] bound, as the old code
+        // used, can still wander into a shortfall near the tail). Sampling
+        // within that (often wide) per-step range — not just avg ± jitter —
+        // preserves a genuine spread of bus sizes for a wide Deviation window.
+        // roundToFive snaps each take to the nearest in-range multiple of 5
+        // (best-effort; the final bucket inherits whatever multiple-of-5-ness
+        // the running remainder allows).
+        private static List<int> DistributeWindow(
+            int total, int k, int min, int max, int avg, bool roundToFive, System.Random rng)
+        {
+            var caps = new List<int>();
             int remaining = total;
-            while (remaining > max)
+            for (int i = 0; i < k - 1; i++)
             {
-                // Sample a capacity from the deviation window (not just avg ± jitter)
-                // so a wide window actually produces a spread of bus sizes, then snap
-                // it to the nearest in-window multiple of 5.
-                int hi = Mathf.Min(max, remaining - min);
-                if (hi < min) hi = min;
-                int sample = rng != null ? rng.Next(min, hi + 1) : avg;
-                int take = SnapToMultipleOf5InRange(sample, min, hi);
-                if (take <= 0) take = min;
+                int restCount = k - i - 1; // buses remaining AFTER this one
+                int loBound = Mathf.Max(min, remaining - max * restCount);
+                int hiBound = Mathf.Min(max, remaining - min * restCount);
+                if (hiBound < loBound) hiBound = loBound; // defensive; feasible k never hits this
+
+                int take;
+                if (roundToFive)
+                {
+                    int sample = rng != null ? rng.Next(loBound, hiBound + 1) : avg;
+                    take = SnapToMultipleOf5InRange(sample, loBound, hiBound);
+                    if (take < loBound || take > hiBound) take = Mathf.Clamp(sample, loBound, hiBound);
+                }
+                else
+                {
+                    int jitter = rng != null ? rng.Next(-1, 2) : 0;
+                    take = Mathf.Clamp(avg + jitter, loBound, hiBound);
+                }
                 caps.Add(take);
                 remaining -= take;
             }
-            caps.Add(remaining); // final chunk — a multiple of 5 when the running remainder allows, else the sole exception
+            caps.Add(remaining); // final bucket — guaranteed in [min,max] by the loop's invariant
+            return caps;
+        }
+
+        // Rare defensive fallback: `total` can't keep every one of its `k`
+        // (> 2) forced buses >= min. Distribute as evenly as possible (floor +
+        // remainder), capped at max — balanced, never a near-zero straggler.
+        private static List<int> EvenSplit(int total, int k, int max)
+        {
+            var caps = new List<int>(k);
+            int baseVal = total / k, rem = total % k, sum = 0;
+            for (int i = 0; i < k; i++)
+            {
+                int v = Mathf.Min(max, baseVal + (i < rem ? 1 : 0));
+                caps.Add(v);
+                sum += v;
+            }
+            int diff = total - sum;
+            if (diff != 0) caps[caps.Count - 1] += diff; // absorb any clamp-driven remainder
             return caps;
         }
 

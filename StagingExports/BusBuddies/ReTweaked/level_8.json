@@ -47,11 +47,11 @@
       "BusConfigs": [
         {
           "ColorType": 11,
-          "Capacity": 1
+          "Capacity": 2
         },
         {
           "ColorType": 11,
-          "Capacity": 3
+          "Capacity": 2
         },
         {
           "ColorType": 17,
@@ -59,7 +59,7 @@
         },
         {
           "ColorType": 17,
-          "Capacity": 25
+          "Capacity": 20
         }
       ]
     },
@@ -99,7 +99,7 @@
         },
         {
           "ColorType": 17,
-          "Capacity": 17
+          "Capacity": 22
         }
       ]
     }
