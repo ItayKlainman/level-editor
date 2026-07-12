@@ -30,6 +30,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Exporters that run on Save and on the explicit 'Export ▸' toolbar button.\nTo integrate a new game: create a LevelExporterAsset subclass for that game, create an asset, and assign it here.\nExample: YarnMasterLevelExporter")]
         [SerializeField] private List<LevelExporterAsset> _exporters = new List<LevelExporterAsset>();
 
+        [Tooltip("Optional importers for foreign level formats (e.g. the game's shipped schema).\nWhen one recognizes a file, Open loads it and Save round-trips through the matching exporter\ninstead of the editor's internal format. Leave empty for editor-native levels only.")]
+        [SerializeField] private List<LevelImporterAsset> _importers = new List<LevelImporterAsset>();
+
         [Tooltip("Optional: assign a TopSectionPanel subclass script to show a game-specific region above the grid.\nExample: SpoolColumnsTopSectionPanel — leave empty for no top section.")]
         [SerializeField] private MonoScript _topSectionScript;
 
@@ -73,6 +76,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         public IReadOnlyList<CellTypeDefinition> CellTypes => _cellTypes;
         public IReadOnlyList<ValidationRuleBase> Rules => _rules;
         public IReadOnlyList<LevelExporterAsset> Exporters => _exporters;
+        public IReadOnlyList<LevelImporterAsset> Importers => _importers;
         public IEditorPanel OrderPanel => _orderPanel;
         public ILevelGenerator LevelGenerator => _levelGenerator;
         public ScriptableObject GeneratorConfig => _generatorConfig;

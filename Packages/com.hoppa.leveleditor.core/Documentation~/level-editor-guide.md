@@ -147,6 +147,37 @@ campaign can ramp these knobs from easy to hard.
 
 ---
 
+## Designer workflow (Bus Buddies): touch up a real game level
+
+This is the everyday job: take a level that's already in the game, tweak it, and save it
+straight back. You never deal with any "editor format" — the game file goes in and the game
+file comes out.
+
+**Where the game's levels live:** `Assets/_BUB/Resources/Configs/Levels/level_<N>.json`
+(inside the Bus Buddies project). These are the real levels the game loads.
+
+**1. Open the level.** In the Level Editor, click **Open** and pick a
+`level_<N>.json` from that folder. The editor recognizes the game format automatically and
+loads the picture **and** its buses, ready to edit. *(If you ever saw an "Open Failed" error
+here before — that's fixed; game levels open directly now.)*
+
+**2. Touch it up.** Repaint pixels with the color palette, and edit the buses in the bottom
+panel (color, capacity, hidden, add/remove/reorder, move between columns). The **Validation**
+panel on the right flags problems (e.g. a color whose pixels don't add up to its buses).
+
+**3. Save it back.** Click **Save**. Because you opened a game level, Save writes the **game
+format right back to the same `level_<N>.json`** — no extra files, nothing else to do. The
+game will load your changes next time it reads that level.
+
+> Tip: work on a copy first if you want to keep the original — duplicate the
+> `level_<N>.json` in the folder before opening it.
+
+**Picking which levels to touch up:** the team generates big batches of candidate levels
+(see below). Review them in **Window ▸ Hoppa ▸ Batch Review**, keep the nice ones, then use
+this open → tweak → save flow on each.
+
+---
+
 ## Making MANY levels at once
 
 - **Batch** — *Window ▸ Hoppa ▸ [Game] ▸ Run Batch*. Generates a pile of levels, then you

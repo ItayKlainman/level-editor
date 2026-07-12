@@ -33,6 +33,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         private bool               _inGeneratorMode;
         private bool               _inImageMode;
 
+        // True when the current level was opened via a profile importer (foreign format,
+        // e.g. the game's own schema). Save then round-trips through the exporters instead
+        // of writing the editor's internal LevelDocument over the source file.
+        private bool               _openedForeignFormat;
+
         // Exposed so Layer 2 importers can resolve cell types via the active registry.
         public GameProfile Profile => _profile;
 
@@ -407,6 +412,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             {
                 _session?.Dispose();
                 _session       = LevelEditorSession.CreateEmpty(_profile, w, h);
+                _openedForeignFormat = false; // native editor level
                 _topSection    = _profile.CreateTopSection();
                 _bottomSection = _profile.CreateBottomSection();
                 AutoActivateCellType();
@@ -562,6 +568,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _session?.Dispose();
             _session          = new LevelEditorSession(_profile, doc);
             _session.FilePath = null;
+            _openedForeignFormat = false; // freshly generated native level
             _session.MarkDirty();
             _topSection       = _profile.CreateTopSection();
             _bottomSection    = _profile.CreateBottomSection();
@@ -587,7 +594,21 @@ namespace Hoppa.LevelEditor.Core.Editor
             try
             {
                 var json = File.ReadAllText(path);
-                var doc  = new JsonLevelSerializer().Load(json, _profile.BuildRegistry());
+
+                // Auto-detect a foreign game format: if a profile importer recognizes the
+                // file, load through it (and remember so Save round-trips via the exporter).
+                LevelDocument doc = null;
+                _openedForeignFormat = false;
+                foreach (var importer in _profile.Importers)
+                {
+                    if (importer == null || !importer.CanImport(json)) continue;
+                    doc = importer.Import(json, _profile.BuildRegistry());
+                    _openedForeignFormat = true;
+                    break;
+                }
+                if (doc == null)
+                    doc = new JsonLevelSerializer().Load(json, _profile.BuildRegistry());
+
                 _session?.Dispose();
                 _session          = new LevelEditorSession(_profile, doc);
                 _session.FilePath = path;
@@ -617,7 +638,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                     if (!proceed) return;
                 }
 
-                new JsonExporter().Export(_session.Document, _session.CellTypes, path);
+                // Foreign-format levels (opened via an importer) must NOT be overwritten
+                // with the editor's internal LevelDocument JSON — that would corrupt the
+                // game file. Round-trip through the exporters only.
+                if (!_openedForeignFormat)
+                    new JsonExporter().Export(_session.Document, _session.CellTypes, path);
                 foreach (var exporter in _profile.Exporters)
                     exporter?.Export(_session.Document, _session.CellTypes, path);
 

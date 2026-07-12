@@ -60,7 +60,9 @@ namespace Hoppa.BusBuddies.Editor
                 GameData = new JObject { ["conveyorCount"] = slots },
             };
 
-            // Record the existing column structure + original buses (for the report).
+            // Rebuild the editable bus queue (per-column) AND record the flattened
+            // original buses (for the re-tweak report). Same BusEntry instances feed both.
+            var queue = new BusQueueData();
             var originalBuses = new List<BusEntry>();
             int columnCount = 0;
             if (root["BusColumnConfigs"] is JArray columns)
@@ -68,6 +70,7 @@ namespace Hoppa.BusBuddies.Editor
                 columnCount = columns.Count;
                 foreach (var col in columns)
                 {
+                    var qcol = new BusColumn();
                     if (col?["BusConfigs"] is JArray busConfigs)
                     {
                         foreach (var b in busConfigs)
@@ -75,16 +78,22 @@ namespace Hoppa.BusBuddies.Editor
                             int ord = b.Value<int?>("ColorType") ?? 0;
                             int cap = b.Value<int?>("Capacity") ?? 0;
                             bool hidden = (b.Value<int?>("BusType") ?? 0) == 1;
-                            originalBuses.Add(new BusEntry
+                            var entry = new BusEntry
                             {
                                 ColorId = OrdinalToColorId(ord),
                                 Capacity = cap,
                                 Hidden = hidden,
-                            });
+                            };
+                            qcol.Buses.Add(entry);
+                            originalBuses.Add(entry);
                         }
                     }
+                    queue.Columns.Add(qcol);
                 }
             }
+            // The queue is the editor's editable TopSection — without it the imported
+            // level would open with an empty bus panel.
+            doc.TopSection = JObject.FromObject(queue);
 
             return new ImportedLevel
             {
