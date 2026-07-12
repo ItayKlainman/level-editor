@@ -176,6 +176,20 @@ game will load your changes next time it reads that level.
 (see below). Review them in **Window ▸ Hoppa ▸ Batch Review**, keep the nice ones, then use
 this open → tweak → save flow on each.
 
+### The level pool (`ALL levels`)
+
+There's a ready-made pool of levels at
+`Assets/_BUB/Resources/Configs/Levels/ALL levels/` — converted from our batches into the
+game format, all 30×30 or 40×40. It's a **browse/pick library**, not the live game set: the
+game loads the flat `Configs/Levels/level_<N>.json` files, so the pool doesn't ship on its own.
+
+- **Scan the pool** without opening every file: open **`ALL levels/_INDEX.md`** — a table of
+  every level with its grid size, colours, bus count and pixel count. (Regenerated after each
+  new batch.) Filenames are prefixed by source batch (`c0708_`, `c0709_`, `c0712_`).
+- **Use one:** **Open** a pool level (it's game format, so it imports straight in), touch it
+  up, then **Save As** into `Configs/Levels/` as `level_<N>.json` with the slot number you
+  want it to occupy in the game. (Work on the copy so the pool stays intact.)
+
 ---
 
 ## Making MANY levels at once
