@@ -355,36 +355,47 @@ namespace Hoppa.LevelEditor.Core.Editor
                 EditorStyles.miniLabel);
         }
 
+        // Drawn with absolute rects (no GUILayout) on purpose: the New/Open buttons
+        // invoke modal dialogs (DisplayDialog / OpenFilePanel), which raise an
+        // ExitGUIException mid-OnGUI. If this screen used GUILayout BeginArea/Begin*
+        // groups, that exception would unwind past their End* calls and corrupt the
+        // layout-group stack — surfacing next event as "EndLayoutGroup: BeginLayoutGroup
+        // must be called first" / "Stack empty" at EndArea. Absolute rects have no such
+        // stack, so the dialogs are safe.
         private void DrawProfileSelector(Rect rect)
         {
             EditorGUI.DrawRect(rect, CanvasBg);
-            GUILayout.BeginArea(rect);
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
 
-            GUILayout.BeginVertical(GUILayout.Width(300f));
-            GUILayout.Label("Level Editor", EditorStyles.largeLabel);
-            GUILayout.Space(8f);
+            const float colW   = 300f;
+            const float titleH = 24f;
+            const float gap    = 8f;
+            const float btnH   = 24f;
+            const float btnGap = 4f;
+            float       fieldH = EditorGUIUtility.singleLineHeight;
+
+            float totalH = titleH + gap + fieldH + gap + btnH + btnGap + btnH;
+            float x = rect.x + (rect.width  - colW)   * 0.5f;
+            float y = rect.y + (rect.height - totalH) * 0.5f;
+
+            GUI.Label(new Rect(x, y, colW, titleH), "Level Editor", EditorStyles.largeLabel);
+            y += titleH + gap;
+
             EditorGUI.BeginChangeCheck();
-            _profile = (GameProfile)EditorGUILayout.ObjectField(
-                "Game Profile", _profile, typeof(GameProfile), false);
+            _profile = (GameProfile)EditorGUI.ObjectField(
+                new Rect(x, y, colW, fieldH), "Game Profile", _profile, typeof(GameProfile), false);
             if (EditorGUI.EndChangeCheck()) SaveProfilePref();
-            GUILayout.Space(8f);
+            y += fieldH + gap;
+
             using (new EditorGUI.DisabledGroupScope(_profile == null))
             {
-                if (GUILayout.Button(new GUIContent("New Level", "Create a new empty level with this profile")))
+                if (GUI.Button(new Rect(x, y, colW, btnH),
+                    new GUIContent("New Level", "Create a new empty level with this profile")))
                     HandleNew();
-                GUILayout.Space(4f);
-                if (GUILayout.Button(new GUIContent("Open Level…", "Open an existing level JSON file")))
+                y += btnH + btnGap;
+                if (GUI.Button(new Rect(x, y, colW, btnH),
+                    new GUIContent("Open Level…", "Open an existing level JSON file")))
                     HandleOpen();
             }
-            GUILayout.EndVertical();
-
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            GUILayout.FlexibleSpace();
-            GUILayout.EndArea();
         }
 
         private void HandleNew()
