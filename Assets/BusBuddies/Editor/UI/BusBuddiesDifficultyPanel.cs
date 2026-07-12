@@ -51,12 +51,24 @@ namespace Hoppa.BusBuddies.Editor
             GUILayout.BeginArea(new Rect(rect.x + 6f, rect.y + 4f, rect.width - 12f, rect.height - 8f));
             GUILayout.Label("Difficulty", EditorStyles.boldLabel);
 
+            // Narrow the label column so the sliders get a usable track in this ~260px panel.
+            float prevLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = 84f;
+
+            // Tier quick-pick: one selection fills all six knobs (grid is a generate-time
+            // property, shown here for reference — the panel edits an already-sized level).
+            // Index stays 0 ("Apply tier…") each frame, so a pick applies once then resets.
+            int pick = EditorGUILayout.Popup("Apply tier", 0, TierMenu);
+            if (pick > 0) ApplyTier(pick - 1);
+
             _settings.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", _settings.BusesChunks, 1, 5);
             _settings.DeviationPercent = EditorGUILayout.Slider("Deviation %", _settings.DeviationPercent, 0f, 1f);
             _settings.Columns          = EditorGUILayout.IntSlider("Columns", _settings.Columns, 1, 5);
             _settings.Difficulty       = EditorGUILayout.IntSlider("Difficulty", _settings.Difficulty, 1, 5);
             _settings.NoSingleBusColor = EditorGUILayout.ToggleLeft("No 1-bus color", _settings.NoSingleBusColor);
             _settings.RoundToFive      = EditorGUILayout.ToggleLeft("Round to 5", _settings.RoundToFive);
+
+            EditorGUIUtility.labelWidth = prevLabelWidth;
 
             // Live readout: avg px/bus + estimated total buses.
             int chunksBase = cfg != null ? cfg.ChunksBase : 10;
@@ -126,6 +138,34 @@ namespace Hoppa.BusBuddies.Editor
                 _status = "Auto-fill failed: " + ex.Message;
                 Debug.LogError("BusBuddiesDifficultyPanel.OnAutofill: " + ex);
             }
+        }
+
+        // Tier quick-pick. Labels show the tier's generate-time grid (the panel can't
+        // resize an open level); TierKnobs are the six difficulty knobs each tier applies.
+        // No-1-bus + Round-to-5 are always on for these tiers.
+        private static readonly string[] TierMenu =
+            { "Apply tier…", "Intro (30x30)", "Easy (30x30)", "Medium (40x40)", "Hard (40x40)", "Expert (40x40)" };
+
+        private static readonly (int chunks, float dev, int cols, int diff)[] TierKnobs =
+        {
+            (3, 0.2f, 2, 1), // Intro
+            (3, 0.3f, 3, 2), // Easy
+            (4, 0.4f, 4, 3), // Medium
+            (4, 0.5f, 5, 4), // Hard
+            (5, 0.5f, 5, 5), // Expert
+        };
+
+        private void ApplyTier(int i)
+        {
+            if (i < 0 || i >= TierKnobs.Length) return;
+            var t = TierKnobs[i];
+            _settings.BusesChunks      = t.chunks;
+            _settings.DeviationPercent = t.dev;
+            _settings.Columns          = t.cols;
+            _settings.Difficulty       = t.diff;
+            _settings.NoSingleBusColor = true;
+            _settings.RoundToFive      = true;
+            GUI.changed = true;
         }
 
         private static int CountColoredCells(LevelDocument doc)

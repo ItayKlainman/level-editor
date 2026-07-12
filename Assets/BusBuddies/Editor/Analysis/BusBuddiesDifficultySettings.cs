@@ -25,8 +25,8 @@ namespace Hoppa.BusBuddies.Editor
         [Range(0f, 1f)] public float DeviationPercent = 0.5f; // capacity spread around avg (0.5 = ±50%)
         [Range(1, 5)]   public int   Columns          = 3;   // queue columns
         [Range(1, 5)]   public int   Difficulty       = 3;   // "dig" depth of main colors
-        public bool NoSingleBusColor = false;                // no color may occupy a single bus
-        public bool RoundToFive      = false;                // prefer capacities that are multiples of 5
+        public bool NoSingleBusColor = true;                 // no color may occupy a single bus (boss's rule; on by default)
+        public bool RoundToFive      = true;                 // prefer capacities that are multiples of 5 (on by default)
 
         public BusBuddiesDifficultySettings Clone() => new BusBuddiesDifficultySettings
         {

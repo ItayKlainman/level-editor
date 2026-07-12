@@ -16,6 +16,6 @@ MonoBehaviour:
   SourceImageFolder: Assets/YAK/SourceImages
   TargetAPS: 3
   ApsTolerance: 0.6
-  AnalyzerRollouts: 120
+  AnalyzerRollouts: 30
   FallbackColors: 4
   ConveyorCount: 5

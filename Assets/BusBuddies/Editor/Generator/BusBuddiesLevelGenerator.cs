@@ -79,18 +79,15 @@ namespace Hoppa.BusBuddies.Editor
             doc.Metadata.ModifiedAt = DateTime.UtcNow.ToString("o");
             if (analysis != null) doc.Metadata.Aps = analysis.ApsEstimate;
 
-            bool inBand = analysis != null
-                          && analysis.Status == AnalysisStatus.Solvable
-                          && Mathf.Abs(analysis.ApsEstimate - targetAps) <= config.ApsTolerance;
+            // Acceptance = SOLVABLE (the solver guardrail). Under the difficulty-knob model
+            // APS is a measured read-out, NOT a target — gating on an APS band made the batch
+            // retry every attempt chasing an unreachable APS (~8 min/level at 40x40). Difficulty
+            // is set by the knobs, so a solvable board is a good board; APS is reported, not gated.
+            bool ok = analysis != null && analysis.Status == AnalysisStatus.Solvable;
             result.Document  = doc;
-            result.Succeeded = inBand;
-            if (!inBand)
-            {
-                string reason = analysis == null ? "no_analyzer"
-                    : analysis.Status != AnalysisStatus.Solvable ? analysis.Status.ToString()
-                    : "aps_out_of_band";
-                result.RuleRejectCounts[reason] = 1;
-            }
+            result.Succeeded = ok;
+            if (!ok)
+                result.RuleRejectCounts[analysis == null ? "no_analyzer" : analysis.Status.ToString()] = 1;
 
             sw.Stop(); result.ElapsedMs = sw.ElapsedMilliseconds;
             return result;
