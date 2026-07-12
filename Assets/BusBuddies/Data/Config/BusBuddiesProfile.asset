@@ -23,8 +23,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
   _exporters:
   - {fileID: 11400000, guid: 74023b2ff6c24ed8ad3007e0d580d5a7, type: 2}
-  _topSectionScript: {fileID: 0}
-  _bottomSectionScript: {fileID: 11500000, guid: a4ff2e5558743a94fab623c310999a36, type: 3}
+  _topSectionScript: {fileID: 11500000, guid: a4ff2e5558743a94fab623c310999a36, type: 3}
+  _bottomSectionScript: {fileID: 0}
   _rightPanelScript: {fileID: 11500000, guid: cb5d429153f0e6442b68bf6bf6088563, type: 3}
   _orderPanel: {fileID: 0}
   _levelGenerator: {fileID: 11400000, guid: 3ad232c761d7a614ea67d47c2d0ed6bd, type: 2}
