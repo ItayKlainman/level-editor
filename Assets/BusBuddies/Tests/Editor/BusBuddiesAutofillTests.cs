@@ -115,6 +115,38 @@ namespace Hoppa.BusBuddies.Editor.Tests
                             "same seed → identical top section");
         }
 
+        // Regression for the shipped bug: a ringed picture (outline enclosing an
+        // interior) must auto-fill to a SOLVABLE queue even when both colors qualify as
+        // "main" and difficulty is maxed. The grid is LARGER than the analyzer's
+        // SmallGridThreshold (64) so the exact solver is skipped — exactly the regime
+        // where the old Monte-Carlo gate shipped unsolvable levels.
+        [Test]
+        public void Autofill_LargeRingGrid_IsSolvable()
+        {
+            var profile = MakeProfile();
+            var af = MakeAutofiller(min: 1, max: 12, avg: 4, colMin: 1, colMax: 3, tol: 50f);
+
+            // 12x12 empty margin; 10x10 object at [1..10]: "O" ring (36) around 8x8 "I" (64).
+            var grid = new GridData<ICellData>(12, 12);
+            int oBlocks = 0, iBlocks = 0;
+            for (int y = 1; y <= 10; y++)
+            for (int x = 1; x <= 10; x++)
+            {
+                bool inner = x >= 2 && x <= 9 && y >= 2 && y <= 9;
+                grid.Set(x, y, new BBPixelCell { ColorId = inner ? "I" : "O" });
+                if (inner) iBlocks++; else oBlocks++;
+            }
+            Assert.AreEqual(36, oBlocks); Assert.AreEqual(64, iBlocks);
+            var doc = Doc(grid, conveyor: 5);
+            doc.GameData["difficulty"] = 5; // max dig
+
+            var res = af.Complete(doc, profile, new CompletionRequest { Seed = 5 });
+
+            Assert.IsNotNull(res.TopSection);
+            Assert.IsTrue(res.Succeeded, "large ring grid must auto-fill solvable: " + res.FailureReason);
+            AssertBalanced(res.TopSection, new Dictionary<string, int> { { "O", 36 }, { "I", 64 } });
+        }
+
         // ── Builders ──────────────────────────────────────────────────────────
 
         private static GameProfile MakeProfile()
