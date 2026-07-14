@@ -203,6 +203,37 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
+        public void BuildPrompt_SubstitutesPixelGrid()
+        {
+            // The art's native pixel grid must reach the model as a concrete number —
+            // a leftover "{grid}" would ask for literally nothing.
+            string p = YAKImageLibraryCore.BuildPrompt("a duck", null, "TRUE {grid}x{grid} PIXEL ART of {idea}.", 40);
+
+            Assert.AreEqual("TRUE 40x40 PIXEL ART of a duck.", p);
+        }
+
+        [Test]
+        public void ShippedRules_AskForTheGridSizeTheConfigTargets()
+        {
+            // The prompt's art resolution and the level grid must be the same number.
+            // If they drift, the converter resamples the art pixels and the blocks smear.
+            var cfg = UnityEditor.AssetDatabase.LoadAssetAtPath<YAKImageLibraryConfig>(
+                "Assets/YAK/Data/Config/YAKImageLibraryConfig.asset");
+            Assert.IsNotNull(cfg, "the YAK Image Library config asset should exist");
+
+            var blocks = YAKImageLibraryCore.ParseStyleBlocks(
+                System.IO.File.ReadAllText(System.IO.Path.Combine(
+                    Application.dataPath, "YAK", "SourceImages", "prompts.txt")));
+
+            StringAssert.Contains("{grid}", blocks["rules"],
+                "[rules] must use the {grid} token so the art resolution can't drift from the config");
+
+            string built = YAKImageLibraryCore.BuildPrompt("a duck", null, blocks["rules"], cfg.PixelGridSize);
+            StringAssert.Contains($"{cfg.PixelGridSize}x{cfg.PixelGridSize}", built);
+            StringAssert.DoesNotContain("{grid}", built);
+        }
+
+        [Test]
         public void ApiKey_EnvVarTakesPrecedence_ThenEditorPrefs()
         {
             string prevEnv = System.Environment.GetEnvironmentVariable(YAKImageApiKey.EnvVar);

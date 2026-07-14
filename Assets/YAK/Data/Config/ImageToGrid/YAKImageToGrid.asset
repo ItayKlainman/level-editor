@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKImageToGrid
   Sampling: 1
   ColorRemaps: []
-  ColorCap: 6
+  ColorCap: 8
   BackgroundNeutrals:
   - White
   - Black

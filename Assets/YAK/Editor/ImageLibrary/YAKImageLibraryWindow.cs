@@ -236,7 +236,7 @@ namespace Hoppa.YAK.Editor
                 string style = YAKImageLibraryCore.ResolveStyle(blocks, e.StyleKey, _config.StylePreamble);
                 jobs.Add(new GenJob
                 {
-                    Prompt    = YAKImageLibraryCore.BuildPrompt(e.Idea, colors, style),
+                    Prompt    = YAKImageLibraryCore.BuildPrompt(e.Idea, colors, style, _config.PixelGridSize),
                     FileName  = YAKImageLibraryCore.IdeaToFileName(e.Idea),
                     StatusKey = e.Idea,
                 });

@@ -26,6 +26,7 @@ MonoBehaviour:
   Model: gpt-image-1
   ImageSize: 1024x1024
   Quality: medium
-  StylePreamble: 
+  PixelGridSize: 40
+  StylePreamble:
   MaxImagesPerRun: 100
   EstimatedUsdPerImage: 0.07

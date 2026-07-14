@@ -135,13 +135,18 @@ namespace Hoppa.YAK.Editor
             "only. No anti-aliasing fringe, no shading or dithering, no text, no photorealism, no frame " +
             "or border. Keep every shape bold, chunky and simple enough to read clearly at low resolution.";
 
-        public static string BuildPrompt(string idea, IReadOnlyList<string> colorDescriptors, string stylePreamble)
+        // pixelGrid > 0 substitutes "{grid}" — the art's native pixel resolution. It must
+        // match the grid the level is converted at, or the converter resamples the art
+        // pixels and the blocks smear.
+        public static string BuildPrompt(string idea, IReadOnlyList<string> colorDescriptors, string stylePreamble,
+                                         int pixelGrid = 0)
         {
             string preamble = string.IsNullOrEmpty(stylePreamble) ? DefaultStylePreamble : stylePreamble;
             string subject = (idea ?? string.Empty).Trim();
             string body = preamble.Contains("{idea}")
                 ? preamble.Replace("{idea}", subject)
                 : preamble.TrimEnd() + " Subject: " + subject + ".";
+            if (pixelGrid > 0) body = body.Replace("{grid}", pixelGrid.ToString());
             if (colorDescriptors != null && colorDescriptors.Count > 0)
                 body += " Use only these flat solid colors: " + string.Join(", ", colorDescriptors) + ".";
             return body;

@@ -34,6 +34,9 @@ namespace Hoppa.YAK.Editor
         public string Quality = "medium";
 
         [Header("Prompt")]
+        [Tooltip("The art's native pixel grid, substituted into '{grid}' in the prompt. MUST equal the grid size you convert at — a mismatch makes the converter resample the art pixels and the blocks smear.")]
+        [Min(8)] public int PixelGridSize = 40;
+
         [Tooltip("Fallback style used only when no Style Prompt Asset is assigned.")]
         [TextArea(3, 6)]
         public string StylePreamble = YAKImageLibraryCore.DefaultStylePreamble;
