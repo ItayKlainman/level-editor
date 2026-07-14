@@ -15,14 +15,23 @@
 # '#' lines are comments and are ignored.
 
 [rules]
-Fill the ENTIRE background with one flat uniform solid color that clearly contrasts
-the subject and is not a color used in the subject — absolutely no gradient, no
-vignette, no glow, no radial lighting, no background texture. Do NOT draw ANY
-outline, border, stroke, drop shadow, or halo around the subject — no outline of any
-color; the subject is flat fills only. No anti-aliasing fringe, no shading or
-dithering, no text, no photorealism, no frame or border. Exactly ONE subject,
-centered, filling most of the frame. Keep every shape bold, chunky and simple enough
-to read clearly at low resolution.
+TRUE 32x32 PIXEL ART, rendered at 1024x1024 so that every art pixel is an exactly
+32x32 block of one uniform color, perfectly aligned to a strict 32x32 grid —
+nearest-neighbour upscaling only. Hard aliased square edges. NO anti-aliasing, NO
+blur, NO soft or feathered edges, NO smoothing, NO in-between blended pixels: every
+single pixel is one of the flat colors, fully saturated, nothing halfway. NO
+gradients, NO shading, NO highlights, NO glow, NO dithering, NO noise, NO texture —
+each region is one perfectly flat color. Use a STRICT LIMITED PALETTE of at most 5
+flat colors in total for the subject. Fill the ENTIRE background with ONE flat uniform
+solid color that clearly contrasts the subject and is not used in the subject — no
+gradient, no vignette, no lighting, no texture. NO drop shadow and NO contact shadow
+under the subject; the subject must not touch or blend into the background. Do NOT
+draw ANY outline, border, stroke or halo around the subject — flat color regions only.
+Exactly ONE single connected subject, centered, filling most of the frame — NO floating,
+detached or separated elements of any kind (no sparkles, no floating hearts, no stray
+particles, no motion lines, no separate props); everything must be one connected shape.
+Keep every feature CHUNKY and at least 2x2 art pixels thick — no thin 1-pixel lines,
+no tiny details, no fine whiskers. No text, no frame, no border, no photorealism.
 
 [animals]
 {idea} — a cute animal with a funny facial expression, oversized eyes, tiny mouth,
