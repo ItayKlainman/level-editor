@@ -100,5 +100,68 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 g, buses, columns: 2, activeSlots: 5, difficulty: 1, mainColors: null, rng: new System.Random(1));
             Assert.IsFalse(res.Solvable);
         }
+
+        [Test]
+        public void Arrange_Deterministic_ForFixedSeed()
+        {
+            var g = RingGrid(out _, out _);
+            List<BusEntry> Buses()
+            {
+                var b = new List<BusEntry>();
+                for (int k = 0; k < 3; k++) b.Add(new BusEntry { ColorId = "I", Capacity = 3 });
+                b.Add(new BusEntry { ColorId = "O", Capacity = 8 });
+                b.Add(new BusEntry { ColorId = "O", Capacity = 8 });
+                return b;
+            }
+            var main = new HashSet<string>(StringComparer.Ordinal) { "I" };
+            var a = BusBuddiesConstructiveArranger.Arrange(g, Buses(), 3, 5, 5, main, new System.Random(99));
+            var b2 = BusBuddiesConstructiveArranger.Arrange(g, Buses(), 3, 5, 5, main, new System.Random(99));
+            Assert.AreEqual(Serialize(a.Queue), Serialize(b2.Queue), "same seed -> identical queue");
+        }
+
+        // Solvability is preserved at EVERY difficulty (the core guarantee).
+        [Test]
+        public void Arrange_AllDifficulties_StaySolvable()
+        {
+            var g = RingGrid(out _, out _);
+            var main = new HashSet<string>(StringComparer.Ordinal) { "I", "O" };
+            for (int d = 1; d <= 5; d++)
+            {
+                var buses = new List<BusEntry>();
+                for (int k = 0; k < 9; k++) buses.Add(new BusEntry { ColorId = "I", Capacity = 1 });
+                buses.Add(new BusEntry { ColorId = "O", Capacity = 8 });
+                buses.Add(new BusEntry { ColorId = "O", Capacity = 8 });
+                var res = BusBuddiesConstructiveArranger.Arrange(g, buses, 3, 5, d, main, new System.Random(d));
+                Assert.IsTrue(res.Solvable, $"difficulty {d} must stay solvable");
+            }
+        }
+
+        // With a freely-accessible background blob, high difficulty defers the MAIN
+        // color: the background bus is pulled (head-most) before the main color.
+        [Test]
+        public void Arrange_HighDifficulty_DefersMainAfterBackground()
+        {
+            // 5x1 open strip (all border-accessible): 3 "M" (main) + 2 "B" (background).
+            var g = new GridData<ICellData>(5, 1);
+            g.Set(0, 0, new BBPixelCell { ColorId = "M" });
+            g.Set(1, 0, new BBPixelCell { ColorId = "M" });
+            g.Set(2, 0, new BBPixelCell { ColorId = "M" });
+            g.Set(3, 0, new BBPixelCell { ColorId = "B" });
+            g.Set(4, 0, new BBPixelCell { ColorId = "B" });
+            var buses = new List<BusEntry>
+            {
+                new BusEntry { ColorId = "M", Capacity = 3 },
+                new BusEntry { ColorId = "B", Capacity = 2 },
+            };
+            var main = new HashSet<string>(StringComparer.Ordinal) { "M" };
+            var res = BusBuddiesConstructiveArranger.Arrange(g, buses, 1, 5, 5, main, new System.Random(1));
+            Assert.IsTrue(res.Solvable);
+            // Single column: head (Buses[0]) is pulled first. High difficulty defers M,
+            // so B should be at the head.
+            Assert.AreEqual("B", res.Queue.Columns[0].Buses[0].ColorId, "high difficulty pulls background before main");
+        }
+
+        private static string Serialize(BusQueueData q)
+            => Newtonsoft.Json.Linq.JObject.FromObject(q).ToString(Newtonsoft.Json.Formatting.None);
     }
 }

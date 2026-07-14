@@ -73,20 +73,28 @@ namespace Hoppa.BusBuddies.Editor
             return s.IsWin() ? order : null;
         }
 
-        // Flow-preserving choice: among pullable columns whose bus color currently has
-        // an accessible block, prefer the color with the MOST accessible blocks (most
-        // likely to empty and free a slot). Difficulty/mainColors unused here (Task 2).
+        // Choose the next scratch column to pull, among pullable columns whose bus
+        // color currently has an accessible block. Difficulty scales how strongly MAIN
+        // colors are deferred (1 = neutral flow-preserving; 5 = defer main as late as
+        // accessibility allows). Flow (accessible-block count) breaks ties so slots keep
+        // emptying. Deferral only ranks among READY colors -> solvability is preserved.
         private static int PickColumn(
             BusSimState s, BusLevelModel model, ISet<string> mainColors, int difficulty, System.Random rng)
         {
             var accCount = AccessibleCountByColor(s);
+            float f = (Math.Clamp(difficulty, 1, 5) - 1) / 4f; // 0..1
             int best = -1; long bestKey = long.MinValue;
             for (int col = 0; col < model.Columns; col++)
             {
                 if (!s.CanPull(col)) continue;
                 int color = model.BusColor[col][0];
                 if (!accCount.TryGetValue(color, out var flow) || flow <= 0) continue;
-                long score = (long)flow * 1000 + rng.Next(0, 1000);
+
+                bool isMain = mainColors != null && color >= 0 && model.ColorNames != null
+                              && color < model.ColorNames.Length && mainColors.Contains(model.ColorNames[color]);
+                // Rank: background above main (weighted by difficulty), then flow, then rng.
+                long rank = isMain ? -(long)(f * 1_000_000f) : 0L;
+                long score = rank + flow * 1000 + rng.Next(0, 1000);
                 if (score > bestKey) { bestKey = score; best = col; }
             }
             return best;
