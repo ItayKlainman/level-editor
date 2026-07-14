@@ -68,12 +68,12 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Default conveyor (belt slot) count written to the new level's GameData.")]
         [Min(1)] public int DefaultConveyorCount = 5;
 
-        public override LevelDocument Convert(Texture2D source, GameProfile profile)
+        public override LevelDocument Convert(Texture2D source, GameProfile profile, int width, int height)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
             if (profile == null) throw new ArgumentNullException(nameof(profile));
-            int W = Mathf.Max(1, profile.GridWidth);
-            int H = Mathf.Max(1, profile.GridHeight);
+            int W = Mathf.Max(1, width);
+            int H = Mathf.Max(1, height);
 
             // Palette as (id, Color) pairs from the profile's color source.
             var palette = ImageToGridMath.BuildPalette(profile);

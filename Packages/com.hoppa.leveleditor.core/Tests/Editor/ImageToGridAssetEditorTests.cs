@@ -11,7 +11,7 @@ namespace Hoppa.LevelEditor.Core.EditorTests
         // A minimal ImageToGridAsset subclass so CreateEditor has a concrete target.
         private sealed class DummyConverter : ImageToGridAsset
         {
-            public override Hoppa.LevelEditor.Core.LevelDocument Convert(Texture2D s, GameProfile p) => null;
+            public override Hoppa.LevelEditor.Core.LevelDocument Convert(Texture2D s, GameProfile p, int w, int h) => null;
         }
 
         [Test]

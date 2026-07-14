@@ -26,6 +26,8 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color ErrorColor = new Color(1.00f, 0.45f, 0.40f);
 
         private Texture2D _source;
+        private int       _gridW = -1;   // chosen output size; -1 = not yet initialised from profile
+        private int       _gridH = -1;
         private bool      _showAdvanced = true;
         private Vector2   _paramScroll;
         private string    _diag;
@@ -91,6 +93,30 @@ namespace Hoppa.LevelEditor.Core.Editor
             _source = (Texture2D)EditorGUI.ObjectField(
                 new Rect(Pad, y, w, 64f), _source, typeof(Texture2D), false);
             y += 64f + 6f;
+
+            // Grid size — decide the output size before converting (overrides the
+            // profile's default). Presets for the common square sizes + custom W×H.
+            if (_gridW < 1) { _gridW = Mathf.Max(1, profile.GridWidth); _gridH = Mathf.Max(1, profile.GridHeight); }
+            GUI.Label(new Rect(Pad, y, w, RowH),
+                new GUIContent("Grid size", "Output grid size. Larger keeps more detail and thins a subject's own outline."),
+                EditorStyles.miniLabel);
+            y += RowH;
+            float px = Pad; const float PresetW = 34f;
+            foreach (int preset in new[] { 20, 30, 40 })
+            {
+                bool active = _gridW == preset && _gridH == preset;
+                var prevBg = GUI.backgroundColor;
+                if (active) GUI.backgroundColor = new Color(0.35f, 0.55f, 0.85f);
+                if (GUI.Button(new Rect(px, y, PresetW, RowH), preset.ToString(), EditorStyles.miniButton))
+                { _gridW = preset; _gridH = preset; }
+                GUI.backgroundColor = prevBg;
+                px += PresetW + 2f;
+            }
+            px += 8f;
+            _gridW = Mathf.Clamp(EditorGUI.IntField(new Rect(px, y, 40f, RowH), _gridW), 8, 80); px += 40f;
+            GUI.Label(new Rect(px, y, 14f, RowH), "×", EditorStyles.centeredGreyMiniLabel); px += 14f;
+            _gridH = Mathf.Clamp(EditorGUI.IntField(new Rect(px, y, 40f, RowH), _gridH), 8, 80);
+            y += RowH + 6f;
 
             // Advanced — the converter asset's own inspector (color cap, neutrals, …).
             _showAdvanced = EditorGUI.Foldout(new Rect(Pad, y, w, RowH), _showAdvanced,
@@ -168,7 +194,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             DisposePreview();
             try
             {
-                var doc = profile.ImageToGrid.Convert(_source, profile);
+                int w = _gridW > 0 ? _gridW : Mathf.Max(1, profile.GridWidth);
+                int h = _gridH > 0 ? _gridH : Mathf.Max(1, profile.GridHeight);
+                var doc = profile.ImageToGrid.Convert(_source, profile, w, h);
                 if (doc?.Grid != null)
                 {
                     _previewSession       = new LevelEditorSession(profile, doc);
