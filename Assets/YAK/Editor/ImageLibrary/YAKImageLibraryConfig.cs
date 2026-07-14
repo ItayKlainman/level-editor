@@ -12,6 +12,12 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Plain-text asset, one level idea per line. '#' lines are comments.")]
         public TextAsset IdeasAsset;
 
+        [Header("Prompts (theme batches)")]
+        [Tooltip("Plain-text asset, one THEME prompt per block (blocks separated by a blank line). The model invents a subject per image; the Theme Style Preamble wraps each. '#' lines are comments.")]
+        public TextAsset PromptsAsset;
+        [Tooltip("Images generated per selected theme in a batch run.")]
+        [Min(1)] public int ImagesPerPrompt = 2;
+
         [Header("Palette source")]
         [Tooltip("Profile whose wool palette is injected into the prompt.")]
         public GameProfile Profile;
@@ -32,6 +38,9 @@ namespace Hoppa.YAK.Editor
         [Header("Prompt")]
         [TextArea(3, 6)]
         public string StylePreamble = YAKImageLibraryCore.DefaultStylePreamble;
+        [Tooltip("Convert-friendly wrapper for THEME prompts. {theme} is replaced with the theme text.")]
+        [TextArea(3, 6)]
+        public string ThemeStylePreamble = YAKImageLibraryCore.DefaultThemeStylePreamble;
 
         [Header("Safety")]
         [Tooltip("Hard cap on images generated in a single run.")]

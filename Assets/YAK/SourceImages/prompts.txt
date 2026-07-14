@@ -1,0 +1,15 @@
+# YAK theme prompts — one THEME per block, blocks separated by a blank line.
+# The model invents a fresh subject per image; the Theme Style Preamble (in the
+# config) wraps each with the convert-friendly rules (single subject, flat fills,
+# solid contrasting background, no outline, low-res readable). '#' lines are comments.
+# A leading enumerator ("1)", "2.", "-") is stripped, so numbering is optional.
+
+Cute animal with a funny facial expression, oversized eyes, tiny mouth, chubby proportions, playful pose, big clear emotion (smiling, surprised, sleepy, grumpy), wholesome and adorable, one instantly recognizable animal.
+
+A single everyday object turned into an adorable living character — cute face, tiny eyes, happy expression, playful personality (smiling food, a friendly household item), charming, wholesome and funny.
+
+One whimsical hybrid creature combining two unrelated things into a single adorable design — an animal mixed with a fruit, vegetable, dessert, sea creature, plant, or everyday object; funny, unexpected, charming, one clear subject.
+
+A single tiny fantasy creature — a magical forest animal, miniature monster, mythical being, cute ghost, tiny dragon, or little spirit — cozy and magical, playful personality, adorable expression.
+
+One funny miniature character with exaggerated emotion and a silly costume or unexpected situation — cute internet-meme energy, a single collectible character that makes people smile instantly (one focal character, not a busy scene).

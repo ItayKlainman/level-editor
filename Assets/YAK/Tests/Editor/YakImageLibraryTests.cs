@@ -53,7 +53,7 @@ namespace Hoppa.YAK.Editor.Tests
             StringAssert.Contains("a popsicle", p);
             StringAssert.Contains("Red #ff0000", p);
             StringAssert.Contains("Sky Blue #66ccff", p);
-            StringAssert.Contains("No gradients", p);     // from default preamble
+            StringAssert.Contains("no outline of any color", p);  // outline ban (from default preamble)
             StringAssert.DoesNotContain("{idea}", p);     // placeholder was substituted
         }
 
@@ -63,6 +63,63 @@ namespace Hoppa.YAK.Editor.Tests
             string p = YAKImageLibraryCore.BuildPrompt("a rocket", new List<string>(), null);
             StringAssert.Contains("a rocket", p);
             StringAssert.DoesNotContain("Use only these flat solid colors", p);
+        }
+
+        [Test]
+        public void ParsePrompts_SplitsBlankLineBlocks_StripsEnumerators_Dedupes()
+        {
+            string raw =
+                "# theme file\n" +
+                "1) Cute animal with a funny face\nover two lines\n" +
+                "\n" +
+                "- A single everyday object as a character\n" +
+                "\n" +
+                "2. Cute animal with a funny face\nover two lines\n";   // dup of block 1 after strip+join
+            var prompts = YAKImageLibraryCore.ParsePrompts(raw);
+
+            Assert.AreEqual(2, prompts.Count, "two distinct themes; enumerators stripped so blocks 1 & 3 collide");
+            Assert.AreEqual("Cute animal with a funny face over two lines", prompts[0]);
+            Assert.AreEqual("A single everyday object as a character", prompts[1]);
+        }
+
+        [Test]
+        public void ParsePrompts_EmptyOrBlank_ReturnsEmpty()
+        {
+            Assert.AreEqual(0, YAKImageLibraryCore.ParsePrompts(null).Count);
+            Assert.AreEqual(0, YAKImageLibraryCore.ParsePrompts("\n\n#only a comment\n\n").Count);
+        }
+
+        [Test]
+        public void BuildThemePrompt_InjectsThemeAndColors_KeepsConvertRules()
+        {
+            var colors = new List<string> { "Red #ff0000" };
+            string p = YAKImageLibraryCore.BuildThemePrompt("cute forest spirit", colors, null);
+
+            StringAssert.Contains("cute forest spirit", p);
+            StringAssert.Contains("Red #ff0000", p);
+            StringAssert.Contains("no outline of any color", p);      // convert rule from default theme preamble
+            StringAssert.Contains("not a busy scene", p);             // single-subject rule
+            StringAssert.DoesNotContain("{theme}", p);                // placeholder substituted
+        }
+
+        [Test]
+        public void BuildThemePrompt_NoPlaceholder_AppendsTheme()
+        {
+            string p = YAKImageLibraryCore.BuildThemePrompt("dragons", null, "Flat art only.");
+            StringAssert.Contains("dragons", p);
+        }
+
+        [Test]
+        public void ThemeToFileName_SameThemeDistinctTokens_YieldDistinctNames()
+        {
+            string a = YAKImageLibraryCore.ThemeToFileName("Cute animal with a funny face", "tokenA");
+            string b = YAKImageLibraryCore.ThemeToFileName("Cute animal with a funny face", "tokenB");
+            string a2 = YAKImageLibraryCore.ThemeToFileName("Cute animal with a funny face", "tokenA");
+
+            Assert.AreNotEqual(a, b, "same theme, different token -> different file (batches accumulate)");
+            Assert.AreEqual(a, a2, "deterministic for a given (theme, token)");
+            StringAssert.IsMatch("^[a-z0-9-]+_[0-9a-f]{8}\\.png$", a);
+            StringAssert.StartsWith("cute-animal-with-a-funny-face_", a);
         }
 
         [Test]
