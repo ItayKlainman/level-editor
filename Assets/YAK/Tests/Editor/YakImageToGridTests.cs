@@ -38,6 +38,20 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
+        public void Convert_WithExplicitSize_OverridesProfileSize()
+        {
+            var profile = MakeProfile(8, 6, Pal());   // profile default is 8x6
+            var conv = MakeConverter(cap: 6);
+            var src = MakeTexture(8, 6, (x, y) => Color.red);
+
+            var doc = conv.Convert(src, profile, 20, 24); // explicit size wins over the profile
+
+            Assert.AreEqual(20, doc.Grid.Width);
+            Assert.AreEqual(24, doc.Grid.Height);
+            UnityEngine.Object.DestroyImmediate(src);
+        }
+
+        [Test]
         public void Convert_IsDeterministic_ForSameImageAndConfig()
         {
             var profile = MakeProfile(12, 12, Pal());

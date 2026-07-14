@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: YAKImageLibraryConfig
   m_EditorClassIdentifier: Hoppa.YAK.Editor::Hoppa.YAK.Editor.YAKImageLibraryConfig
   IdeasAsset: {fileID: 4900000, guid: 88bf1a3abf3bbea49a3689cbe08b21c5, type: 3}
+  StylePromptAsset: {fileID: 4900000, guid: 2abe3afe50570b54c9c2523f2f90e61b, type: 3}
   Profile: {fileID: 11400000, guid: e1a3a89d4f7b4b2cba2c9e1c1c8c0020, type: 2}
   ExcludedNeutralIds:
   - Grey
@@ -24,7 +25,8 @@ MonoBehaviour:
   OutputFolder: Assets/YAK/SourceImages
   Model: gpt-image-1
   ImageSize: 1024x1024
-  Quality: low
-  StylePreamble: 
-  MaxImagesPerRun: 31
+  Quality: medium
+  PixelGridSize: 40
+  StylePreamble:
+  MaxImagesPerRun: 100
   EstimatedUsdPerImage: 0.07

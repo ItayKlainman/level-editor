@@ -139,62 +139,11 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 "same settings + seed must byte-match the locked queue — a diff means the analyzer/rng-seed dependency drifted");
         }
 
-        // ── MED-2: widened search. Reports Solvable only when the queue's column-0
-        // head bus is color "B" — with 2 equal colors + 2 columns, the DEFAULT
-        // (phase-0) arrangement always puts "A" at the head of column 0, so this
-        // is reachable ONLY by trying a non-default column-assignment phase.
-        // Regression guard: the old thin relaxation (difficulty ladder only, no
-        // attempt search) would report this unsolvable.
-        private sealed class ColumnPhaseOnlyAnalyzer : LevelAnalyzerAsset
-        {
-            public override LevelAnalysisResult Analyze(LevelDocument doc, GameProfile profile, AnalysisRequest req)
-            {
-                var top = doc.TopSection?.ToObject<BusQueueData>();
-                bool solvable = top != null && top.Columns.Count > 0 && top.Columns[0].Buses.Count > 0
-                                && top.Columns[0].Buses[0].ColorId == "B";
-                return new LevelAnalysisResult
-                {
-                    Status = solvable ? AnalysisStatus.Solvable : AnalysisStatus.Unsolvable,
-                    Solvable = solvable,
-                    ApsEstimate = solvable ? 2f : 0f,
-                };
-            }
-        }
-
-        [Test]
-        public void WidenedSearch_FindsArrangement_SolvableOnlyUnderNonDefaultColumnSplit()
-        {
-            // Wide capacity window (avg 100) keeps each 5-pixel color a single bus
-            // regardless of rng draw, isolating column-phase as the only thing that
-            // can vary across search attempts.
-            var cfg = ScriptableObject.CreateInstance<BusBuddiesAutofillConfig>();
-            cfg.ChunksBase = 100; cfg.ChunksStep = 0;
-            cfg.MaxAttempts = 8;
-            var af = ScriptableObject.CreateInstance<BusBuddiesAutofiller>();
-            SetField(af, "_config", cfg);
-
-            var profile = ScriptableObject.CreateInstance<GameProfile>();
-            SetField(profile, "_levelAnalyzer", ScriptableObject.CreateInstance<ColumnPhaseOnlyAnalyzer>());
-
-            var grid = new GridData<ICellData>(2, 5); // 5 cells "A", 5 cells "B"
-            for (int y = 0; y < 5; y++)
-            {
-                grid.Set(0, y, new BBPixelCell { ColorId = "A" });
-                grid.Set(1, y, new BBPixelCell { ColorId = "B" });
-            }
-            var doc = new LevelDocument
-            {
-                SchemaVersion = "busbuddies", LevelId = "t", Grid = grid,
-                GameData = new JObject { ["conveyorCount"] = 2 },
-            };
-            new BusBuddiesDifficultySettings { BusesChunks = 1, DeviationPercent = 0f, Columns = 2, Difficulty = 1 }.WriteTo(doc);
-
-            var res = af.Complete(doc, profile, new CompletionRequest { Seed = 1 });
-
-            Assert.IsTrue(res.Succeeded,
-                "widened search must find the arrangement reachable only via a non-default column phase: " + res.FailureReason);
-            var top = res.TopSection.ToObject<BusQueueData>();
-            Assert.AreEqual("B", top.Columns[0].Buses[0].ColorId, "accepted arrangement is a non-default-phase split");
-        }
+        // NOTE: the former `WidenedSearch_FindsArrangement_SolvableOnlyUnderNonDefaultColumnSplit`
+        // test + its `ColumnPhaseOnlyAnalyzer` fixture were removed on 2026-07-14. They
+        // exercised the old random column-phase search gated on the analyzer's Status —
+        // a mechanism replaced by BusBuddiesConstructiveArranger (solvable-by-construction,
+        // verified by exact replay, not the analyzer). Solvability of ring/enclosed grids
+        // is now covered by BusBuddiesConstructiveArrangerTests + Autofill_LargeRingGrid_IsSolvable.
     }
 }

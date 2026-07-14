@@ -93,23 +93,19 @@ namespace Hoppa.BusBuddies.Editor
             var mainColors = BusBuddiesColorRoles.ClassifyMain(
                 perColor, cfg.MainColorShareThreshold, outlineId, cfg.ExcludeOutlineFromMain);
 
-            // ── MED-2: widened search. The designer knobs (chunks/deviation/
-            //    columns/difficulty/rules) are FIXED per attempt — only the
-            //    partition's rng draw (capacity split within [min,max]) and the
-            //    dig-arranger's column-assignment phase vary, so a grid that's only
-            //    solvable under a non-default column split is still found. Each
-            //    attempt still runs the Diff→1 burial-relaxation ladder internally.
-            //    Bounded by the SAME budget fields the legacy random search used
-            //    (MaxAttempts / TotalTimeoutMs), so batch generation stays fast.
-            //    Attempt 0 is deterministic from `seed` alone, so the existing
-            //    same-seed-same-output guarantee is unaffected. ──
-            BusQueueData bestArrangement = null;
-            LevelAnalysisResult bestAnalysis = null;
+            // ── Constructive, solvable-by-construction arrangement ──
+            // Build the queue by simulating a border-inward peel (BusBuddiesConstructiveArranger),
+            // which guarantees a winning release order and verifies it by exact replay.
+            // Partition is reseeded per attempt only as a robustness retry; construction
+            // itself is deterministic and grid-size-independent (no exact-solver-skip
+            // regime like the old Monte-Carlo gate). Bounded by the same MaxAttempts /
+            // TotalTimeoutMs budget so batch generation stays fast.
+            BusQueueData bestQueue = null;
+            bool solvable = false;
             int attempts = Math.Max(1, cfg.MaxAttempts);
             for (int attempt = 0; attempt < attempts; attempt++)
             {
                 if (sw.ElapsedMilliseconds > cfg.TotalTimeoutMs) break;
-
                 int attemptSeed = rootRng.Next(1, int.MaxValue);
                 var ar = new System.Random(attemptSeed);
 
@@ -119,48 +115,31 @@ namespace Hoppa.BusBuddies.Editor
                                  perColor[id], min, max, avg, settings.NoSingleBusColor, settings.RoundToFive, ar))
                         buses.Add(new BusEntry { ColorId = id, Capacity = cap, Hidden = false });
 
-                int columnPhase = columns > 0 ? attempt % columns : 0;
-
-                LevelAnalysisResult attemptAnalysis = null;
-                bool Validate(BusQueueData q)
-                {
-                    var candDoc = ShallowCopyWithTop(doc, JObject.FromObject(q));
-                    var a = analyzer.Analyze(candDoc, profile, new AnalysisRequest
-                    {
-                        ConveyorCapacityOverride = slots,
-                        RolloutCount = cfg.SearchRolloutCount,
-                        NodeBudget   = cfg.SearchNodeBudget,
-                        TimeoutMs    = cfg.SearchTimeoutMs,
-                        Seed         = attemptSeed,
-                    });
-                    attemptAnalysis = a;
-                    result.CandidatesTried++;
-                    return a.Status == AnalysisStatus.Solvable;
-                }
-
-                var arrangement = BusBuddiesDigArranger.Arrange(
-                    buses, mainColors, columns, settings.Difficulty, ar, Validate, columnPhase);
-
-                if (attemptAnalysis != null && attemptAnalysis.Status == AnalysisStatus.Solvable)
-                {
-                    bestArrangement = arrangement;
-                    bestAnalysis = attemptAnalysis;
-                    break; // first solvable arrangement wins — honest, fast
-                }
-                if (bestArrangement == null) // keep the FIRST attempt as the honest fallback baseline
-                {
-                    bestArrangement = arrangement;
-                    bestAnalysis = attemptAnalysis;
-                }
+                var arr = BusBuddiesConstructiveArranger.Arrange(
+                    doc.Grid, buses, columns, slots, settings.Difficulty, mainColors, ar);
+                result.CandidatesTried++;
+                if (arr.Solvable) { bestQueue = arr.Queue; solvable = true; break; }
+                if (bestQueue == null) bestQueue = arr.Queue; // honest fallback
             }
 
-            result.TopSection = JObject.FromObject(bestArrangement);
-            result.Analysis   = bestAnalysis;               // measured APS lives here (read-out, not a gate)
-            result.Succeeded  = bestAnalysis != null && bestAnalysis.Solvable;
-            if (!result.Succeeded)
+            result.TopSection = JObject.FromObject(bestQueue);
+            result.Succeeded  = solvable;
+
+            // Measured APS read-out (NOT a gate) from the analyzer on the chosen queue.
+            var apsDoc = ShallowCopyWithTop(doc, result.TopSection);
+            result.Analysis = analyzer.Analyze(apsDoc, profile, new AnalysisRequest
+            {
+                ConveyorCapacityOverride = slots,
+                RolloutCount = cfg.SearchRolloutCount,
+                NodeBudget   = cfg.SearchNodeBudget,
+                TimeoutMs    = cfg.SearchTimeoutMs,
+                Seed         = seed,
+            });
+
+            if (!solvable)
                 result.FailureReason =
-                    "no solvable bus arrangement found for this grid within the search budget " +
-                    "(try fewer colors, more active slots, or a lower difficulty)";
+                    "could not construct a solvable arrangement — the grid may be color-unbalanced " +
+                    "or contain a fully-enclosed region no bus order can reach";
             return Done(result, sw);
         }
 

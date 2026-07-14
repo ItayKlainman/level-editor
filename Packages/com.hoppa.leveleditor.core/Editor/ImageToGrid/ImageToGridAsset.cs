@@ -12,6 +12,15 @@ namespace Hoppa.LevelEditor.Core.Editor
     // serialized fields on the concrete subclass (or an SO it references).
     public abstract class ImageToGridAsset : ScriptableObject, IImageToGrid
     {
-        public abstract LevelDocument Convert(Texture2D source, GameProfile profile);
+        // The pipeline. Subclasses implement conversion at an explicit grid size.
+        public abstract LevelDocument Convert(Texture2D source, GameProfile profile, int width, int height);
+
+        // Convenience overload: convert at the profile's configured grid size (what the
+        // generator and other callers use). The Image→Grid tab calls the 4-arg form to
+        // let the designer choose a size before converting.
+        public LevelDocument Convert(Texture2D source, GameProfile profile)
+            => Convert(source, profile,
+                       Mathf.Max(1, profile != null ? profile.GridWidth : 1),
+                       Mathf.Max(1, profile != null ? profile.GridHeight : 1));
     }
 }

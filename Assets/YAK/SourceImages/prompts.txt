@@ -1,0 +1,74 @@
+# YAK ART PROMPTS — the five style prompts, one per idea category.
+#
+# Each [block] below is one prompt. An ideas.txt section binds to a block by name
+# with a "# @style: <name>" tag, so every idea in that section is generated with
+# that prompt. "{idea}" is replaced with the idea text.
+#
+# [rules] is special: it is appended to EVERY prompt. It carries the technical
+# constraints the image→grid converter depends on. Two of them are load-bearing —
+# do not remove them:
+#   1. NO outline / stroke / drop shadow — an outline smears into a thick dark ring
+#      when the image is downscaled to the level grid (this is what wrecked the shark).
+#   2. ONE flat solid background color, contrasting, no gradient or texture.
+#
+# [default] is used by any idea that sits outside a tagged section.
+# '#' lines are comments and are ignored.
+
+[rules]
+TRUE {grid}x{grid} PIXEL ART: the whole image is a strict {grid}x{grid} grid of large
+uniform square pixels, nearest-neighbour upscaled to 1024x1024 so each art pixel is a
+big solid square block of one color. Hard aliased square edges. NO anti-aliasing, NO
+blur, NO soft or feathered edges, NO smoothing, NO in-between blended pixels: every
+single pixel is one of the flat colors, nothing halfway. NO gradients, NO shading, NO
+highlights, NO glow, NO dithering, NO noise, NO texture — each region is one perfectly
+flat color. Use a STRICT LIMITED PALETTE of at most 6 flat colors in total for the
+subject. Fill the ENTIRE background with ONE flat uniform solid color that clearly
+contrasts the subject and is not used in the subject — no gradient, no vignette, no
+lighting, no texture. NO drop shadow and NO contact shadow under the subject; the
+subject must not touch or blend into the background. Do NOT draw ANY outline, border,
+stroke or halo around the subject — flat color regions only. Exactly ONE single
+connected subject, centered, filling most of the frame — NO floating, detached or
+separated elements of any kind (no sparkles, no floating hearts, no stray particles,
+no motion lines, no separate props); everything must be one connected shape. The
+subject must be ONE bold recognizable object, not a busy scene: few large shapes, big
+clear features, generous spacing between them. Keep every feature CHUNKY and at least
+2x2 art pixels thick — no thin 1-pixel lines, no tiny details, no fine whiskers. No
+text, no frame, no border, no photorealism.
+
+[animals]
+{idea} — a cute animal with a funny facial expression, oversized eyes, tiny mouth,
+chubby proportions, a playful pose and a big clear emotion (smiling, surprised,
+sleepy, grumpy). Wholesome and adorable, an instantly recognizable silhouette, drawn
+as a premium pixel-art collectible icon: chunky blocky pixel shapes, crisp hard edges,
+big flat solid fill colors.
+
+[objects]
+{idea} — an everyday object turned into an adorable living character: a cute face,
+tiny eyes, a happy expression and a playful personality. Charming, wholesome and
+funny, drawn as a premium pixel-art collectible icon: chunky blocky pixel shapes,
+crisp hard edges, big flat solid fill colors.
+
+[hybrids]
+{idea} — a whimsical hybrid creature combining two unrelated things into one adorable
+design. Funny, unexpected and charming, with a clear readable silhouette, drawn as a
+highly collectible pixel-art icon: chunky blocky pixel shapes, crisp hard edges, big
+flat solid fill colors.
+
+[fantasy]
+{idea} — a tiny fantasy creature from a cozy magical world, with an adorable
+expression and a playful personality. Magical and charming, drawn as a premium
+pixel-art collectible icon: chunky blocky pixel shapes, crisp hard edges, big flat
+solid fill colors.
+
+[funny]
+{idea} — a funny miniature character with exaggerated emotion, a silly costume or an
+unexpected situation. Cute internet-meme energy, the kind of playful collectible that
+makes people smile instantly, drawn as a pixel-art collectible icon: chunky blocky
+pixel shapes, crisp hard edges, big flat solid fill colors.
+
+[default]
+{idea}, drawn as a premium pixel-art collectible icon. Chunky blocky pixel shapes,
+crisp hard edges, big flat solid fill colors, bold instantly recognizable silhouette.
+Give it real personality: oversized expressive eyes, a clear readable emotion, a
+playful pose; charming, wholesome and funny. Skip the face only where it would look
+odd (plain geometric objects, scenery).

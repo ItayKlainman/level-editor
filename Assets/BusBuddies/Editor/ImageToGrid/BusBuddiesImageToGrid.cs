@@ -51,12 +51,12 @@ namespace Hoppa.BusBuddies.Editor
         [Tooltip("Active-row slot count stamped into GameData[\"conveyorCount\"] on the new level.")]
         [Min(1)] public int DefaultActiveSlots = 5;
 
-        public override LevelDocument Convert(Texture2D source, GameProfile profile)
+        public override LevelDocument Convert(Texture2D source, GameProfile profile, int width, int height)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
             if (profile == null) throw new ArgumentNullException(nameof(profile));
-            int W = Mathf.Max(1, profile.GridWidth);
-            int H = Mathf.Max(1, profile.GridHeight);
+            int W = Mathf.Max(1, width);
+            int H = Mathf.Max(1, height);
 
             var palette = ImageToGridMath.BuildPalette(profile);
             if (palette.Count == 0) throw new InvalidOperationException("Profile palette is empty.");

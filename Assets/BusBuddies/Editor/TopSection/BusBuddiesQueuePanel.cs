@@ -15,8 +15,9 @@ namespace Hoppa.BusBuddies.Editor
     // 1..5 columns. Each bus has a color swatch (right-click to pick, filtered to grid
     // colors), a capacity IntField, and a Hidden toggle. HEAD SEMANTICS: BusColumn.Buses[0]
     // is the only tappable bus (the queue head); the back of the queue is the last element.
-    // This panel draws the head at the BOTTOM of each column (visual bottom row = data
-    // index 0), tagged "HEAD", so the visual order matches the in-game pull order.
+    // This panel draws the head at the TOP of each column (visual top row = data index 0),
+    // tagged "HEAD", so the top-to-bottom reading matches the in-game pull order (the game
+    // taps BusConfigs[0] first — verified against BUBBusColumnPrefabComponent).
     // No connected-bus UI (pairing is deferred / data-only).
     public sealed class BusBuddiesQueuePanel : TopSectionPanel
     {
@@ -72,7 +73,7 @@ namespace Hoppa.BusBuddies.Editor
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, HeaderH), HeaderBg);
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 2f), Accent);
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, 360f, HeaderH - 2f),
-                $"Bus Queue ({columnCount}/{MaxColumns})  ·  bottom bus = tappable HEAD", EditorStyles.boldLabel);
+                $"Bus Queue ({columnCount}/{MaxColumns})  ·  top bus = tappable HEAD", EditorStyles.boldLabel);
 
             const float HdrBtnW = 78f;
             const float HdrBtnH = 18f;
@@ -163,9 +164,9 @@ namespace Hoppa.BusBuddies.Editor
                 for (int s = count - 1; s >= 0; s--)
                 {
                     var   bus       = col.Buses[s];
-                    int   visualIdx = count - 1 - s;
+                    int   visualIdx = s;      // Buses[0] = tappable queue head, drawn at the TOP row.
                     float rowTop    = visualIdx * BusH;
-                    bool  isHead    = s == 0; // Buses[0] = tappable queue head (bottom row).
+                    bool  isHead    = s == 0; // head = top row now.
 
                     bool colDragging   = _dragCol == c;
                     bool thisIsDragged = colDragging && _dragSrc == visualIdx;
@@ -415,19 +416,14 @@ namespace Hoppa.BusBuddies.Editor
 
         // Moves a bus from visual index vSrc to before visual index vTgt.
         // Visual index 0 = top of column = highest data index (count-1).
+        // Visual row order now equals list order (Buses[0] = top). A drag from visual
+        // row vSrc to insert-position vTgt maps directly onto the list.
         private static void MoveVisual(List<BusEntry> buses, int vSrc, int vTgt)
         {
-            int count = buses.Count;
-            var visual = new List<BusEntry>(count);
-            for (int v = 0; v < count; v++)
-                visual.Add(buses[count - 1 - v]);
-
-            var item = visual[vSrc];
-            visual.RemoveAt(vSrc);
-            visual.Insert(vSrc < vTgt ? vTgt - 1 : vTgt, item);
-
-            for (int v = 0; v < count; v++)
-                buses[count - 1 - v] = visual[v];
+            if (vSrc < 0 || vSrc >= buses.Count) return;
+            var item = buses[vSrc];
+            buses.RemoveAt(vSrc);
+            buses.Insert(vSrc < vTgt ? vTgt - 1 : vTgt, item);
         }
 
         private static string GetFirstGridColor(LevelEditorSession session)

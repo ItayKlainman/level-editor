@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 786cdec8f044c6340b651165ff74f228, type: 3}
+  m_Name: BusBuddiesNightBatchCurve
+  m_EditorClassIdentifier: Hoppa.BusBuddies.Editor::Hoppa.BusBuddies.Editor.BusBuddiesDifficultyCurveConfig
+  Presets:
+  - Name: Intro
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 6
+    ConveyorSlots: 5
+    Difficulty:
+      BusesChunks: 3
+      DeviationPercent: 0.2
+      Columns: 2
+      Difficulty: 1
+      NoSingleBusColor: 1
+      RoundToFive: 1
+  - Name: Easy
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 6
+    ConveyorSlots: 5
+    Difficulty:
+      BusesChunks: 3
+      DeviationPercent: 0.3
+      Columns: 3
+      Difficulty: 2
+      NoSingleBusColor: 1
+      RoundToFive: 1
+  - Name: Medium
+    GridWidth: 40
+    GridHeight: 40
+    MaxColors: 6
+    ConveyorSlots: 5
+    Difficulty:
+      BusesChunks: 4
+      DeviationPercent: 0.4
+      Columns: 4
+      Difficulty: 3
+      NoSingleBusColor: 1
+      RoundToFive: 1
+  - Name: Hard
+    GridWidth: 40
+    GridHeight: 40
+    MaxColors: 6
+    ConveyorSlots: 5
+    Difficulty:
+      BusesChunks: 4
+      DeviationPercent: 0.5
+      Columns: 5
+      Difficulty: 4
+      NoSingleBusColor: 1
+      RoundToFive: 1
+  Curve:
+  - TierName: Intro
+    LevelCount: 25
+  - TierName: Easy
+    LevelCount: 25
+  - TierName: Medium
+    LevelCount: 25
+  - TierName: Hard
+    LevelCount: 25

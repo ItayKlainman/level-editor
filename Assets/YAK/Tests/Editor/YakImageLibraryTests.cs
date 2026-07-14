@@ -53,7 +53,7 @@ namespace Hoppa.YAK.Editor.Tests
             StringAssert.Contains("a popsicle", p);
             StringAssert.Contains("Red #ff0000", p);
             StringAssert.Contains("Sky Blue #66ccff", p);
-            StringAssert.Contains("No gradients", p);     // from default preamble
+            StringAssert.Contains("no outline of any color", p);  // outline ban (from default preamble)
             StringAssert.DoesNotContain("{idea}", p);     // placeholder was substituted
         }
 
@@ -63,6 +63,174 @@ namespace Hoppa.YAK.Editor.Tests
             string p = YAKImageLibraryCore.BuildPrompt("a rocket", new List<string>(), null);
             StringAssert.Contains("a rocket", p);
             StringAssert.DoesNotContain("Use only these flat solid colors", p);
+        }
+
+        private const string PromptsAsset =
+            "# comment\n" +
+            "[rules]\n" +
+            "No outline.\n" +
+            "\n" +
+            "[animals]\n" +
+            "A cute {idea} with\n" +
+            "oversized eyes.\n" +
+            "\n" +
+            "[hybrids]\n" +
+            "A whimsical hybrid {idea}.\n" +
+            "\n" +
+            "[default]\n" +
+            "A pixel-art {idea}.\n";
+
+        private const string IdeasAsset =
+            "# the old list, before any @style tag\n" +
+            "a red apple\n" +
+            "\n" +
+            "# @style: animals\n" +
+            "a grumpy cat\n" +
+            "# a plain comment inside the section — must NOT close it\n" +
+            "a sleepy owl\n" +
+            "\n" +
+            "# @style: hybrids\n" +
+            "a turtle with a watermelon shell\n";
+
+        [Test]
+        public void ParseStyleBlocks_NamesBlocksAndRejoinsWrappedLines()
+        {
+            var blocks = YAKImageLibraryCore.ParseStyleBlocks(PromptsAsset);
+
+            Assert.AreEqual(4, blocks.Count);
+            Assert.AreEqual("A cute {idea} with oversized eyes.", blocks["animals"]);
+            Assert.AreEqual("No outline.", blocks["rules"]);
+        }
+
+        [Test]
+        public void ParseIdeaEntries_BindsEachIdeaToItsSectionsPrompt()
+        {
+            var entries = YAKImageLibraryCore.ParseIdeaEntries(IdeasAsset);
+
+            Assert.AreEqual(4, entries.Count);
+            Assert.AreEqual("", entries[0].StyleKey, "an idea before any tag has no key -> [default]");
+            Assert.AreEqual("animals", entries[1].StyleKey);   // a grumpy cat
+            Assert.AreEqual("animals", entries[2].StyleKey);   // a plain '#' comment must NOT close the section
+            Assert.AreEqual("hybrids", entries[3].StyleKey);
+        }
+
+        [Test]
+        public void ResolveStyle_PicksTheSectionsPrompt_AndAlwaysAppendsRules()
+        {
+            var blocks = YAKImageLibraryCore.ParseStyleBlocks(PromptsAsset);
+
+            string animals = YAKImageLibraryCore.ResolveStyle(blocks, "animals", null);
+            string hybrids = YAKImageLibraryCore.ResolveStyle(blocks, "hybrids", null);
+
+            Assert.AreEqual("A cute {idea} with oversized eyes. No outline.", animals);
+            Assert.AreEqual("A whimsical hybrid {idea}. No outline.", hybrids);
+        }
+
+        [Test]
+        public void ResolveStyle_UnknownOrMissingKey_FallsBackToDefault_ThenToCallerPreamble()
+        {
+            var blocks = YAKImageLibraryCore.ParseStyleBlocks(PromptsAsset);
+
+            // A typo'd tag must not silently drop the rules — it lands on [default].
+            Assert.AreEqual("A pixel-art {idea}. No outline.", YAKImageLibraryCore.ResolveStyle(blocks, "typo", null));
+            Assert.AreEqual("A pixel-art {idea}. No outline.", YAKImageLibraryCore.ResolveStyle(blocks, "", null));
+
+            // No asset at all -> the caller's own preamble.
+            var empty = YAKImageLibraryCore.ParseStyleBlocks("");
+            Assert.AreEqual("fallback", YAKImageLibraryCore.ResolveStyle(empty, "animals", "fallback"));
+        }
+
+        [Test]
+        public void EachIdeaIsBuiltWithItsOwnSectionsPrompt()
+        {
+            // The whole point: the five prompts split the idea set.
+            var blocks  = YAKImageLibraryCore.ParseStyleBlocks(PromptsAsset);
+            var entries = YAKImageLibraryCore.ParseIdeaEntries(IdeasAsset);
+
+            string cat = YAKImageLibraryCore.BuildPrompt(
+                entries[1].Idea, null, YAKImageLibraryCore.ResolveStyle(blocks, entries[1].StyleKey, null));
+            string turtle = YAKImageLibraryCore.BuildPrompt(
+                entries[3].Idea, null, YAKImageLibraryCore.ResolveStyle(blocks, entries[3].StyleKey, null));
+
+            Assert.AreEqual("A cute a grumpy cat with oversized eyes. No outline.", cat);
+            Assert.AreEqual("A whimsical hybrid a turtle with a watermelon shell. No outline.", turtle);
+        }
+
+        [Test]
+        public void DefaultStylePreamble_IsPixelArtCollectible_AndStillBansOutlines()
+        {
+            // The outline ban is load-bearing: an outline smears into a thick dark ring
+            // when the image is downscaled to the level grid.
+            string p = YAKImageLibraryCore.BuildPrompt("a duck", null, null);
+
+            StringAssert.Contains("pixel-art collectible icon", p);   // the boss's art narrative
+            StringAssert.Contains("oversized expressive eyes", p);
+            StringAssert.Contains("no outline of any color", p);      // must survive the pixel-art rewrite
+            StringAssert.Contains("one flat uniform solid color", p); // single background
+        }
+
+        // Guards the SHIPPED files, not a fixture: a typo'd "# @style:" tag or an
+        // unbalanced section would quietly generate a batch with the wrong prompt.
+        [Test]
+        public void ShippedFiles_EveryBossBriefSectionBindsToARealPrompt_With20IdeasEach()
+        {
+            string dir = System.IO.Path.Combine(Application.dataPath, "YAK", "SourceImages");
+            var blocks  = YAKImageLibraryCore.ParseStyleBlocks(
+                System.IO.File.ReadAllText(System.IO.Path.Combine(dir, "prompts.txt")));
+            var entries = YAKImageLibraryCore.ParseIdeaEntries(
+                System.IO.File.ReadAllText(System.IO.Path.Combine(dir, "ideas.txt")));
+
+            var expected = new[] { "animals", "objects", "hybrids", "fantasy", "funny" };
+            foreach (var key in expected)
+            {
+                Assert.IsTrue(blocks.ContainsKey(key), $"prompts.txt is missing the [{key}] prompt");
+                int n = entries.FindAll(e => string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase)).Count;
+                Assert.AreEqual(20, n, $"the '{key}' section should hold exactly 20 ideas (one prompt's share)");
+            }
+
+            Assert.IsTrue(blocks.ContainsKey("rules"),   "prompts.txt must keep the shared [rules] block");
+            Assert.IsTrue(blocks.ContainsKey("default"), "prompts.txt must keep a [default] prompt for untagged ideas");
+
+            // Every tag actually names a prompt.
+            foreach (var e in entries)
+                if (!string.IsNullOrEmpty(e.StyleKey))
+                    Assert.IsTrue(blocks.ContainsKey(e.StyleKey),
+                        $"idea '{e.Idea}' is tagged [{e.StyleKey}], which is not a prompt in prompts.txt");
+
+            // The outline ban must survive edits to the prompt text — it is what keeps
+            // a converted level from gaining a thick dark ring.
+            StringAssert.Contains("Do NOT draw ANY outline", blocks["rules"]);
+        }
+
+        [Test]
+        public void BuildPrompt_SubstitutesPixelGrid()
+        {
+            // The art's native pixel grid must reach the model as a concrete number —
+            // a leftover "{grid}" would ask for literally nothing.
+            string p = YAKImageLibraryCore.BuildPrompt("a duck", null, "TRUE {grid}x{grid} PIXEL ART of {idea}.", 40);
+
+            Assert.AreEqual("TRUE 40x40 PIXEL ART of a duck.", p);
+        }
+
+        [Test]
+        public void ShippedRules_AskForTheGridSizeTheConfigTargets()
+        {
+            // The prompt's art resolution and the level grid must be the same number.
+            // If they drift, the converter resamples the art pixels and the blocks smear.
+            var cfg = UnityEditor.AssetDatabase.LoadAssetAtPath<YAKImageLibraryConfig>(
+                "Assets/YAK/Data/Config/YAKImageLibraryConfig.asset");
+            Assert.IsNotNull(cfg, "the YAK Image Library config asset should exist");
+
+            var blocks = YAKImageLibraryCore.ParseStyleBlocks(
+                System.IO.File.ReadAllText(System.IO.Path.Combine(
+                    Application.dataPath, "YAK", "SourceImages", "prompts.txt")));
+
+            StringAssert.Contains("{grid}", blocks["rules"],
+                "[rules] must use the {grid} token so the art resolution can't drift from the config");
+
+            string built = YAKImageLibraryCore.BuildPrompt("a duck", null, blocks["rules"], cfg.PixelGridSize);
+            StringAssert.Contains($"{cfg.PixelGridSize}x{cfg.PixelGridSize}", built);
+            StringAssert.DoesNotContain("{grid}", built);
         }
 
         [Test]

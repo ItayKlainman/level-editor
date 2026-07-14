@@ -1,11 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
-# Bus Buddies default 40-level difficulty curve. SEEDED SENSIBLE DEFAULTS — all
-# values are TUNABLE via the Difficulty Curve window (Window ▸ Hoppa ▸ BusBuddies
-# ▸ Difficulty Curve). 30×30 board throughout; the DESIGNER difficulty model drives
-# each tier via the six knobs (Buses Chunks / Deviation / Columns / Difficulty +
-# two rules), with an ascending ramp Intro→Expert. APS is a measured read-out, not
-# a target.
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -20,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Hoppa.BusBuddies.Editor::Hoppa.BusBuddies.Editor.BusBuddiesDifficultyCurveConfig
   Presets:
   - Name: Intro
-    GridWidth: 30
-    GridHeight: 30
+    GridWidth: 20
+    GridHeight: 20
     MaxColors: 3
     ConveyorSlots: 5
     Difficulty:
@@ -29,8 +23,8 @@ MonoBehaviour:
       DeviationPercent: 0.2
       Columns: 1
       Difficulty: 1
-      NoSingleBusColor: 0
-      RoundToFive: 0
+      NoSingleBusColor: 1
+      RoundToFive: 1
   - Name: Easy
     GridWidth: 30
     GridHeight: 30
@@ -41,8 +35,8 @@ MonoBehaviour:
       DeviationPercent: 0.35
       Columns: 2
       Difficulty: 2
-      NoSingleBusColor: 0
-      RoundToFive: 0
+      NoSingleBusColor: 1
+      RoundToFive: 1
   - Name: Medium
     GridWidth: 30
     GridHeight: 30
@@ -53,11 +47,11 @@ MonoBehaviour:
       DeviationPercent: 0.5
       Columns: 3
       Difficulty: 3
-      NoSingleBusColor: 0
-      RoundToFive: 0
+      NoSingleBusColor: 1
+      RoundToFive: 1
   - Name: Hard
-    GridWidth: 30
-    GridHeight: 30
+    GridWidth: 40
+    GridHeight: 40
     MaxColors: 6
     ConveyorSlots: 5
     Difficulty:
@@ -66,7 +60,7 @@ MonoBehaviour:
       Columns: 4
       Difficulty: 4
       NoSingleBusColor: 1
-      RoundToFive: 0
+      RoundToFive: 1
   - Name: Expert
     GridWidth: 30
     GridHeight: 30
@@ -81,12 +75,10 @@ MonoBehaviour:
       RoundToFive: 1
   Curve:
   - TierName: Intro
-    LevelCount: 8
+    LevelCount: 12
   - TierName: Easy
-    LevelCount: 8
+    LevelCount: 13
   - TierName: Medium
-    LevelCount: 8
+    LevelCount: 13
   - TierName: Hard
-    LevelCount: 8
-  - TierName: Expert
-    LevelCount: 8
+    LevelCount: 12

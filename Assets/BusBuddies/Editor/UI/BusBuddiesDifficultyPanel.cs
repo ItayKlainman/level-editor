@@ -19,6 +19,7 @@ namespace Hoppa.BusBuddies.Editor
         private LevelDocument       _boundDoc;
         private LevelAnalysisResult _lastAnalysis;
         private string              _status;
+        private MessageType         _statusType = MessageType.None;
 
         public override float PreferredHeight => 250f;
 
@@ -96,7 +97,8 @@ namespace Hoppa.BusBuddies.Editor
                     $"Measured APS: {_lastAnalysis.ApsEstimate:0.0}{(_lastAnalysis.ApsCalibrated ? "" : " (uncal.)")}",
                     EditorStyles.miniLabel);
             if (!string.IsNullOrEmpty(_status))
-                EditorGUILayout.LabelField(_status, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.HelpBox(_status,
+                    _statusType == MessageType.None ? MessageType.Info : _statusType);
 
             GUILayout.EndArea();
         }
@@ -109,6 +111,7 @@ namespace Hoppa.BusBuddies.Editor
             WriteTo(doc);
             session.MarkDirty();
             _status = "Settings applied to level.";
+            _statusType = MessageType.Info;
         }
 
         private void OnAutofill(LevelEditorSession session, GameProfile profile, BusBuddiesAutofiller completer)
@@ -126,16 +129,19 @@ namespace Hoppa.BusBuddies.Editor
                     doc.TopSection = res.TopSection;
                     session.MarkDirty();
                     session.RunValidation();
-                    _status = res.Succeeded ? "Auto-filled (solvable)." : "Auto-filled, best-effort: " + res.FailureReason;
+                    _status = res.Succeeded ? "Auto-filled — solvable ✓" : "Auto-fill could NOT make this level solvable:\n" + res.FailureReason;
+                    _statusType = res.Succeeded ? MessageType.Info : MessageType.Error;
                 }
                 else
                 {
                     _status = "Auto-fill failed: " + (res?.FailureReason ?? "no top section produced");
+                    _statusType = MessageType.Error;
                 }
             }
             catch (System.Exception ex)
             {
                 _status = "Auto-fill failed: " + ex.Message;
+                _statusType = MessageType.Error;
                 Debug.LogError("BusBuddiesDifficultyPanel.OnAutofill: " + ex);
             }
         }

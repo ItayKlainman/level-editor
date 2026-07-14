@@ -13,5 +13,9 @@ namespace Hoppa.LevelEditor.Core.Editor
     public interface IImageToGrid
     {
         LevelDocument Convert(Texture2D source, GameProfile profile);
+
+        // Convert at an explicit grid size, overriding the profile's configured size
+        // (so the Image→Grid tab can let the designer pick the size before converting).
+        LevelDocument Convert(Texture2D source, GameProfile profile, int width, int height);
     }
 }
