@@ -39,8 +39,8 @@ namespace Hoppa.YAK.Editor
         public string StylePreamble = YAKImageLibraryCore.DefaultStylePreamble;
 
         [Header("Safety")]
-        [Tooltip("Hard cap on images generated in a single run.")]
-        [Min(1)] public int MaxImagesPerRun = 50;
+        [Tooltip("Hard cap on images generated in a single run. A full boss-brief batch is 100 (5 prompts × 20 ideas).")]
+        [Min(1)] public int MaxImagesPerRun = 100;
         [Tooltip("USD per image for the chosen size/quality — used only for the pre-run cost estimate dialog.")]
         public float EstimatedUsdPerImage = 0.07f;
     }
