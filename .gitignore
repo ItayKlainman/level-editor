@@ -36,3 +36,6 @@ Assembly-CSharp*.csproj
 
 # YAK batch generation staging output (regenerated; not source)
 YAK_Batch/
+
+# Bus Buddies batch/calibration runs (regenerated; not source)
+BusBuddies_Batch/

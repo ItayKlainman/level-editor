@@ -10,42 +10,42 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 786cdec8f044c6340b651165ff74f228, type: 3}
-  m_Name: BusBuddiesDifficultyCurve
+  m_Name: BusBuddiesNightBatchCurve
   m_EditorClassIdentifier: Hoppa.BusBuddies.Editor::Hoppa.BusBuddies.Editor.BusBuddiesDifficultyCurveConfig
   Presets:
   - Name: Intro
-    GridWidth: 20
-    GridHeight: 20
-    MaxColors: 3
+    GridWidth: 30
+    GridHeight: 30
+    MaxColors: 6
     ConveyorSlots: 5
     Difficulty:
-      BusesChunks: 1
+      BusesChunks: 3
       DeviationPercent: 0.2
-      Columns: 1
+      Columns: 2
       Difficulty: 1
       NoSingleBusColor: 1
       RoundToFive: 1
   - Name: Easy
     GridWidth: 30
     GridHeight: 30
-    MaxColors: 4
+    MaxColors: 6
     ConveyorSlots: 5
     Difficulty:
-      BusesChunks: 2
-      DeviationPercent: 0.35
-      Columns: 2
+      BusesChunks: 3
+      DeviationPercent: 0.3
+      Columns: 3
       Difficulty: 2
       NoSingleBusColor: 1
       RoundToFive: 1
   - Name: Medium
-    GridWidth: 30
-    GridHeight: 30
-    MaxColors: 5
+    GridWidth: 40
+    GridHeight: 40
+    MaxColors: 6
     ConveyorSlots: 5
     Difficulty:
-      BusesChunks: 3
-      DeviationPercent: 0.5
-      Columns: 3
+      BusesChunks: 4
+      DeviationPercent: 0.4
+      Columns: 4
       Difficulty: 3
       NoSingleBusColor: 1
       RoundToFive: 1
@@ -56,29 +56,17 @@ MonoBehaviour:
     ConveyorSlots: 5
     Difficulty:
       BusesChunks: 4
-      DeviationPercent: 0.65
-      Columns: 4
-      Difficulty: 4
-      NoSingleBusColor: 1
-      RoundToFive: 1
-  - Name: Expert
-    GridWidth: 30
-    GridHeight: 30
-    MaxColors: 7
-    ConveyorSlots: 5
-    Difficulty:
-      BusesChunks: 5
-      DeviationPercent: 0.8
+      DeviationPercent: 0.5
       Columns: 5
-      Difficulty: 5
+      Difficulty: 4
       NoSingleBusColor: 1
       RoundToFive: 1
   Curve:
   - TierName: Intro
-    LevelCount: 12
+    LevelCount: 25
   - TierName: Easy
-    LevelCount: 13
+    LevelCount: 25
   - TierName: Medium
-    LevelCount: 13
+    LevelCount: 25
   - TierName: Hard
-    LevelCount: 12
+    LevelCount: 25

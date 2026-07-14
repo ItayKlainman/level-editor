@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 786cdec8f044c6340b651165ff74f228, type: 3}
+  m_Name: BusBuddiesLowTest15Curve
+  m_EditorClassIdentifier: Hoppa.BusBuddies.Editor::Hoppa.BusBuddies.Editor.BusBuddiesDifficultyCurveConfig
+  Presets:
+  - Name: Low
+    GridWidth: 40
+    GridHeight: 40
+    MaxColors: 6
+    ConveyorSlots: 5
+    Difficulty:
+      BusesChunks: 3
+      DeviationPercent: 0.2
+      Columns: 2
+      Difficulty: 1
+      NoSingleBusColor: 0
+      RoundToFive: 1
+  Curve:
+  - TierName: Low
+    LevelCount: 15
