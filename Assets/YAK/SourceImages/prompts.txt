@@ -1,15 +1,30 @@
-# YAK theme prompts — one THEME per block, blocks separated by a blank line.
-# The model invents a fresh subject per image; the Theme Style Preamble (in the
-# config) wraps each with the convert-friendly rules (single subject, flat fills,
-# solid contrasting background, no outline, low-res readable). '#' lines are comments.
-# A leading enumerator ("1)", "2.", "-") is stripped, so numbering is optional.
+# YAK ART NARRATIVE — the shared visual style for every generated level image.
+#
+# This is the STYLE, not the subject. The subject comes from ideas.txt; "{idea}"
+# below is replaced with it at generation time. Editing this file changes the look
+# of every image — that is the point: the set should read as one collectible icon
+# family.
+#
+# Distilled from the 5 reference prompts: cute, premium PIXEL ART COLLECTIBLE ICON —
+# oversized eyes, big readable emotion, playful personality, chunky silhouette,
+# wholesome and funny.
+#
+# Two rules are load-bearing for the image→grid converter and must not be removed:
+#   1. NO outline / stroke / drop shadow — an outline smears into a thick dark ring
+#      when downscaled to the level grid.
+#   2. ONE flat solid background color, contrasting, no gradient or texture.
+# '#' lines are comments and are ignored.
 
-Cute animal with a funny facial expression, oversized eyes, tiny mouth, chubby proportions, playful pose, big clear emotion (smiling, surprised, sleepy, grumpy), wholesome and adorable, one instantly recognizable animal.
-
-A single everyday object turned into an adorable living character — cute face, tiny eyes, happy expression, playful personality (smiling food, a friendly household item), charming, wholesome and funny.
-
-One whimsical hybrid creature combining two unrelated things into a single adorable design — an animal mixed with a fruit, vegetable, dessert, sea creature, plant, or everyday object; funny, unexpected, charming, one clear subject.
-
-A single tiny fantasy creature — a magical forest animal, miniature monster, mythical being, cute ghost, tiny dragon, or little spirit — cozy and magical, playful personality, adorable expression.
-
-One funny miniature character with exaggerated emotion and a silly costume or unexpected situation — cute internet-meme energy, a single collectible character that makes people smile instantly (one focal character, not a busy scene).
+A single centered {idea}, drawn as a premium pixel-art collectible icon. Chunky
+blocky pixel shapes, crisp hard edges, big flat solid fill colors, bold instantly
+recognizable silhouette — the kind of cute collectible icon you'd want a whole set
+of. Give it real personality: oversized expressive eyes, a clear readable emotion
+(cheerful, sleepy, surprised, grumpy, smug, mischievous), and a playful pose;
+charming, wholesome and funny. Skip the face only where it would look odd (plain
+geometric objects, scenery). Fill the ENTIRE background with one flat uniform solid
+color that clearly contrasts the subject and is not a color used in the subject —
+absolutely no gradient, no vignette, no glow, no radial lighting, no background
+texture. Do NOT draw ANY outline, border, stroke, drop shadow, or halo around the
+subject — no outline of any color; the subject is flat fills only. No anti-aliasing
+fringe, no shading or dithering, no text, no photorealism, no frame or border. Keep
+every shape bold, chunky and simple enough to read clearly at low resolution.

@@ -28,17 +28,8 @@ namespace Hoppa.YAK.Editor
         private readonly Dictionary<string, string> _status = new Dictionary<string, string>(); // statusKey -> status text
         private string _message;
 
-        // Theme-batch state: parsed prompts, which are ticked, images-per-prompt, and
-        // the status keys of the current/last batch (for the per-image progress list).
-        private readonly List<string> _prompts = new List<string>();
-        private readonly HashSet<int> _promptSelected = new HashSet<int>();
-        private int _imagesPerPrompt = -1;   // -1 = init from config
-        private bool _showPrompts = true;
-        private readonly List<string> _promptRunKeys = new List<string>();
-
         // One unit of generation work — a fully-built prompt, its output filename, and
-        // the key its status is displayed under. Both ideas- and prompts-mode enqueue
-        // these, so the Pump/OpenAI/retry/save path is shared.
+        // the key its status is displayed under. Keeps prompt-building out of the pump.
         private struct GenJob { public string Prompt; public string FileName; public string StatusKey; }
 
         // run state (driven by Pump)
@@ -88,7 +79,7 @@ namespace Hoppa.YAK.Editor
                     if (GUILayout.Button($"Generate Selected ({_selected.Count})")) StartRun();
             }
 
-            DrawPromptsSection();
+            DrawStyleRow();
 
             if (_running && GUILayout.Button("Cancel")) StopRun("cancelled");
 
@@ -173,48 +164,21 @@ namespace Hoppa.YAK.Editor
             _message = $"{_ideas.Count} ideas, {_missing.Count} missing. Tick the ideas to (re)generate.";
         }
 
-        // Ideas mode: one job per ticked idea, in idea-file order (deterministic),
-        // regardless of tick order.
+        // One job per ticked idea, in idea-file order (deterministic), regardless of tick
+        // order. Every job carries the same art narrative — the set reads as one family.
         private void StartRun()
         {
             var jobs = new List<GenJob>();
             var colors = WoolColorDescriptors();
+            string style = ResolveStylePreamble();
             foreach (var idea in _ideas)
                 if (_selected.Contains(idea))
                     jobs.Add(new GenJob
                     {
-                        Prompt   = YAKImageLibraryCore.BuildPrompt(idea, colors, _config.StylePreamble),
-                        FileName = YAKImageLibraryCore.IdeaToFileName(idea),
+                        Prompt    = YAKImageLibraryCore.BuildPrompt(idea, colors, style),
+                        FileName  = YAKImageLibraryCore.IdeaToFileName(idea),
                         StatusKey = idea,
                     });
-            if (jobs.Count > 0) BeginRun(jobs);
-        }
-
-        // Prompts mode: for each ticked theme, K jobs whose subject the model invents.
-        // Each gets a unique filename token so re-runs accumulate new levels.
-        private void StartPromptRun()
-        {
-            var colors = WoolColorDescriptors();
-            int k = Mathf.Max(1, _imagesPerPrompt);
-            var jobs = new List<GenJob>();
-            _promptRunKeys.Clear();
-            for (int pi = 0; pi < _prompts.Count; pi++)
-            {
-                if (!_promptSelected.Contains(pi)) continue;
-                string theme = _prompts[pi];
-                for (int j = 0; j < k; j++)
-                {
-                    string statusKey = $"P{pi + 1} · {ShortTheme(theme)} #{j + 1}";
-                    _status[statusKey] = "queued";
-                    _promptRunKeys.Add(statusKey);
-                    jobs.Add(new GenJob
-                    {
-                        Prompt    = YAKImageLibraryCore.BuildThemePrompt(theme, colors, _config.ThemeStylePreamble),
-                        FileName  = YAKImageLibraryCore.ThemeToFileName(theme, System.Guid.NewGuid().ToString("N")),
-                        StatusKey = statusKey,
-                    });
-                }
-            }
             if (jobs.Count > 0) BeginRun(jobs);
         }
 
@@ -240,78 +204,27 @@ namespace Hoppa.YAK.Editor
             EditorApplication.update += Pump;
         }
 
-        // First ~40 chars of a theme, for compact status-row labels.
-        private static string ShortTheme(string theme)
+        // The shared art narrative applied to every image: the style-prompt asset when
+        // assigned (the designer-editable source of truth), else the config string, else
+        // the built-in default.
+        private string ResolveStylePreamble()
         {
-            string t = (theme ?? string.Empty).Trim();
-            return t.Length <= 40 ? t : t.Substring(0, 40).TrimEnd() + "…";
-        }
-
-        private void DrawPromptsSection()
-        {
-            _showPrompts = EditorGUILayout.Foldout(_showPrompts, "Prompts (theme batches)", true);
-            if (!_showPrompts) return;
-
-            using (new EditorGUI.DisabledScope(_running))
+            if (_config.StylePromptAsset != null)
             {
-                if (_imagesPerPrompt < 0) _imagesPerPrompt = Mathf.Max(1, _config.ImagesPerPrompt);
-
-                if (GUILayout.Button("Scan Prompts")) ScanPrompts();
-
-                if (_prompts.Count == 0)
-                {
-                    EditorGUILayout.HelpBox(
-                        _config.PromptsAsset == null
-                            ? "Assign a Prompts text asset on the config to generate theme batches."
-                            : "Press Scan Prompts to load the themes.",
-                        MessageType.None);
-                }
-                else
-                {
-                    _imagesPerPrompt = Mathf.Max(1, EditorGUILayout.IntField("Images per prompt", _imagesPerPrompt));
-
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        if (GUILayout.Button($"Select All ({_prompts.Count})"))
-                            { _promptSelected.Clear(); for (int i = 0; i < _prompts.Count; i++) _promptSelected.Add(i); }
-                        if (GUILayout.Button("Clear")) _promptSelected.Clear();
-                    }
-
-                    for (int i = 0; i < _prompts.Count; i++)
-                    {
-                        bool sel = _promptSelected.Contains(i);
-                        bool now = EditorGUILayout.ToggleLeft(
-                            new GUIContent($"P{i + 1} · {ShortTheme(_prompts[i])}", _prompts[i]), sel);
-                        if (now != sel) { if (now) _promptSelected.Add(i); else _promptSelected.Remove(i); }
-                    }
-
-                    int n = _promptSelected.Count * Mathf.Max(1, _imagesPerPrompt);
-                    using (new EditorGUI.DisabledScope(_promptSelected.Count == 0 || !YAKImageApiKey.HasKey))
-                        if (GUILayout.Button($"Generate Batch ({_promptSelected.Count} × {Mathf.Max(1, _imagesPerPrompt)} = {n})"))
-                            StartPromptRun();
-                }
-
-                // Per-image status for the current/last batch.
-                foreach (var key in _promptRunKeys)
-                {
-                    _status.TryGetValue(key, out var st);
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        GUILayout.Label(key, GUILayout.Width(320));
-                        GUILayout.FlexibleSpace();
-                        GUILayout.Label(st ?? "", GUILayout.Width(90));
-                    }
-                }
+                string fromAsset = YAKImageLibraryCore.ParseStylePrompt(_config.StylePromptAsset.text);
+                if (!string.IsNullOrEmpty(fromAsset)) return fromAsset;
             }
+            return _config.StylePreamble;
         }
 
-        private void ScanPrompts()
+        // Shows which art narrative is in force — designers must be able to see at a
+        // glance that edits to prompts.txt are actually the style being sent.
+        private void DrawStyleRow()
         {
-            _prompts.Clear(); _promptSelected.Clear(); _promptRunKeys.Clear();
-            if (_config.PromptsAsset == null) { _message = "Assign a Prompts text asset on the config."; return; }
-            _prompts.AddRange(YAKImageLibraryCore.ParsePrompts(_config.PromptsAsset.text));
-            for (int i = 0; i < _prompts.Count; i++) _promptSelected.Add(i); // default: all ticked
-            _message = $"{_prompts.Count} theme prompt(s). Set images-per-prompt and Generate Batch.";
+            bool fromAsset = _config.StylePromptAsset != null &&
+                             !string.IsNullOrEmpty(YAKImageLibraryCore.ParseStylePrompt(_config.StylePromptAsset.text));
+            string src = fromAsset ? _config.StylePromptAsset.name : "config Style Preamble (no style asset assigned)";
+            EditorGUILayout.LabelField("Art style", src, EditorStyles.miniLabel);
         }
 
         private void StopRun(string why)

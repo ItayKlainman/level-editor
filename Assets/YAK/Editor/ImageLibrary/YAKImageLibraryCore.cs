@@ -32,57 +32,41 @@ namespace Hoppa.YAK.Editor
             return Slug(trimmed, "idea") + "_" + Fnv1aHex(trimmed) + ".png";
         }
 
-        // One theme prompt per block, blocks separated by one or more blank lines
-        // (prompts are multi-sentence paragraphs). A leading enumerator ("1)", "2.",
-        // "-", "*") is stripped; '#' lines are comments. De-dupes case-insensitively
-        // preserving first-seen order.
-        public static List<string> ParsePrompts(string raw)
+        // The art-narrative asset: '#' lines are comments, the rest is one style
+        // paragraph (hard-wrapped lines are rejoined with spaces). Returns "" when the
+        // asset carries no style text, so callers fall back to DefaultStylePreamble.
+        public static string ParseStylePrompt(string raw)
         {
-            var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrEmpty(raw)) return result;
-
-            string norm = raw.Replace("\r\n", "\n").Replace('\r', '\n');
-            foreach (var block in norm.Split(new[] { "\n\n" }, StringSplitOptions.None))
+            if (string.IsNullOrEmpty(raw)) return string.Empty;
+            var lines = new List<string>();
+            foreach (var line in raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
             {
-                var lines = new List<string>();
-                foreach (var line in block.Split('\n'))
-                {
-                    var t = line.Trim();
-                    if (t.Length == 0 || t.StartsWith("#")) continue;
-                    lines.Add(t);
-                }
-                if (lines.Count == 0) continue;
-                string text = StripEnumerator(string.Join(" ", lines));
-                if (text.Length == 0) continue;
-                if (seen.Add(text)) result.Add(text);
+                var t = line.Trim();
+                if (t.Length == 0 || t.StartsWith("#")) continue;
+                lines.Add(t);
             }
-            return result;
+            return string.Join(" ", lines).Trim();
         }
 
-        // <themeSlug>_<hash8-of-token>.png. The theme names the group; the caller's
-        // per-image unique token keeps every generated image distinct so re-running a
-        // batch accumulates new levels rather than overwriting (each run's AI-picked
-        // subject differs). Deterministic for a given (theme, token).
-        public static string ThemeToFileName(string theme, string uniqueToken)
-        {
-            return Slug((theme ?? string.Empty).Trim(), "theme") + "_" + Fnv1aHex(uniqueToken ?? string.Empty) + ".png";
-        }
-
+        // The art narrative: a premium pixel-art COLLECTIBLE ICON, distilled from the
+        // brief's five reference prompts (subjects stripped — those live in ideas.txt).
+        // Fallback only: the editable source of truth is the config's style-prompt asset
+        // (Assets/YAK/SourceImages/prompts.txt). Two clauses are load-bearing for the
+        // image→grid converter — the outline ban (an outline smears into a thick dark
+        // ring when downscaled) and the single flat background.
         public const string DefaultStylePreamble =
-            "A single centered {idea}, flat bold cartoon illustration, big solid fill colors, " +
-            "thick clean chunky shapes, clear readable silhouette. Fill the ENTIRE background with " +
-            "one flat uniform solid color that clearly contrasts the subject and is not a color used " +
-            "in the subject — absolutely no gradient, no vignette, no glow, no radial lighting, no " +
-            "background texture. Do NOT draw ANY outline, border, stroke, drop shadow, or halo around " +
-            "the subject — no outline of any color; the subject is flat fills only. No shading, no " +
-            "text, no photorealism, no frame or border. When it suits the subject, give it a cute " +
-            "kawaii face — simple dot eyes and a clear expression matching a mood (sleepy, cheerful, " +
-            "proud, grumpy, mischievous) — and optionally one small simple prop for personality. Skip " +
-            "the face for subjects where it would look odd (buildings, scenery, plain geometric " +
-            "objects). For creatures, characters, and fantasy subjects a dynamic pose and a little " +
-            "extra detail are welcome; keep everyday objects clean and minimal. Keep everything bold " +
-            "and simple enough to read at low resolution.";
+            "A single centered {idea}, drawn as a premium pixel-art collectible icon. Chunky blocky " +
+            "pixel shapes, crisp hard edges, big flat solid fill colors, bold instantly recognizable " +
+            "silhouette — the kind of cute collectible icon you'd want a whole set of. Give it real " +
+            "personality: oversized expressive eyes, a clear readable emotion (cheerful, sleepy, " +
+            "surprised, grumpy, smug, mischievous), and a playful pose; charming, wholesome and funny. " +
+            "Skip the face only where it would look odd (plain geometric objects, scenery). Fill the " +
+            "ENTIRE background with one flat uniform solid color that clearly contrasts the subject and " +
+            "is not a color used in the subject — absolutely no gradient, no vignette, no glow, no " +
+            "radial lighting, no background texture. Do NOT draw ANY outline, border, stroke, drop " +
+            "shadow, or halo around the subject — no outline of any color; the subject is flat fills " +
+            "only. No anti-aliasing fringe, no shading or dithering, no text, no photorealism, no frame " +
+            "or border. Keep every shape bold, chunky and simple enough to read clearly at low resolution.";
 
         public static string BuildPrompt(string idea, IReadOnlyList<string> colorDescriptors, string stylePreamble)
         {
@@ -91,33 +75,6 @@ namespace Hoppa.YAK.Editor
             string body = preamble.Contains("{idea}")
                 ? preamble.Replace("{idea}", subject)
                 : preamble.TrimEnd() + " Subject: " + subject + ".";
-            if (colorDescriptors != null && colorDescriptors.Count > 0)
-                body += " Use only these flat solid colors: " + string.Join(", ", colorDescriptors) + ".";
-            return body;
-        }
-
-        // Convert-friendly wrapper for a THEME prompt: the model invents the subject,
-        // these rules keep it a clean single-subject, no-outline, solid-background image
-        // that the image→grid converter turns into a solvable level. {theme} is replaced
-        // with the theme text.
-        public const string DefaultThemeStylePreamble =
-            "A single centered subject, flat bold cartoon illustration, big solid fill colors, " +
-            "thick clean chunky shapes, clear readable silhouette. Fill the ENTIRE background with " +
-            "one flat uniform solid color that clearly contrasts the subject and is not a color used " +
-            "in the subject — absolutely no gradient, no vignette, no glow, no radial lighting, no " +
-            "background texture. Do NOT draw ANY outline, border, stroke, drop shadow, or halo around " +
-            "the subject — no outline of any color; the subject is flat fills only. No shading, no " +
-            "text, no photorealism, no frame or border. Exactly ONE subject, centered, filling most of " +
-            "the frame — not a busy scene. Keep everything bold and simple enough to read at low " +
-            "resolution. Theme: {theme}";
-
-        public static string BuildThemePrompt(string theme, IReadOnlyList<string> colorDescriptors, string themePreamble)
-        {
-            string preamble = string.IsNullOrEmpty(themePreamble) ? DefaultThemeStylePreamble : themePreamble;
-            string t = (theme ?? string.Empty).Trim();
-            string body = preamble.Contains("{theme}")
-                ? preamble.Replace("{theme}", t)
-                : preamble.TrimEnd() + " Theme: " + t + ".";
             if (colorDescriptors != null && colorDescriptors.Count > 0)
                 body += " Use only these flat solid colors: " + string.Join(", ", colorDescriptors) + ".";
             return body;
@@ -153,25 +110,6 @@ namespace Hoppa.YAK.Editor
             if (slug.Length == 0) slug = fallback;
             if (slug.Length > 40) slug = slug.Substring(0, 40).Trim('-');
             return slug;
-        }
-
-        // Drops a leading list enumerator: "1)", "2.", "-", "*" (with trailing space).
-        private static string StripEnumerator(string s)
-        {
-            string t = (s ?? string.Empty).TrimStart();
-            int i = 0;
-            if (i < t.Length && (t[i] == '-' || t[i] == '*'))
-            {
-                i++;
-            }
-            else
-            {
-                int d = i;
-                while (d < t.Length && t[d] >= '0' && t[d] <= '9') d++;
-                if (d > i && d < t.Length && (t[d] == '.' || t[d] == ')')) i = d + 1;
-                else i = 0;
-            }
-            return (i > 0 ? t.Substring(i) : t).TrimStart();
         }
 
         private static string Fnv1aHex(string s)

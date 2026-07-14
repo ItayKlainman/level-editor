@@ -36,3 +36,201 @@ a potted plant
 a pair of scissors
 a table lamp
 a rubber duck
+
+# Sea creatures
+a crab
+an octopus
+a starfish
+a seahorse
+a whale
+a pufferfish
+a jellyfish
+a shark
+a clownfish
+a lobster
+a seashell
+a squid
+a stingray
+
+# Vehicles
+a race car
+a rocket ship
+a hot air balloon
+a sailboat
+a steam train
+a bicycle
+a helicopter
+a school bus
+a submarine
+a tractor
+a kick scooter
+an airplane
+a fire truck
+
+# Nature & weather
+a smiling sun
+a rainbow
+a fluffy cloud
+a pine tree
+a red mushroom
+a snowflake
+a maple leaf
+a tulip
+a cactus
+a lightning bolt
+a crescent moon
+a sunflower
+an acorn
+
+# Emojis
+a red heart
+a yellow star
+a smiling face
+a thumbs up
+a flame
+a water droplet
+a party popper
+a crown
+a gift box
+a red balloon
+a ghost
+
+# Italian animals (brainrot hybrids — more complex silhouettes)
+a blue shark wearing sneakers
+a crocodile with airplane wings
+a monkey inside a banana
+a ballerina with a coffee-cup head
+a cappuccino cup with arms and legs
+a camel with a refrigerator body
+a cow with planet rings
+a giraffe with wings
+a goose with airplane wings
+an elephant wearing sandals
+a green watermelon crocodile
+a cat with a shrimp body
+a tree character with legs
+a frog sitting in a car tire
+a wooden baseball-bat character with a face
+
+# ── Boss brief ────────────────────────────────────────────────────────────────
+# Subjects for the pixel-art collectible set. The visual style is NOT here — it
+# lives in prompts.txt (the art narrative) and is applied to every idea below.
+
+# Boss brief — expressive animals (funny faces, big emotions)
+a grumpy cat with furrowed brows
+a sleepy sloth hugging a branch
+a surprised owl with huge round eyes
+a chubby hamster with cheeks stuffed full of sunflower seeds
+a shy baby deer with oversized ears and tiny antlers
+a playful otter floating while holding a seashell
+a proud rooster puffing out its colorful chest
+a happy baby seal clapping its flippers together
+a goofy camel sticking out its tongue with crossed eyes
+a confused bat hanging upside down with oversized ears
+a smug orange cat with a mischievous grin
+an energetic squirrel hugging a giant acorn
+a gentle baby elephant waving with its trunk
+a tiny duckling looking upward with sparkling eyes
+
+# Boss brief — everyday objects as living characters
+a smiling toaster with tiny arms
+a happy milk carton with a face
+a cheerful bar of soap with bubbles
+a sleepy pillow with a face
+a smiling coffee mug with sleepy eyes and steam shaped like tiny hearts
+a happy slice of toast wearing a tiny pat of butter like a hat
+a cheerful watering can with bright eyes and blooming flowers
+a laughing teapot pouring sparkling tea
+a cute backpack waving with tiny fabric arms
+a friendly lantern glowing with a warm smiling face
+a joyful alarm clock stretching after waking up
+a playful umbrella dancing in the rain
+a cozy candle with a tiny smiling flame
+a happy pencil giving a thumbs up
+a smiling paint palette covered in colorful paint blobs
+a cheerful watering hose making rainbow shaped water
+a tiny mailbox blushing while holding letters
+a cute treasure chest smiling with shiny gold coins inside
+a happy snow globe with a tiny smiling snowman
+a playful compass pointing proudly north
+a friendly telescope looking at the stars with sparkling eyes
+a smiling camera with a flashing wink
+a happy picnic basket full of smiling fruits
+a joyful book with tiny glasses and an excited expression
+
+# Boss brief — whimsical hybrids (two unrelated things, one design)
+a hedgehog made of a pineapple
+a cat with a cupcake body
+a snail with a teapot shell
+an octopus with donut tentacles
+a turtle with a watermelon shell
+a fox whose fluffy tail is made of autumn leaves
+a whale shaped like a fluffy cloud
+a strawberry mouse with leafy ears
+a pineapple hedgehog covered with tropical spikes
+a mushroom turtle with a giant mushroom shell
+a bee shaped like a lemon slice
+a cherry crab with cherry claws
+an avocado penguin with a giant seed belly
+a cactus hedgehog with tiny flowers
+a snail carrying a cinnamon roll as its shell
+a koi fish with butterfly wings
+a dragon made from fluffy cotton candy
+a kiwi bird whose body is a kiwi fruit
+a bunny with giant tulip ears
+a lobster shaped like a red chili pepper
+a jellyfish made of blueberries
+a squirrel with a croissant tail
+a panda wrapped inside bamboo leaves like sushi
+a frog wearing a giant sunflower as its umbrella
+
+# Boss brief — tiny fantasy creatures (cozy magical world)
+a tiny round dragon with stubby wings
+a cute ghost holding a candle
+a mushroom forest spirit with leaf arms
+a baby phoenix chick with flame feathers
+a tiny forest dragon sleeping on a glowing mushroom
+a smiling baby phoenix with tiny flames on its wings
+a fluffy cloud spirit hugging a rainbow
+a sleepy moon fairy hugging a crescent moon
+a tiny slime wearing a wizard hat
+a baby griffin with oversized fluffy wings
+a tiny mushroom elf carrying a glowing lantern
+a cheerful ghost wrapped in a cozy scarf
+a crystal golem with sparkling gemstone eyes
+a tiny unicorn eating colorful flowers
+a baby sea serpent playing with bubbles
+a miniature forest troll holding an acorn
+a tiny wizard owl carrying a magical spellbook
+a glowing firefly fairy sitting on a leaf
+a baby dragon curled around a golden egg
+a fluffy moon rabbit sleeping on a cloud
+a magical fox with glowing crystal tails
+a smiling tree spirit with leafy hair
+a tiny lava monster roasting marshmallows
+a baby cyclops wearing a flower crown
+
+# Boss brief — funny miniature characters (meme energy, silly costumes)
+a pug wearing a dinosaur hoodie
+a potato character in a superhero cape
+a frog wearing a party hat
+a pig dressed as a cowboy riding a tiny cactus
+a duck wearing oversized sunglasses and looking cool
+a crab lifting tiny dumbbells with a determined face
+a cat wearing a business suit while holding a tiny briefcase
+a hamster pretending to be a fierce lion with a fluffy mane
+a chicken wearing knight armor that is far too big
+a sleepy shark wrapped inside a cozy blanket
+a panda wearing bunny ears and looking embarrassed
+a frog pretending to be a superhero with a flowing cape
+a cow wearing roller skates and trying to balance
+a bear holding an ice cream bigger than itself
+a turtle wearing a racing helmet and looking incredibly serious
+a penguin carrying an oversized backpack for an adventure
+a fox pretending to be a pirate with a tiny eye patch
+a corgi dressed as a king with a golden crown
+a raccoon wearing a detective hat with a giant magnifying glass
+a sheep wearing boxing gloves and looking confident
+a duck chef proudly presenting a giant pancake
+a mouse dressed as a samurai holding an oversized wooden sword
+a sleepy sloth wearing pajamas while carrying a cup of coffee
