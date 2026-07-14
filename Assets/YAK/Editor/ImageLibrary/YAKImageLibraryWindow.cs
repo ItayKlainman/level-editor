@@ -71,12 +71,23 @@ namespace Hoppa.YAK.Editor
             {
                 if (GUILayout.Button("Scan Ideas")) ScanGaps();
                 if (_ideas.Count > 0)
+                {
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         if (GUILayout.Button($"Select Missing ({_missing.Count})")) SelectOnly(_missing);
                         if (GUILayout.Button($"Select All ({_ideas.Count})"))        SelectOnly(_ideas);
                         if (GUILayout.Button("Clear"))                               _selected.Clear();
                     }
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button(new GUIContent("Sample 2 per prompt",
+                                "Tick the first 2 ideas of every prompt section — a cheap 10-image check that exercises all five prompts")))
+                            SelectSamplePerPrompt(2);
+                        if (GUILayout.Button(new GUIContent("Select all tagged",
+                                "Tick every idea that belongs to a prompt section (the full boss-brief batch)")))
+                            SelectSamplePerPrompt(int.MaxValue);
+                    }
+                }
                 using (new EditorGUI.DisabledScope(_selected.Count == 0 || !YAKImageApiKey.HasKey))
                     if (GUILayout.Button($"Generate Selected ({_selected.Count})")) StartRun();
             }
@@ -110,26 +121,70 @@ namespace Hoppa.YAK.Editor
             foreach (var idea in ideas) _selected.Add(idea);
         }
 
+        // Each row shows the prompt that generates it, and a header opens every new
+        // section — without it there is no way to tell which prompt owns an idea, and
+        // picking a spread across prompts becomes guesswork.
         private void DrawStatusList()
         {
-            if (_ideas.Count == 0) return;
+            if (_entries.Count == 0) return;
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             using (new EditorGUI.DisabledScope(_running))
             {
-                foreach (var idea in _ideas)
+                string section = null;
+                foreach (var e in _entries)
                 {
-                    _status.TryGetValue(idea, out var st);
+                    string key = string.IsNullOrEmpty(e.StyleKey) ? "default" : e.StyleKey;
+                    if (key != section)
+                    {
+                        section = key;
+                        GUILayout.Space(4f);
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            GUILayout.Label($"[{key}]", EditorStyles.boldLabel, GUILayout.Width(120));
+                            if (GUILayout.Button("select section", EditorStyles.miniButton, GUILayout.Width(100)))
+                                SelectSection(key);
+                        }
+                    }
+
+                    _status.TryGetValue(e.Idea, out var st);
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        bool sel = _selected.Contains(idea);
-                        bool now = EditorGUILayout.ToggleLeft(idea, sel, GUILayout.Width(320));
-                        if (now != sel) { if (now) _selected.Add(idea); else _selected.Remove(idea); }
+                        bool sel = _selected.Contains(e.Idea);
+                        bool now = EditorGUILayout.ToggleLeft(e.Idea, sel, GUILayout.Width(320));
+                        if (now != sel) { if (now) _selected.Add(e.Idea); else _selected.Remove(e.Idea); }
+                        GUILayout.Label(key, EditorStyles.miniLabel, GUILayout.Width(70));
                         GUILayout.FlexibleSpace();
                         GUILayout.Label(st ?? "", GUILayout.Width(90));
                     }
                 }
             }
             EditorGUILayout.EndScrollView();
+        }
+
+        private void SelectSection(string key)
+        {
+            _selected.Clear();
+            foreach (var e in _entries)
+                if (string.Equals(string.IsNullOrEmpty(e.StyleKey) ? "default" : e.StyleKey, key,
+                        StringComparison.OrdinalIgnoreCase))
+                    _selected.Add(e.Idea);
+        }
+
+        // Ticks N ideas from every tagged prompt section — the way to sanity-check all
+        // five prompts on a small paid run instead of hammering whichever section
+        // happens to sit at the end of the file.
+        private void SelectSamplePerPrompt(int perPrompt)
+        {
+            _selected.Clear();
+            var taken = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var e in _entries)
+            {
+                if (string.IsNullOrEmpty(e.StyleKey)) continue;   // untagged/legacy ideas aren't part of the brief
+                taken.TryGetValue(e.StyleKey, out int n);
+                if (n >= perPrompt) continue;
+                taken[e.StyleKey] = n + 1;
+                _selected.Add(e.Idea);
+            }
         }
 
         private List<string> WoolColorDescriptors()
