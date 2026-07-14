@@ -6,6 +6,49 @@
 
 ---
 
+## 🔴 ACTIVE CONSTRAINT (2026-07-14) — 30 playable levels by ~2026-07-19
+
+**The team needs at least 30 playable levels by the end of this week.** The lead has **PARKED the
+image→grid automation work** — designers are converting the generated images and **fixing them by
+hand**. His words: *"trying to do things automatically will have a limit."*
+
+**Judge any new work by: does this get a designer to 30 playable levels faster?** Friction-removal for
+designers is in scope; chasing full automation is not. Do not reopen the parked items unasked.
+
+### The one open thread — BB game compile-check + push
+
+- editor-core: **`master` `68f2e30`, tag `v0.9.0`**, pushed, 413/413 EditMode green.
+- BB game (`E:/Projects/Hoppa/BusBuddies`, `main`): commit **`d654732` — COMMITTED, NOT PUSHED**
+  (manifest re-pinned `#v0.9.0` + Layer-2 mirror re-synced).
+- **Why held:** v0.9.0 is BREAKING — `IImageToGrid.Convert` now takes width/height and
+  `ImageToGridAsset.Convert` is abstract, so a stale mirror won't compile. A bad push breaks `main`
+  for the designers mid-deadline. The agent **cannot compile-verify BB** (Unity is bound to editor-core).
+- **Lead step:** open BB in Unity → confirm compile → push `d654732`.
+- A designer's in-progress `BusBuddiesImageToGrid.asset` edit (dark-blue→black remap) is deliberately
+  left uncommitted.
+
+### Shipped 2026-07-14 (all on `master`, pushed)
+
+1. **BB auto-fill can no longer emit an unsolvable level** — `BusBuddiesConstructiveArranger` derives the
+   bus queue from a simulated border-inward peel and verifies by exact replay. (The old dig-search had no
+   real solvability gate above 64 cells; the lead's cupcake had its black outline buried 6 buses deep.)
+2. **Bus queue draws HEAD at the top**, matching in-game pull order (display-only; data was never reversed).
+3. **Grid-size selector** in the Image→Grid tab (the breaking change behind v0.9.0).
+4. **Pixel-art prompt system** — 5 prompts × 20 ideas bound by `# @style:` tags.
+   Spec: `docs/superpowers/specs/2026-07-14-yak-multi-prompt-image-generation.md`.
+
+### PARKED — do not reopen without the lead asking
+
+- **The dark outline.** Every generated image still has one. Three escalating rounds of "NO outline" in
+  the prompt failed — the pixel-art convention beats the instruction. **The fix belongs in the converter**
+  (absorb the dark border ring), not in more prompting.
+- **90 of the 100 boss-brief images** are ungenerated ("Select all tagged" runs the rest, ~$6).
+- **End-to-end was never verified** — we only ever judged the source PNGs; nobody converted at 40×40 and
+  played the result. If automation resumes, start there.
+- `1024 ÷ 40 = 25.6` is not a clean divisor — if smearing reappears at 40×40, that is why (32 is exact).
+
+---
+
 ## ★ ACTIVE INITIATIVE — Bus Buddies (Food Hunt clone) — as of 2026-06-29
 
 A new game authored through this editor: a re-theme of the live game **Food Hunt**, ~100%
