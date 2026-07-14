@@ -163,5 +163,56 @@ namespace Hoppa.BusBuddies.Editor.Tests
 
         private static string Serialize(BusQueueData q)
             => Newtonsoft.Json.Linq.JObject.FromObject(q).ToString(Newtonsoft.Json.Formatting.None);
+
+        // A dithered filled picture (like real image output): a big "blue" body with
+        // several SCATTERED interior colors, each an isolated singleton surrounded by
+        // blue so it only becomes reachable deep into the peel. This is the whale case
+        // the designer hit: a naive "pull any color that has one accessible cell" greedy
+        // grabs all the scattered-color buses at once, clogs the 5 Active slots with
+        // half-empty buses, starves the peeling color, and stalls -> falls back to an
+        // unsolvable queue. The level IS solvable (peel all blue first, then the interior),
+        // so the arranger must find it.
+        private static GridData<ICellData> DitheredGrid(out Dictionary<string, int> perColor)
+        {
+            const int W = 18, H = 18;
+            var g = new GridData<ICellData>(W, H);
+            for (int y = 1; y <= 16; y++)
+            for (int x = 1; x <= 16; x++)
+                g.Set(x, y, new BBPixelCell { ColorId = "blue" });
+
+            string[] interior = { "ocean", "sky", "turq", "magenta", "gold" };
+            int k = 0;
+            for (int y = 4; y <= 13; y += 3)
+            for (int x = 4; x <= 13; x += 3)
+                g.Set(x, y, new BBPixelCell { ColorId = interior[k++ % interior.Length] });
+
+            perColor = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var cell in g.Cells)
+                if (cell is IColoredCell c && !string.IsNullOrEmpty(c.ColorId))
+                { perColor.TryGetValue(c.ColorId, out var n); perColor[c.ColorId] = n + 1; }
+            return g;
+        }
+
+        [Test]
+        public void Arrange_DitheredFilledPicture_StaysSolvable_AllSeeds()
+        {
+            var g = DitheredGrid(out var perColor);
+            // Big buses (cap 20) — the whale used caps of 20-25, which is what makes a
+            // scattered-color bus linger half-empty and clog the Active Row.
+            var baseBuses = new List<BusEntry>();
+            foreach (var kv in perColor)
+            {
+                int rem = kv.Value;
+                while (rem > 0) { int cap = Math.Min(20, rem); baseBuses.Add(new BusEntry { ColorId = kv.Key, Capacity = cap }); rem -= cap; }
+            }
+            var main = new HashSet<string>(perColor.Keys, StringComparer.Ordinal); // all "main", difficulty maxed = worst case
+
+            for (int seed = 1; seed <= 25; seed++)
+            {
+                var res = BusBuddiesConstructiveArranger.Arrange(
+                    g, baseBuses, columns: 3, activeSlots: 5, difficulty: 5, mainColors: main, rng: new System.Random(seed));
+                Assert.IsTrue(res.Solvable, $"seed {seed}: dithered filled picture must arrange solvable (scattered-color clog)");
+            }
+        }
     }
 }
