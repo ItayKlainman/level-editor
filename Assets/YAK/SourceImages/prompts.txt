@@ -1,30 +1,64 @@
-# YAK ART NARRATIVE — the shared visual style for every generated level image.
+# YAK ART PROMPTS — the five style prompts, one per idea category.
 #
-# This is the STYLE, not the subject. The subject comes from ideas.txt; "{idea}"
-# below is replaced with it at generation time. Editing this file changes the look
-# of every image — that is the point: the set should read as one collectible icon
-# family.
+# Each [block] below is one prompt. An ideas.txt section binds to a block by name
+# with a "# @style: <name>" tag, so every idea in that section is generated with
+# that prompt. "{idea}" is replaced with the idea text.
 #
-# Distilled from the 5 reference prompts: cute, premium PIXEL ART COLLECTIBLE ICON —
-# oversized eyes, big readable emotion, playful personality, chunky silhouette,
-# wholesome and funny.
-#
-# Two rules are load-bearing for the image→grid converter and must not be removed:
+# [rules] is special: it is appended to EVERY prompt. It carries the technical
+# constraints the image→grid converter depends on. Two of them are load-bearing —
+# do not remove them:
 #   1. NO outline / stroke / drop shadow — an outline smears into a thick dark ring
-#      when downscaled to the level grid.
+#      when the image is downscaled to the level grid (this is what wrecked the shark).
 #   2. ONE flat solid background color, contrasting, no gradient or texture.
+#
+# [default] is used by any idea that sits outside a tagged section.
 # '#' lines are comments and are ignored.
 
-A single centered {idea}, drawn as a premium pixel-art collectible icon. Chunky
-blocky pixel shapes, crisp hard edges, big flat solid fill colors, bold instantly
-recognizable silhouette — the kind of cute collectible icon you'd want a whole set
-of. Give it real personality: oversized expressive eyes, a clear readable emotion
-(cheerful, sleepy, surprised, grumpy, smug, mischievous), and a playful pose;
-charming, wholesome and funny. Skip the face only where it would look odd (plain
-geometric objects, scenery). Fill the ENTIRE background with one flat uniform solid
-color that clearly contrasts the subject and is not a color used in the subject —
-absolutely no gradient, no vignette, no glow, no radial lighting, no background
-texture. Do NOT draw ANY outline, border, stroke, drop shadow, or halo around the
-subject — no outline of any color; the subject is flat fills only. No anti-aliasing
-fringe, no shading or dithering, no text, no photorealism, no frame or border. Keep
-every shape bold, chunky and simple enough to read clearly at low resolution.
+[rules]
+Fill the ENTIRE background with one flat uniform solid color that clearly contrasts
+the subject and is not a color used in the subject — absolutely no gradient, no
+vignette, no glow, no radial lighting, no background texture. Do NOT draw ANY
+outline, border, stroke, drop shadow, or halo around the subject — no outline of any
+color; the subject is flat fills only. No anti-aliasing fringe, no shading or
+dithering, no text, no photorealism, no frame or border. Exactly ONE subject,
+centered, filling most of the frame. Keep every shape bold, chunky and simple enough
+to read clearly at low resolution.
+
+[animals]
+A single centered {idea} — a cute animal with a funny facial expression, oversized
+eyes, tiny mouth, chubby proportions, a playful pose and a big clear emotion (smiling,
+surprised, sleepy, grumpy). Wholesome and adorable, an instantly recognizable
+silhouette, drawn as a premium pixel-art collectible icon: chunky blocky pixel shapes,
+crisp hard edges, big flat solid fill colors.
+
+[objects]
+A single centered {idea} — an everyday object turned into an adorable living
+character: a cute face, tiny eyes, a happy expression and a playful personality.
+Charming, wholesome and funny, drawn as a premium pixel-art collectible icon: chunky
+blocky pixel shapes, crisp hard edges, big flat solid fill colors.
+
+[hybrids]
+A single centered {idea} — a whimsical hybrid creature combining two unrelated things
+into one adorable design. Funny, unexpected and charming, with a clear readable
+silhouette, drawn as a highly collectible pixel-art icon: chunky blocky pixel shapes,
+crisp hard edges, big flat solid fill colors.
+
+[fantasy]
+A single centered {idea} — a tiny fantasy creature from a cozy magical world, with an
+adorable expression and a playful personality. Magical and charming, drawn as a
+premium pixel-art collectible icon: chunky blocky pixel shapes, crisp hard edges, big
+flat solid fill colors.
+
+[funny]
+A single centered {idea} — a funny miniature character with exaggerated emotion, a
+silly costume or an unexpected situation. Cute internet-meme energy, the kind of
+playful collectible that makes people smile instantly, drawn as a pixel-art
+collectible icon: chunky blocky pixel shapes, crisp hard edges, big flat solid fill
+colors.
+
+[default]
+A single centered {idea}, drawn as a premium pixel-art collectible icon. Chunky blocky
+pixel shapes, crisp hard edges, big flat solid fill colors, bold instantly
+recognizable silhouette. Give it real personality: oversized expressive eyes, a clear
+readable emotion, a playful pose; charming, wholesome and funny. Skip the face only
+where it would look odd (plain geometric objects, scenery).

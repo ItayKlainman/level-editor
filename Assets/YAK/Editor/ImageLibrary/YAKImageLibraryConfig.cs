@@ -12,8 +12,8 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Plain-text asset, one level idea per line. '#' lines are comments.")]
         public TextAsset IdeasAsset;
 
-        [Header("Art narrative")]
-        [Tooltip("Plain-text asset holding the shared visual style applied to EVERY image (typically prompts.txt). '{idea}' is replaced with the idea. '#' lines are comments. Overrides Style Preamble below when assigned.")]
+        [Header("Prompts")]
+        [Tooltip("Plain-text asset holding the style prompts (typically prompts.txt). '[name]' opens a block; an ideas.txt section binds to one with '# @style: name'. '[rules]' is appended to every prompt; '[default]' covers untagged ideas. '{idea}' is replaced with the idea. Overrides Style Preamble below when assigned.")]
         public TextAsset StylePromptAsset;
 
         [Header("Palette source")]

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Hoppa.LevelEditor.Core.Editor;
@@ -23,6 +24,7 @@ namespace Hoppa.YAK.Editor
         private string _keyEntry = "";
         private Vector2 _scroll;
         private readonly List<string> _ideas = new List<string>();
+        private readonly List<YAKImageLibraryCore.IdeaEntry> _entries = new List<YAKImageLibraryCore.IdeaEntry>(); // idea -> its prompt section
         private readonly List<string> _missing = new List<string>();
         private readonly HashSet<string> _selected = new HashSet<string>();                      // ideas chosen to generate
         private readonly Dictionary<string, string> _status = new Dictionary<string, string>(); // statusKey -> status text
@@ -150,10 +152,11 @@ namespace Hoppa.YAK.Editor
         private void ScanGaps()
         {
             _message = null;
-            _status.Clear(); _ideas.Clear(); _missing.Clear();
+            _status.Clear(); _ideas.Clear(); _entries.Clear(); _missing.Clear();
             if (_config.IdeasAsset == null) { _message = "Assign an Ideas text asset."; return; }
 
-            _ideas.AddRange(YAKImageLibraryCore.ParseIdeas(_config.IdeasAsset.text));
+            _entries.AddRange(YAKImageLibraryCore.ParseIdeaEntries(_config.IdeasAsset.text));
+            foreach (var e in _entries) _ideas.Add(e.Idea);
             var existing = Directory.Exists(_config.OutputFolder)
                 ? Directory.GetFiles(_config.OutputFolder, "*.png")
                 : new string[0];
@@ -165,20 +168,24 @@ namespace Hoppa.YAK.Editor
         }
 
         // One job per ticked idea, in idea-file order (deterministic), regardless of tick
-        // order. Every job carries the same art narrative — the set reads as one family.
+        // order. Each idea is built with ITS SECTION's prompt — the five prompts split
+        // the idea set — plus the shared [rules] the converter depends on.
         private void StartRun()
         {
             var jobs = new List<GenJob>();
             var colors = WoolColorDescriptors();
-            string style = ResolveStylePreamble();
-            foreach (var idea in _ideas)
-                if (_selected.Contains(idea))
-                    jobs.Add(new GenJob
-                    {
-                        Prompt    = YAKImageLibraryCore.BuildPrompt(idea, colors, style),
-                        FileName  = YAKImageLibraryCore.IdeaToFileName(idea),
-                        StatusKey = idea,
-                    });
+            var blocks = StyleBlocks();
+            foreach (var e in _entries)
+            {
+                if (!_selected.Contains(e.Idea)) continue;
+                string style = YAKImageLibraryCore.ResolveStyle(blocks, e.StyleKey, _config.StylePreamble);
+                jobs.Add(new GenJob
+                {
+                    Prompt    = YAKImageLibraryCore.BuildPrompt(e.Idea, colors, style),
+                    FileName  = YAKImageLibraryCore.IdeaToFileName(e.Idea),
+                    StatusKey = e.Idea,
+                });
+            }
             if (jobs.Count > 0) BeginRun(jobs);
         }
 
@@ -204,27 +211,46 @@ namespace Hoppa.YAK.Editor
             EditorApplication.update += Pump;
         }
 
-        // The shared art narrative applied to every image: the style-prompt asset when
-        // assigned (the designer-editable source of truth), else the config string, else
-        // the built-in default.
-        private string ResolveStylePreamble()
+        // The five prompts, by name, from the style-prompt asset. Empty when no asset is
+        // assigned — every idea then falls back to the config's Style Preamble.
+        private Dictionary<string, string> StyleBlocks()
         {
-            if (_config.StylePromptAsset != null)
-            {
-                string fromAsset = YAKImageLibraryCore.ParseStylePrompt(_config.StylePromptAsset.text);
-                if (!string.IsNullOrEmpty(fromAsset)) return fromAsset;
-            }
-            return _config.StylePreamble;
+            return _config.StylePromptAsset != null
+                ? YAKImageLibraryCore.ParseStyleBlocks(_config.StylePromptAsset.text)
+                : new Dictionary<string, string>();
         }
 
-        // Shows which art narrative is in force — designers must be able to see at a
-        // glance that edits to prompts.txt are actually the style being sent.
+        // Shows which prompt each idea section is bound to, and flags any section whose
+        // tag names a block that doesn't exist — otherwise a typo'd tag would silently
+        // generate 20 images with the wrong prompt.
         private void DrawStyleRow()
         {
-            bool fromAsset = _config.StylePromptAsset != null &&
-                             !string.IsNullOrEmpty(YAKImageLibraryCore.ParseStylePrompt(_config.StylePromptAsset.text));
-            string src = fromAsset ? _config.StylePromptAsset.name : "config Style Preamble (no style asset assigned)";
-            EditorGUILayout.LabelField("Art style", src, EditorStyles.miniLabel);
+            if (_ideas.Count == 0) return;
+            var blocks = StyleBlocks();
+            if (blocks.Count == 0)
+            {
+                EditorGUILayout.LabelField("Prompts", "none — using the config Style Preamble for every idea",
+                    EditorStyles.miniLabel);
+                return;
+            }
+
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var e in _entries)
+            {
+                string key = string.IsNullOrEmpty(e.StyleKey) ? "default" : e.StyleKey;
+                counts.TryGetValue(key, out int c);
+                counts[key] = c + 1;
+            }
+
+            foreach (var kv in counts)
+            {
+                bool known = blocks.ContainsKey(kv.Key) ||
+                             (kv.Key == "default" && blocks.ContainsKey("default"));
+                string label = known
+                    ? $"[{kv.Key}] → {kv.Value} idea(s)"
+                    : $"[{kv.Key}] → {kv.Value} idea(s)  ⚠ no such prompt — falls back to [default]";
+                EditorGUILayout.LabelField(known ? "Prompt" : "Prompt ⚠", label, EditorStyles.miniLabel);
+            }
         }
 
         private void StopRun(string why)
@@ -304,7 +330,7 @@ namespace Hoppa.YAK.Editor
             if (retryable && _retries < MaxRetriesPerIdea)
             {
                 _retries++;
-                _nextAttemptAt = EditorApplication.timeSinceStartup + Mathf.Pow(2, _retries) + Random.value;
+                _nextAttemptAt = EditorApplication.timeSinceStartup + Mathf.Pow(2, _retries) + UnityEngine.Random.value;
                 _status[_current.StatusKey] = $"retry {_retries} ({_req.responseCode})…";
                 _req.Dispose(); _req = null;
                 return;

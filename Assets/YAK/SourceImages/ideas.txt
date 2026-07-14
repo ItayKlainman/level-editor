@@ -112,11 +112,13 @@ a tree character with legs
 a frog sitting in a car tire
 a wooden baseball-bat character with a face
 
-# ── Boss brief ────────────────────────────────────────────────────────────────
-# Subjects for the pixel-art collectible set. The visual style is NOT here — it
-# lives in prompts.txt (the art narrative) and is applied to every idea below.
+# ══ Boss brief — 5 categories × 20 ideas = 100 levels ═════════════════════════
+# Each section binds to a prompt in prompts.txt via its "# @style:" tag. Every
+# idea in a section is generated with that section's prompt. Keep the sections at
+# 20 each so the five prompts stay evenly weighted.
 
-# Boss brief — expressive animals (funny faces, big emotions)
+# @style: animals
+# Expressive animals — funny faces, big emotions
 a grumpy cat with furrowed brows
 a sleepy sloth hugging a branch
 a surprised owl with huge round eyes
@@ -131,12 +133,15 @@ a smug orange cat with a mischievous grin
 an energetic squirrel hugging a giant acorn
 a gentle baby elephant waving with its trunk
 a tiny duckling looking upward with sparkling eyes
+a cheerful frog with big round cheeks
+a sleepy koala clinging to a branch
+a startled hedgehog with all its spikes up
+a proud peacock fanning its tail
+a giggling piglet rolling on its back
+a wide-eyed baby fox with oversized ears
 
-# Boss brief — everyday objects as living characters
-a smiling toaster with tiny arms
-a happy milk carton with a face
-a cheerful bar of soap with bubbles
-a sleepy pillow with a face
+# @style: objects
+# Everyday objects turned into living characters
 a smiling coffee mug with sleepy eyes and steam shaped like tiny hearts
 a happy slice of toast wearing a tiny pat of butter like a hat
 a cheerful watering can with bright eyes and blooming flowers
@@ -158,11 +163,8 @@ a smiling camera with a flashing wink
 a happy picnic basket full of smiling fruits
 a joyful book with tiny glasses and an excited expression
 
-# Boss brief — whimsical hybrids (two unrelated things, one design)
-a hedgehog made of a pineapple
-a cat with a cupcake body
-a snail with a teapot shell
-an octopus with donut tentacles
+# @style: hybrids
+# Whimsical hybrids — two unrelated things, one design
 a turtle with a watermelon shell
 a fox whose fluffy tail is made of autumn leaves
 a whale shaped like a fluffy cloud
@@ -184,11 +186,8 @@ a squirrel with a croissant tail
 a panda wrapped inside bamboo leaves like sushi
 a frog wearing a giant sunflower as its umbrella
 
-# Boss brief — tiny fantasy creatures (cozy magical world)
-a tiny round dragon with stubby wings
-a cute ghost holding a candle
-a mushroom forest spirit with leaf arms
-a baby phoenix chick with flame feathers
+# @style: fantasy
+# Tiny fantasy creatures — cozy magical world
 a tiny forest dragon sleeping on a glowing mushroom
 a smiling baby phoenix with tiny flames on its wings
 a fluffy cloud spirit hugging a rainbow
@@ -210,10 +209,8 @@ a smiling tree spirit with leafy hair
 a tiny lava monster roasting marshmallows
 a baby cyclops wearing a flower crown
 
-# Boss brief — funny miniature characters (meme energy, silly costumes)
-a pug wearing a dinosaur hoodie
-a potato character in a superhero cape
-a frog wearing a party hat
+# @style: funny
+# Funny miniature characters — meme energy, silly costumes
 a pig dressed as a cowboy riding a tiny cactus
 a duck wearing oversized sunglasses and looking cool
 a crab lifting tiny dumbbells with a determined face

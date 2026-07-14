@@ -9,20 +9,102 @@ namespace Hoppa.YAK.Editor
     // disk, no EditorPrefs — everything here is unit-tested. The window/client do I/O.
     public static class YAKImageLibraryCore
     {
+        // An idea plus the style block that generates it. StyleKey is "" for ideas that
+        // sit outside any "# @style: <key>" section (they fall back to [default]).
+        public struct IdeaEntry
+        {
+            public string Idea;
+            public string StyleKey;
+        }
+
+        public const string StyleTagPrefix = "# @style:";
+
         // One idea per line; trims; skips blank + '#' comment lines; de-dupes
         // case-insensitively preserving first-seen order.
         public static List<string> ParseIdeas(string raw)
         {
             var result = new List<string>();
+            foreach (var e in ParseIdeaEntries(raw)) result.Add(e.Idea);
+            return result;
+        }
+
+        // As ParseIdeas, but each idea also carries the style key of the section it is
+        // in. A "# @style: hybrids" comment opens a section; it applies to every idea
+        // below it until the next tag. This is how the five prompts split the idea set.
+        public static List<IdeaEntry> ParseIdeaEntries(string raw)
+        {
+            var result = new List<IdeaEntry>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrEmpty(raw)) return result;
+
+            string styleKey = string.Empty;
+            foreach (var line in raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            {
+                var t = line.Trim();
+                if (t.Length == 0) continue;
+                if (t.StartsWith("#"))
+                {
+                    if (t.StartsWith(StyleTagPrefix, StringComparison.OrdinalIgnoreCase))
+                        styleKey = t.Substring(StyleTagPrefix.Length).Trim();
+                    continue;   // all other '#' lines are plain comments
+                }
+                if (seen.Add(t)) result.Add(new IdeaEntry { Idea = t, StyleKey = styleKey });
+            }
+            return result;
+        }
+
+        // The prompts asset: "[name]" opens a block, its lines are rejoined into one
+        // paragraph. '#' lines are comments. Two block names are special — "rules" is
+        // appended to every prompt, "default" is used by untagged ideas. Later blocks
+        // with the same name win.
+        public static Dictionary<string, string> ParseStyleBlocks(string raw)
+        {
+            var blocks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(raw)) return blocks;
+
+            string name = null;
+            var lines = new List<string>();
+            void Flush()
+            {
+                if (name == null) return;
+                string text = string.Join(" ", lines).Trim();
+                if (text.Length > 0) blocks[name] = text;
+                lines.Clear();
+            }
+
             foreach (var line in raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
             {
                 var t = line.Trim();
                 if (t.Length == 0 || t.StartsWith("#")) continue;
-                if (seen.Add(t)) result.Add(t);
+                if (t.StartsWith("[") && t.EndsWith("]") && t.Length > 2)
+                {
+                    Flush();
+                    name = t.Substring(1, t.Length - 2).Trim();
+                    continue;
+                }
+                if (name != null) lines.Add(t);
             }
-            return result;
+            Flush();
+            return blocks;
+        }
+
+        // The full style for one idea: its section's block (or [default], or the
+        // caller's fallback), with the shared [rules] appended. Returns null when the
+        // asset yields nothing usable, so the caller can fall back to its own preamble.
+        public static string ResolveStyle(Dictionary<string, string> blocks, string styleKey, string fallback)
+        {
+            string style = null;
+            if (blocks != null)
+            {
+                if (!string.IsNullOrEmpty(styleKey)) blocks.TryGetValue(styleKey, out style);
+                if (string.IsNullOrEmpty(style)) blocks.TryGetValue("default", out style);
+            }
+            if (string.IsNullOrEmpty(style)) style = fallback;
+            if (string.IsNullOrEmpty(style)) return null;
+
+            if (blocks != null && blocks.TryGetValue("rules", out var rules) && !string.IsNullOrEmpty(rules))
+                style = style.TrimEnd() + " " + rules;
+            return style;
         }
 
         // <slug>_<hash8>.png — deterministic and collision-free across distinct ideas.
@@ -32,21 +114,6 @@ namespace Hoppa.YAK.Editor
             return Slug(trimmed, "idea") + "_" + Fnv1aHex(trimmed) + ".png";
         }
 
-        // The art-narrative asset: '#' lines are comments, the rest is one style
-        // paragraph (hard-wrapped lines are rejoined with spaces). Returns "" when the
-        // asset carries no style text, so callers fall back to DefaultStylePreamble.
-        public static string ParseStylePrompt(string raw)
-        {
-            if (string.IsNullOrEmpty(raw)) return string.Empty;
-            var lines = new List<string>();
-            foreach (var line in raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
-            {
-                var t = line.Trim();
-                if (t.Length == 0 || t.StartsWith("#")) continue;
-                lines.Add(t);
-            }
-            return string.Join(" ", lines).Trim();
-        }
 
         // The art narrative: a premium pixel-art COLLECTIBLE ICON, distilled from the
         // brief's five reference prompts (subjects stripped — those live in ideas.txt).
