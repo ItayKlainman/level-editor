@@ -136,6 +136,7 @@ namespace Hoppa.BusBuddies.Editor
                 ["Height"] = grid.Height,
                 ["BusColumnConfigs"] = BuildBusColumnConfigs(document.TopSection),
                 ["PixelColors"] = BuildPixelColors(grid),
+                ["HiddenPixels"] = BuildHiddenPixels(grid),
             };
 
             Directory.CreateDirectory(dir);
@@ -175,6 +176,22 @@ namespace Hoppa.BusBuddies.Editor
                 columns.Add(new JObject { ["BusConfigs"] = busConfigs });
             }
             return columns;
+        }
+
+        // Sparse hidden-pixel indices. MIRRORS the game's BUBPixelService, which tests
+        // HiddenPixels membership against `position = x * width + y` — DELIBERATELY the
+        // transpose of PixelColors' `y * width + x`. BB grids are square, so a hidden cell
+        // at (x,y) maps to x*Width+y and the game conceals exactly that cell.
+        public static JArray BuildHiddenPixels(GridData<ICellData> grid)
+        {
+            var array = new JArray();
+            for (int y = 0; y < grid.Height; y++)
+            for (int x = 0; x < grid.Width;  x++)
+            {
+                if (grid.Get(x, y) is BBPixelCell p && p.Hidden)
+                    array.Add(x * grid.Width + y);
+            }
+            return array;
         }
 
         // Flat BUBColorType ordinals, index = y*Width + x (y=0 bottom row) — matching
