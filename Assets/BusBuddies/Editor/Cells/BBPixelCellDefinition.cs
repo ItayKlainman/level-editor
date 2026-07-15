@@ -32,12 +32,31 @@ namespace Hoppa.BusBuddies.Editor
 
         public override ICellData CreateDefault() => new BBPixelCell();
 
+        private static readonly Color HiddenDarken = new Color(0f, 0f, 0f, 0.45f);
+        private static readonly Color HiddenHatch  = new Color(1f, 1f, 1f, 0.35f);
+
         public override void DrawCell(Rect rect, ICellData data)
         {
             if (data is not BBPixelCell pixel) return;
             var color = UnknownColor;
             if (_palette != null) _palette.TryGetColor(pixel.ColorId, out color);
             EditorGUI.DrawRect(rect, color);
+
+            if (pixel.Hidden)
+            {
+                EditorGUI.DrawRect(rect, HiddenDarken);
+                // Two hatch strokes so hidden reads clearly at any zoom.
+                DrawHatch(rect, HiddenHatch);
+            }
+        }
+
+        private static void DrawHatch(Rect r, Color c)
+        {
+            // Cheap "hatch": a thin cross of translucent lines (IMGUI has no line primitive
+            // for diagonals without Handles, so use a small centered cross that reads as "masked").
+            float t = Mathf.Max(1f, r.width * 0.10f);
+            EditorGUI.DrawRect(new Rect(r.x, r.center.y - t * 0.5f, r.width, t), c);
+            EditorGUI.DrawRect(new Rect(r.center.x - t * 0.5f, r.y, t, r.height), c);
         }
 
         public override void DrawInspector(Rect rect, ref ICellData data)
