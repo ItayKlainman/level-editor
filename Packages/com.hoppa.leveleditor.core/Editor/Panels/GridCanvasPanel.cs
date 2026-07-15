@@ -17,6 +17,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private bool     _isDragging;
         private CellRef? _hoverCell;
         private CellRef? _moveSource;
+        private bool     _flagStrokeValue;
         private float    _gridOffsetX;
         private float    _gridOffsetY;
 
@@ -233,6 +234,18 @@ namespace Hoppa.LevelEditor.Core.Editor
                             case GridEditTool.Move:
                                 HandleMoveTool(session, _hoverCell);
                                 break;
+                            case GridEditTool.Hide:
+                                if (session.Profile?.FlagPainter != null && _hoverCell.HasValue)
+                                {
+                                    session.PushUndoSnapshot();
+                                    _isDragging = true;
+                                    var painter = session.Profile.FlagPainter;
+                                    var cur = session.Document.Grid.Get(_hoverCell.Value.X, _hoverCell.Value.Y);
+                                    _flagStrokeValue = !painter.IsFlagged(cur);   // stroke sets the opposite of the first cell
+                                    painter.SetFlag(session, _hoverCell.Value, _flagStrokeValue);
+                                    session.MarkDirty();
+                                }
+                                break;
                         }
                     }
                     GUI.changed = true;
@@ -250,6 +263,13 @@ namespace Hoppa.LevelEditor.Core.Editor
                             break;
                         case GridEditTool.Select:
                             session.SelectedCell = _hoverCell;
+                            break;
+                        case GridEditTool.Hide:
+                            if (session.Profile?.FlagPainter != null && _hoverCell.HasValue)
+                            {
+                                session.Profile.FlagPainter.SetFlag(session, _hoverCell.Value, _flagStrokeValue);
+                                session.MarkDirty();
+                            }
                             break;
                     }
                     GUI.changed = true;
