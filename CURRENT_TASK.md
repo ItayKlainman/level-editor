@@ -6,6 +6,30 @@
 
 ---
 
+## ✅ SHIPPED (2026-07-15) — BB Hidden Pixels · Hidden Buses · Connected Buses
+
+Three hand-authored Bus Buddies mechanics, TDD'd task-by-task on branch
+`feat/bb-hidden-connected-mechanics`. Plan:
+`docs/superpowers/plans/2026-07-15-bus-buddies-hidden-connected-mechanics.md`.
+
+- **Full EditMode suite: 434/434 green** (413 baseline + 21 new tests, 0 regressions).
+- **Package `0.9.0 → 0.10.0`**, tag `v0.10.0` (LOCAL — not pushed; lead's gate).
+- **Hidden Pixels (new):** `BBPixelCell.Hidden`; generic Layer-1 flag-paint tool
+  (`ICellFlagPainter`/`CellFlagPainterAsset`/`GameProfile.FlagPainter`/`GridEditTool.Hide`,
+  driven by `GridCanvasPanel`+`PalettePanel`); `BusBuddiesHiddenPixelPainter` wired into
+  `BusBuddiesProfile._flagPainter`; grid overlay; export/import `HiddenPixels` (`x*width+y`).
+- **Hidden Buses (verify-only):** round-trip test pins `BusType:1` export + import.
+- **Connected Buses (new):** `BusConnection` ops + `ConnectionsDeadlock`; `BBConnectedBusRule`
+  appended to `_rules`; export/import `ConnectedBuses` coordinate pairs; connect/disconnect UI
+  in `BusBuddiesQueuePanel`.
+- **Open items:** (1) LEAD — re-pin BB game `#v0.10.0` + re-mirror BB Layer-2 + compile-check +
+  push (agent can't compile-verify the game). (2) GAME TEAM — confirm the `HiddenPixels` `x*width+y`
+  vs `PixelColors` `y*width+x` transpose is intended (square grids only) — see SESSION_NOTES flag.
+  (3) VERIFIER — eyeball the 4 IMGUI surfaces (✦ Hide tool + overlay; connect UI + badges + soft-lock
+  refusal) and one in-game hidden-pixel spot-check.
+
+---
+
 ## 🔴 ACTIVE CONSTRAINT (2026-07-14) — 30 playable levels by ~2026-07-19
 
 **The team needs at least 30 playable levels by the end of this week.** The lead has **PARKED the

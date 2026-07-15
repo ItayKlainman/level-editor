@@ -5,6 +5,38 @@
 
 ---
 
+## Latest shipped — BB Hidden Pixels · Hidden Buses · Connected Buses (2026-07-15)
+
+Three hand-authored Bus Buddies mechanics, TDD'd task-by-task (plan
+`docs/superpowers/plans/2026-07-15-bus-buddies-hidden-connected-mechanics.md`, spec
+`docs/superpowers/specs/2026-07-15-bus-buddies-hidden-connected-mechanics-design.md`).
+**Full EditMode suite 434/434 green** (413 baseline + 21 new tests). Package bumped
+**0.9.0 → 0.10.0**, tag `v0.10.0` (local — NOT pushed; push is the lead's gate).
+
+- **(a) Editor-core changes for the 3 mechanics shipped.** New generic Layer-1 flag-paint
+  tool (`ICellFlagPainter` + `CellFlagPainterAsset` + `GameProfile.FlagPainter` +
+  `GridEditTool.Hide`; `GridCanvasPanel`/`PalettePanel` drive it). BB Layer-2:
+  `BBPixelCell.Hidden`, `BusBuddiesHiddenPixelPainter` (wired into `BusBuddiesProfile._flagPainter`),
+  hidden-pixel grid overlay, `BusConnection` static ops + `ConnectionsDeadlock`, `BBConnectedBusRule`
+  (appended to `_rules`), exporter/importer round-trip for `HiddenPixels` + `ConnectedBuses`, and
+  connect/disconnect UI in `BusBuddiesQueuePanel`.
+- **(b) Package `0.10.0` — BB game must re-pin + re-mirror.** The BB game (`E:/Projects/Hoppa/BusBuddies`,
+  `main`) must re-pin its manifest to `#v0.10.0` and re-mirror the BB Layer-2 stack (`BBPixelCell`,
+  `BusBuddiesHiddenPixelPainter`, `BusConnection`, `BBConnectedBusRule`, `BusBuddiesQueuePanel`,
+  exporter/importer, profile `_flagPainter` + `_rules`). The Layer-1 additions travel via the package.
+  Agent Unity is bound to editor-core → cannot compile-verify the game.
+- **(c) ⚠️ FLAG FOR THE GAME TEAM — HiddenPixels index convention.** `BUBPixelService` reads
+  `HiddenPixels` membership with `position = x*width+y`, but `PixelColors` with `y*width+x`
+  (a deliberate transpose). We mirror the former on export/import; because BB grids are SQUARE
+  (W==H) the inverse `x=p/width, y=p%width` round-trips exactly. **Confirm this is intended
+  (square-grids-only) and reconcile if it's actually a game-side bug.**
+- **(d) Needs one in-game spot-check** that a hidden pixel conceals the intended cell.
+- **Manual-eyeball TODO (IMGUI — not MCP-verifiable, for lead/verifier):** the ✦ Hide tool in the
+  TOOLS palette + hidden-pixel overlay in the grid canvas (Tasks 2/3/6); and the connect/disconnect
+  link button + pair badges + soft-lock refusal in the Bus Queue panel (Task 15).
+
+---
+
 ## Current status (as of 2026-06-15)
 
 - **WHERE WE LEFT OFF (2026-06-15):** the **Automated level-generation tooling for YAK**
