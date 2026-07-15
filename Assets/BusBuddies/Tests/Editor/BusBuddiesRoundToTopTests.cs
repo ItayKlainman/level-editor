@@ -60,6 +60,39 @@ namespace Hoppa.BusBuddies.Editor.Tests
             CollectionAssert.AreEqual(new[] { 10, 20 }, allRound.ConvertAll(b => b.Capacity));
         }
 
+        // 1b. Within-color contract: round-first is applied per color, preserving the set of
+        // positions each color occupies (so an inter-color interleave pattern is untouched).
+        [Test]
+        public void StableRoundFirst_PreservesColorPositions_OrdersRoundFirstWithinColor()
+        {
+            List<BusEntry> Make(params (string color, int cap)[] items)
+            {
+                var l = new List<BusEntry>();
+                foreach (var it in items) l.Add(new BusEntry { ColorId = it.color, Capacity = it.cap });
+                return l;
+            }
+            List<string> Colors(List<BusEntry> l) => l.ConvertAll(b => b.ColorId);
+            List<int> Caps2(List<BusEntry> l) => l.ConvertAll(b => b.Capacity);
+
+            // [O20, I5, O25, I3]: each color already round-first in its own slots -> unchanged,
+            // interleave pattern intact.
+            var a = BusBuddiesConstructiveArranger.StableRoundFirst(
+                Make(("O", 20), ("I", 5), ("O", 25), ("I", 3)));
+            CollectionAssert.AreEqual(new[] { "O", "I", "O", "I" }, Colors(a), "color positions preserved");
+            CollectionAssert.AreEqual(new[] { 20, 5, 25, 3 }, Caps2(a), "already round-first within each color");
+
+            // [O3, O20] (same color): round-first within O -> [O20, O3].
+            var b = BusBuddiesConstructiveArranger.StableRoundFirst(Make(("O", 3), ("O", 20)));
+            CollectionAssert.AreEqual(new[] { 20, 3 }, Caps2(b), "round bus surfaces within its color");
+
+            // Mixed interleaved column: O slots (0,2) and I slots (1,3) each reorder within
+            // themselves; O remainder O7 sinks below round O10, I stays. Positions preserved.
+            var c = BusBuddiesConstructiveArranger.StableRoundFirst(
+                Make(("O", 7), ("I", 5), ("O", 10), ("I", 4)));
+            CollectionAssert.AreEqual(new[] { "O", "I", "O", "I" }, Colors(c), "inter-color pattern preserved");
+            CollectionAssert.AreEqual(new[] { 10, 5, 7, 4 }, Caps2(c), "round-first within each color's own slots");
+        }
+
         // 2. Invariant: sorting an arranged (solvable) queue never breaks solvability.
         [Test]
         public void SortRoundToHead_KeepsSolvable_OnArrangedQueue()

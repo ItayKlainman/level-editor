@@ -136,29 +136,132 @@ namespace Hoppa.BusBuddies.Editor.Tests
             }
         }
 
-        // With a freely-accessible background blob, high difficulty defers the MAIN
-        // color: the background bus is pulled (head-most) before the main color.
+        // New-semantics (2026-07-15): Difficulty is the interleave/juggle knob, not a
+        // main-color "dig" deferral (superseded — see design 2026-07-15 §5). The knob no
+        // longer moves the FIRST pull off the highest-flow accessible color; that first pull
+        // stays flow-greedy at every difficulty. On a real picture the background/outline is
+        // the accessible bulk (most flow), so it is still pulled first even at difficulty 5 —
+        // interleave only kicks in AFTER, once a comparable-flow color opens. This asserts
+        // that head-of-queue property with the background as the bulk.
         [Test]
         public void Arrange_HighDifficulty_DefersMainAfterBackground()
         {
-            // 5x1 open strip (all border-accessible): 3 "M" (main) + 2 "B" (background).
-            var g = new GridData<ICellData>(5, 1);
+            // 6x1 open strip (all border-accessible): 2 "M" (main subject) + 4 "B"
+            // (background bulk, the higher-flow color).
+            var g = new GridData<ICellData>(6, 1);
             g.Set(0, 0, new BBPixelCell { ColorId = "M" });
             g.Set(1, 0, new BBPixelCell { ColorId = "M" });
-            g.Set(2, 0, new BBPixelCell { ColorId = "M" });
+            g.Set(2, 0, new BBPixelCell { ColorId = "B" });
             g.Set(3, 0, new BBPixelCell { ColorId = "B" });
             g.Set(4, 0, new BBPixelCell { ColorId = "B" });
+            g.Set(5, 0, new BBPixelCell { ColorId = "B" });
             var buses = new List<BusEntry>
             {
-                new BusEntry { ColorId = "M", Capacity = 3 },
-                new BusEntry { ColorId = "B", Capacity = 2 },
+                new BusEntry { ColorId = "M", Capacity = 2 },
+                new BusEntry { ColorId = "B", Capacity = 4 },
             };
             var main = new HashSet<string>(StringComparer.Ordinal) { "M" };
             var res = BusBuddiesConstructiveArranger.Arrange(g, buses, 1, 5, 5, main, new System.Random(1));
             Assert.IsTrue(res.Solvable);
-            // Single column: head (Buses[0]) is pulled first. High difficulty defers M,
-            // so B should be at the head.
-            Assert.AreEqual("B", res.Queue.Columns[0].Buses[0].ColorId, "high difficulty pulls background before main");
+            // Single column: head (Buses[0]) is pulled first. The accessible background bulk
+            // (higher flow) leads at difficulty 5; interleave happens after the head.
+            Assert.AreEqual("B", res.Queue.Columns[0].Buses[0].ColorId, "high difficulty still front-loads the accessible background bulk");
+        }
+
+        // Flatten a queue into round-robin PLAY order (real step i pulls column i%columns):
+        // depth 0 across all columns, then depth 1, etc. Returns the ColorId sequence.
+        private static List<string> PlayOrderColors(BusQueueData q, int columns)
+        {
+            var colors = new List<string>();
+            int maxDepth = 0;
+            foreach (var col in q.Columns) maxDepth = Math.Max(maxDepth, col.Buses.Count);
+            for (int d = 0; d < maxDepth; d++)
+                for (int c = 0; c < columns; c++)
+                    if (c < q.Columns.Count && d < q.Columns[c].Buses.Count)
+                        colors.Add(q.Columns[c].Buses[d].ColorId);
+            return colors;
+        }
+
+        // How many interior buses appear BEFORE the last outline bus in play order — the
+        // interleave metric. 0 = outline fully front-loaded (flow-greedy); higher = the peel
+        // switches into the interior before the outline is exhausted (juggling more colors).
+        private static int InteriorBeforeLastOutline(
+            BusQueueData q, int columns, string interiorId, string outlineId)
+        {
+            var colors = PlayOrderColors(q, columns);
+            int lastOutline = colors.LastIndexOf(outlineId);
+            if (lastOutline < 0) return 0;
+            int count = 0;
+            for (int i = 0; i < lastOutline; i++)
+                if (colors[i] == interiorId) count++;
+            return count;
+        }
+
+        // Enclosed-scatter picture: a 9x9 solid outline "O" block (border-accessible, peels
+        // ring-by-ring inward) with a lattice of isolated interior "I" singletons. The
+        // interior stays low-flow (a couple cells reachable at a time) while the outline flow
+        // dominates — so flow-greedy (difficulty 1) drains the whole outline first, but the
+        // difficulty-5 spread penalty forces the peel to switch into the ready interior early.
+        private static GridData<ICellData> ScatterEnclosedGrid()
+        {
+            const int N = 9;
+            var g = new GridData<ICellData>(N + 2, N + 2);
+            for (int y = 1; y <= N; y++)
+            for (int x = 1; x <= N; x++)
+                g.Set(x, y, new BBPixelCell { ColorId = "O" });
+            for (int y = 3; y <= N - 2; y += 3)
+            for (int x = 3; x <= N - 2; x += 3)
+                g.Set(x, y, new BBPixelCell { ColorId = "I" }); // 4 isolated interior cells
+            return g;
+        }
+
+        private static List<BusEntry> ScatterEnclosedBuses(GridData<ICellData> g)
+        {
+            int oc = 0, ic = 0;
+            foreach (var cell in g.Cells)
+                if (cell is IColoredCell c)
+                { if (c.ColorId == "O") oc++; else if (c.ColorId == "I") ic++; }
+            var buses = new List<BusEntry>();
+            int r = oc; while (r > 0) { int cap = Math.Min(8, r); buses.Add(new BusEntry { ColorId = "O", Capacity = cap }); r -= cap; }
+            r = ic; while (r > 0) { int cap = Math.Min(1, r); buses.Add(new BusEntry { ColorId = "I", Capacity = cap }); r -= cap; }
+            return buses;
+        }
+
+        // The proof the knob works: difficulty 5 interleaves interior with the remaining
+        // outline (more interior-before-last-outline) than difficulty 1, which front-loads
+        // the whole outline. Same buses, same seed — only difficulty differs.
+        [Test]
+        public void Difficulty_ChangesArrangement_MoreInterleaveAtHighDifficulty()
+        {
+            var g = ScatterEnclosedGrid();
+            var main = new HashSet<string>(StringComparer.Ordinal) { "I", "O" };
+
+            var easy = BusBuddiesConstructiveArranger.Arrange(
+                g, ScatterEnclosedBuses(g), columns: 3, activeSlots: 5, difficulty: 1, mainColors: main, rng: new System.Random(1));
+            var hard = BusBuddiesConstructiveArranger.Arrange(
+                g, ScatterEnclosedBuses(g), columns: 3, activeSlots: 5, difficulty: 5, mainColors: main, rng: new System.Random(1));
+
+            Assert.IsTrue(easy.Solvable, "difficulty 1 must stay solvable");
+            Assert.IsTrue(hard.Solvable, "difficulty 5 must stay solvable");
+
+            int easyInterleave = InteriorBeforeLastOutline(easy.Queue, 3, "I", "O");
+            int hardInterleave = InteriorBeforeLastOutline(hard.Queue, 3, "I", "O");
+            Assert.Greater(hardInterleave, easyInterleave,
+                $"difficulty 5 must interleave more than difficulty 1 (easy={easyInterleave}, hard={hardInterleave})");
+        }
+
+        // No regression on easy: difficulty 1 front-loads the whole outline (flow-greedy),
+        // so no interior bus precedes the last outline bus.
+        [Test]
+        public void Arrange_Difficulty1_MatchesFlowGreedy_Baseline()
+        {
+            var g = ScatterEnclosedGrid();
+            var main = new HashSet<string>(StringComparer.Ordinal) { "I", "O" };
+            var res = BusBuddiesConstructiveArranger.Arrange(
+                g, ScatterEnclosedBuses(g), columns: 3, activeSlots: 5, difficulty: 1, mainColors: main, rng: new System.Random(1));
+            Assert.IsTrue(res.Solvable);
+            Assert.AreEqual(0, InteriorBeforeLastOutline(res.Queue, 3, "I", "O"),
+                "difficulty 1 must front-load the outline (no interior before the last outline bus)");
         }
 
         private static string Serialize(BusQueueData q)
@@ -212,6 +315,33 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 var res = BusBuddiesConstructiveArranger.Arrange(
                     g, baseBuses, columns: 3, activeSlots: 5, difficulty: 5, mainColors: main, rng: new System.Random(seed));
                 Assert.IsTrue(res.Solvable, $"seed {seed}: dithered filled picture must arrange solvable (scattered-color clog)");
+            }
+        }
+
+        // Round-to-5 semantics after a difficulty-5 (interleaved) arrange must stay solvable:
+        // the within-color round-to-head sort, guarded by exact replay, never breaks the
+        // solvable-by-construction queue even on the dithered clog case at max difficulty.
+        [Test]
+        public void Arrange_ThenSortRoundToHead_StaysSolvable_Difficulty5()
+        {
+            var g = DitheredGrid(out var perColor);
+            var baseBuses = new List<BusEntry>();
+            foreach (var kv in perColor)
+            {
+                int rem = kv.Value;
+                while (rem > 0) { int cap = Math.Min(20, rem); baseBuses.Add(new BusEntry { ColorId = kv.Key, Capacity = cap }); rem -= cap; }
+            }
+            var main = new HashSet<string>(perColor.Keys, StringComparer.Ordinal);
+
+            for (int seed = 1; seed <= 10; seed++)
+            {
+                var res = BusBuddiesConstructiveArranger.Arrange(
+                    g, baseBuses, columns: 3, activeSlots: 5, difficulty: 5, mainColors: main, rng: new System.Random(seed));
+                Assert.IsTrue(res.Solvable, $"seed {seed}: precondition arranged queue is solvable");
+                var sorted = BusBuddiesConstructiveArranger.SortRoundToHead(res.Queue, g, columns: 3, activeSlots: 5);
+                Assert.IsTrue(
+                    BusBuddiesConstructiveArranger.IsSolvable(g, sorted, columns: 3, activeSlots: 5),
+                    $"seed {seed}: round-to-head sort must keep the difficulty-5 queue solvable");
             }
         }
     }
