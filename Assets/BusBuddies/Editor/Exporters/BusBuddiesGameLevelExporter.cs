@@ -135,6 +135,7 @@ namespace Hoppa.BusBuddies.Editor
                 ["Width"] = grid.Width,
                 ["Height"] = grid.Height,
                 ["BusColumnConfigs"] = BuildBusColumnConfigs(document.TopSection),
+                ["ConnectedBuses"] = BuildConnectedBuses(document.TopSection),
                 ["PixelColors"] = BuildPixelColors(grid),
                 ["HiddenPixels"] = BuildHiddenPixels(grid),
             };
@@ -147,6 +148,35 @@ namespace Hoppa.BusBuddies.Editor
 
         // Test hook — exercises the real column builder without duplicating it.
         public static JArray BuildBusColumnConfigsForTest(JObject topSection) => BuildBusColumnConfigs(topSection);
+
+        // BusQueueData connected-id groups → ConnectedBuses[] of {BusA,BusB} coordinate
+        // pairs. Only complete pairs (exactly two members) are emitted; incomplete groups
+        // are dropped (BBConnectedBusRule errors on them before export).
+        public static JArray BuildConnectedBuses(JObject topSection)
+        {
+            var result = new JArray();
+            BusQueueData queue = null;
+            if (topSection != null)
+            {
+                try { queue = topSection.ToObject<BusQueueData>(); }
+                catch { queue = null; }
+            }
+            if (queue?.Columns == null) return result;
+
+            BusConnection.BuildConnInfo(queue, out var members, out _);
+            foreach (var kv in members)
+            {
+                if (kv.Value.Count != 2) continue;
+                var a = kv.Value[0];
+                var b = kv.Value[1];
+                result.Add(new JObject
+                {
+                    ["BusA"] = new JObject { ["ColumnIndex"] = a.col, ["Index"] = a.pos },
+                    ["BusB"] = new JObject { ["ColumnIndex"] = b.col, ["Index"] = b.pos },
+                });
+            }
+            return result;
+        }
 
         // BusQueueData.Columns → BusColumnConfigs[ BusConfigs[ {ColorType, Capacity, BusType?} ] ].
         private static JArray BuildBusColumnConfigs(JObject topSection)
