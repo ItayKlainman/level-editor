@@ -60,6 +60,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a CanvasOverlayAsset subclass to draw a game-specific overlay on top of the grid canvas (e.g. multi-cell region annotations).\nExample: YarnPaletteOverlay")]
         [SerializeField] private CanvasOverlayAsset _canvasOverlay;
 
+        [Tooltip("Optional per-profile 'flag paint' tool (null = profile has no flag mechanic).\nWhen set, the TOOLS palette shows a toggle and GridEditTool.Hide is enabled.\nExample: BusBuddiesHiddenPixelPainter")]
+        [SerializeField] private CellFlagPainterAsset _flagPainter;
+
         [Tooltip("Optional: assign an ImageToGridAsset subclass to enable the 🖼 Image toolbar mode — convert a source image into a level grid quantized to this profile's palette.\nExample: YAKImageToGrid")]
         [SerializeField] private ImageToGridAsset _imageToGrid;
 
@@ -84,6 +87,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         public LevelCompleterAsset LevelCompleter => _levelCompleter;
         public CanvasOverlayAsset  CanvasOverlay  => _canvasOverlay;
         public ImageToGridAsset    ImageToGrid    => _imageToGrid;
+
+        // Optional per-profile "flag paint" tool (null = profile has no flag mechanic).
+        // When set, the TOOLS palette shows a toggle and GridEditTool.Hide is enabled.
+        public CellFlagPainterAsset FlagPainter => _flagPainter;
 
         // Layout flag: render the top-section panel below the grid (grid top-anchored)
         // instead of the classic above-the-grid layout. Default false.
