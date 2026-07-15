@@ -60,41 +60,74 @@ namespace Hoppa.BusBuddies.Editor
         {
             var s = new BusSimState(model);
             var order = new List<int>(model.Columns);
+            var pullsByColor = new Dictionary<int, int>();
             int guard = model.Columns + 2;
             for (int step = 0; step < guard; step++)
             {
                 if (s.IsWin()) return order;
                 if (s.FreeSlot() < 0) return null;
-                int chosen = PickColumn(s, model, mainColors, difficulty, rng);
+                int chosen = PickColumn(s, model, mainColors, difficulty, pullsByColor, rng);
                 if (chosen < 0) return null;
+                int chosenColor = model.BusColor[chosen][0];
                 s.ApplyMove(chosen);
                 order.Add(chosen);
+                pullsByColor.TryGetValue(chosenColor, out var pn);
+                pullsByColor[chosenColor] = pn + 1;
             }
             return s.IsWin() ? order : null;
         }
 
-        // Choose the next scratch column to pull, among pullable columns whose bus
-        // color currently has an accessible block. Difficulty scales how strongly MAIN
-        // colors are deferred (1 = neutral flow-preserving; 5 = defer main as late as
-        // accessibility allows). Flow (accessible-block count) breaks ties so slots keep
-        // emptying. Deferral only ranks among READY colors -> solvability is preserved.
+        // Choose the next scratch column to pull, among READY columns (pullable AND the
+        // bus color currently has an accessible block, flow > 0). Difficulty scales an
+        // interleave "spread" penalty: each prior pull of a color subtracts flow-units, so a
+        // color we've been draining loses to a fresh ready color once a comparable color
+        // opens -> the peel switches colors -> interleave. At difficulty 1 (f=0) the score is
+        // exactly flow (today's flow-greedy behavior; no regression).
+        //
+        // The penalty scale is the max flow among the OTHER ready colors (>= 1), NOT the
+        // global max including the candidate. This is the tuning that keeps the design's own
+        // solvable-by-construction guarantee on a dithered picture: a dominant accessible
+        // color (e.g. the background body) sees only a tiny competitor flow -> negligible
+        // penalty -> it keeps draining instead of switching to a buried scattered-color trap
+        // that would clog the Active Row (the shipped clog bug). Two comparable-flow colors
+        // (an outline ring and its freshly-opened interior) penalize each other -> interleave.
+        // The penalty ranks only among READY colors, so solvability is preserved.
         private static int PickColumn(
-            BusSimState s, BusLevelModel model, ISet<string> mainColors, int difficulty, System.Random rng)
+            BusSimState s, BusLevelModel model, ISet<string> mainColors, int difficulty,
+            Dictionary<int, int> pullsByColor, System.Random rng)
         {
             var accCount = AccessibleCountByColor(s);
             float f = (Math.Clamp(difficulty, 1, 5) - 1) / 4f; // 0..1
-            int best = -1; long bestKey = long.MinValue;
+
+            // Distinct ready colors this step and their flow (pullable AND flow > 0).
+            var readyFlow = new Dictionary<int, int>();
+            for (int col = 0; col < model.Columns; col++)
+            {
+                if (!s.CanPull(col)) continue;
+                int color = model.BusColor[col][0];
+                if (accCount.TryGetValue(color, out var flow) && flow > 0)
+                    readyFlow[color] = flow; // same color -> same flow, idempotent
+            }
+
+            int best = -1; float bestKey = float.NegativeInfinity;
             for (int col = 0; col < model.Columns; col++)
             {
                 if (!s.CanPull(col)) continue;
                 int color = model.BusColor[col][0];
                 if (!accCount.TryGetValue(color, out var flow) || flow <= 0) continue;
 
-                bool isMain = mainColors != null && color >= 0 && model.ColorNames != null
-                              && color < model.ColorNames.Length && mainColors.Contains(model.ColorNames[color]);
-                // Rank: background above main (weighted by difficulty), then flow, then rng.
-                long rank = isMain ? -(long)(f * 1_000_000f) : 0L;
-                long score = rank + flow * 1000 + rng.Next(0, 1000);
+                // flowMax = max flow among the OTHER ready colors (>= 1).
+                int flowMaxOther = 1;
+                foreach (var kv in readyFlow)
+                    if (kv.Key != color && kv.Value > flowMaxOther) flowMaxOther = kv.Value;
+
+                pullsByColor.TryGetValue(color, out var pulls);
+                // Terms scaled x1000 so flow dominates the rng tie-break exactly as the
+                // shipped arranger did (flow*1000 + rng): at f=0 this is bit-identical
+                // flow-greedy (no regression); at f=1 each prior pull costs f*flowMaxOther
+                // flow-units, so a drained color loses to a fresh comparable ready color
+                // -> the peel round-robins -> interleave. rng.Next(0,1000) breaks true ties.
+                float score = (flow - f * pulls * flowMaxOther) * 1000f + rng.Next(0, 1000);
                 if (score > bestKey) { bestKey = score; best = col; }
             }
             return best;
@@ -115,17 +148,44 @@ namespace Hoppa.BusBuddies.Editor
             return map;
         }
 
-        // Pure ordering primitive: round (multiple-of-5) buses first, remainders after,
-        // stable within each partition. Reorders references only — never clones buses.
+        // Pure ordering primitive: WITHIN EACH COLOR, round (multiple-of-5) buses first,
+        // remainders after, stable within each color's own subgroup. The set of positions
+        // each color occupies is preserved exactly — only that color's buses are permuted
+        // among their own slots — so the column's inter-color interleave pattern is intact.
+        // Reorders references only — never clones buses.
+        //   [O20, I5, O25, I3] -> unchanged (each color already round-first in its slots)
+        //   [O3, O20]          -> [O20, O3]  (round-first within O)
         public static List<BusEntry> StableRoundFirst(IReadOnlyList<BusEntry> buses)
         {
-            var rounds = new List<BusEntry>();
-            var remainder = new List<BusEntry>();
-            if (buses != null)
-                foreach (var b in buses)
+            var result = new List<BusEntry>();
+            if (buses == null) return result;
+            result.AddRange(buses);
+
+            // Positions occupied by each color, in column order.
+            var positionsByColor = new Dictionary<string, List<int>>();
+            for (int i = 0; i < buses.Count; i++)
+            {
+                string key = buses[i]?.ColorId ?? "\0<null>";
+                if (!positionsByColor.TryGetValue(key, out var lst))
+                { lst = new List<int>(); positionsByColor[key] = lst; }
+                lst.Add(i);
+            }
+
+            foreach (var kv in positionsByColor)
+            {
+                var positions = kv.Value;
+                var rounds = new List<BusEntry>();
+                var remainder = new List<BusEntry>();
+                foreach (var pos in positions)
+                {
+                    var b = buses[pos];
                     (b != null && b.Capacity % 5 == 0 ? rounds : remainder).Add(b);
-            rounds.AddRange(remainder);
-            return rounds;
+                }
+                rounds.AddRange(remainder);
+                for (int j = 0; j < positions.Count; j++)
+                    result[positions[j]] = rounds[j]; // write back into this color's own slots
+            }
+            return result;
         }
 
         // Public seam over the exact-replay solvability check (ReplayWins stays private).
