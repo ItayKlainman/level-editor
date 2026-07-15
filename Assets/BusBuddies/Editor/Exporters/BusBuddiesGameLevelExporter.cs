@@ -145,6 +145,9 @@ namespace Hoppa.BusBuddies.Editor
             return true;
         }
 
+        // Test hook — exercises the real column builder without duplicating it.
+        public static JArray BuildBusColumnConfigsForTest(JObject topSection) => BuildBusColumnConfigs(topSection);
+
         // BusQueueData.Columns → BusColumnConfigs[ BusConfigs[ {ColorType, Capacity, BusType?} ] ].
         private static JArray BuildBusColumnConfigs(JObject topSection)
         {
