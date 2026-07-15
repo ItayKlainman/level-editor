@@ -18,7 +18,10 @@ namespace Hoppa.BusBuddies.Editor
     // This panel draws the head at the TOP of each column (visual top row = data index 0),
     // tagged "HEAD", so the top-to-bottom reading matches the in-game pull order (the game
     // taps BusConfigs[0] first — verified against BUBBusColumnPrefabComponent).
-    // No connected-bus UI (pairing is deferred / data-only).
+    // Connected-bus UI: each bus has a link button. Click it on bus A (anchors it), then on a
+    // bus in another column to pair them (a shared ConnectedId). A connected bus's button shows
+    // its pair number and disconnects the pair when clicked. Completion is refused if it would
+    // create a soft-lock (BusConnection.ConnectionsDeadlock on a trial clone).
     public sealed class BusBuddiesQueuePanel : TopSectionPanel
     {
         public const int MinColumns = 1;
@@ -49,6 +52,13 @@ namespace Hoppa.BusBuddies.Editor
         private int _dragSrc = -1;
         private int _dragTgt = -1;
 
+        // Connect-mode: the first bus picked, awaiting a partner. null = idle.
+        private (int col, int pos)? _pendingAnchor;
+
+        private const float LinkBtnW = 22f;
+        private static readonly Color LinkAnchorBg    = new Color(1.00f, 0.85f, 0.20f);
+        private static readonly Color LinkConnectedBg = new Color(0.45f, 0.75f, 0.95f);
+
         // Reserved height. Sized to show ~5 bus rows + headers + add/remove buttons.
         public override float PreferredHeight =>
             HeaderH + ColLblH + (BusH * 5f) + BtnH + 24f;
@@ -65,6 +75,9 @@ namespace Hoppa.BusBuddies.Editor
                 queue.Columns.Add(new BusColumn());
 
             int columnCount = Mathf.Clamp(queue.Columns.Count, MinColumns, MaxColumns);
+
+            // Connection groups for this frame: id -> members, used for the pair badge.
+            BusConnection.BuildConnInfo(queue, out var connMembers, out _);
 
             var gridColors = GetGridColors(session);
             ICollection<string> pickerFilter = gridColors.Count > 0 ? gridColors : null;
@@ -259,9 +272,12 @@ namespace Hoppa.BusBuddies.Editor
                         float arrowGrpX = contentW - DelBtnW - ArrowBtnW * 2f - 4f;
                         float arrowBtnY = rowTop + (BusH - 18f) * 0.5f;
 
+                        // Link button sits just left of the ← arrow; the label fills what's left.
+                        float linkBtnX = arrowGrpX - LinkBtnW - 4f;
+
                         // "HEAD" tag (on the head row) or color ID label, if room.
                         float labelX = capX + CapW + 4f;
-                        float labelW = arrowGrpX - labelX - 4f;
+                        float labelW = linkBtnX - labelX - 4f;
                         if (isHead && labelW > 6f)
                         {
                             var headStyle = new GUIStyle(EditorStyles.miniBoldLabel)
@@ -306,6 +322,10 @@ namespace Hoppa.BusBuddies.Editor
                                 "✕ Del", EditorStyles.miniButton))
                             removeIdx = s;
                         GUI.backgroundColor = prevBg;
+
+                        // Connect / disconnect link button.
+                        DrawLinkButton(new Rect(linkBtnX, arrowBtnY, LinkBtnW, 18f),
+                            session, queue, connMembers, c, s, prevBg);
                     }
                 }
 
@@ -402,6 +422,98 @@ namespace Hoppa.BusBuddies.Editor
             if (EditorGUI.EndChangeCheck())
                 session.Document.TopSection = JObject.FromObject(queue);
         }
+
+        // Draws the per-bus connect/disconnect affordance and handles its click.
+        //  - connected bus  → shows its pair number; click disconnects the whole group.
+        //  - this bus is the pending anchor → highlighted; click cancels.
+        //  - another bus is anchored → "+"; click completes the pair (soft-lock guarded).
+        //  - idle            → "🔗"; click anchors this bus.
+        private void DrawLinkButton(Rect r, LevelEditorSession session, BusQueueData queue,
+            Dictionary<int, List<(int col, int pos)>> members, int c, int s, Color prevBg)
+        {
+            var bus = queue.Columns[c].Buses[s];
+            bool isConnected   = bus.ConnectedId >= 0;
+            bool anchorHere    = _pendingAnchor.HasValue && _pendingAnchor.Value.col == c && _pendingAnchor.Value.pos == s;
+            bool anchorElse    = _pendingAnchor.HasValue && !anchorHere;
+
+            string caption;
+            string tooltip;
+            Color? bg = null;
+            if (isConnected)
+            {
+                int n = BusConnection.DisplayNumber(members, bus.ConnectedId);
+                caption = n.ToString();
+                tooltip = $"Connected pair {n} — click to disconnect";
+                bg = LinkConnectedBg;
+            }
+            else if (anchorHere)
+            {
+                caption = "●";
+                tooltip = "Anchored — click another bus to connect, or click again to cancel";
+                bg = LinkAnchorBg;
+            }
+            else if (anchorElse)
+            {
+                caption = "+";
+                tooltip = "Connect this bus to the anchored bus";
+            }
+            else
+            {
+                caption = "🔗";
+                tooltip = "Link: start a connection from this bus";
+            }
+
+            if (bg.HasValue) GUI.backgroundColor = bg.Value;
+            bool clicked = GUI.Button(r, new GUIContent(caption, tooltip), EditorStyles.miniButton);
+            GUI.backgroundColor = prevBg;
+            if (!clicked) return;
+
+            if (isConnected)
+            {
+                BusConnection.DisconnectGroup(session, queue, bus.ConnectedId);
+                _pendingAnchor = null;
+            }
+            else if (anchorHere)
+            {
+                _pendingAnchor = null;
+            }
+            else if (anchorElse)
+            {
+                var anchor = _pendingAnchor.Value;
+                if (!InRange(queue, anchor.col, anchor.pos))
+                {
+                    _pendingAnchor = null; // anchor got edited away; restart
+                }
+                else
+                {
+                    // Trial on a clone: would connecting anchor↔this soft-lock?
+                    var clone = session.Document.TopSection.ToObject<BusQueueData>();
+                    int trialId = BusConnection.AllocId(clone);
+                    clone.Columns[anchor.col].Buses[anchor.pos].ConnectedId = trialId;
+                    clone.Columns[c].Buses[s].ConnectedId = trialId;
+                    if (BusConnection.ConnectionsDeadlock(clone))
+                    {
+                        Debug.LogWarning("[BusBuddies] That connection would create a soft-lock; pick a different bus.");
+                    }
+                    else
+                    {
+                        int id = BusConnection.AllocId(queue);
+                        BusConnection.Connect(session, queue, queue.Columns[anchor.col].Buses[anchor.pos], id);
+                        BusConnection.Connect(session, queue, queue.Columns[c].Buses[s], id);
+                        _pendingAnchor = null;
+                    }
+                }
+            }
+            else
+            {
+                _pendingAnchor = (c, s);
+            }
+        }
+
+        private static bool InRange(BusQueueData queue, int col, int pos)
+            => col >= 0 && col < queue.Columns.Count
+               && queue.Columns[col]?.Buses != null
+               && pos >= 0 && pos < queue.Columns[col].Buses.Count;
 
         private static void DrawDragHandle(Rect r)
         {
