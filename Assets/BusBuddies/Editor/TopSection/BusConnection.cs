@@ -68,6 +68,22 @@ namespace Hoppa.BusBuddies.Editor
             }
         }
 
+        // Connects two buses into one pair as a SINGLE undo step. Unlike calling Connect
+        // twice (which pushes two separate snapshots — one Ctrl+Z lands on a half-connected
+        // count==1 group, which BBConnectedBusRule then flags as incomplete), this pushes
+        // one snapshot, sets both ids, and rebuilds/marks-dirty once.
+        public static void ConnectPair(LevelEditorSession session, BusQueueData queue, BusEntry busA, BusEntry busB, int id)
+        {
+            session?.PushUndoSnapshot();
+            busA.ConnectedId = id;
+            busB.ConnectedId = id;
+            if (session != null)
+            {
+                session.Document.TopSection = JObject.FromObject(queue);
+                session.MarkDirty();
+            }
+        }
+
         public static void DisconnectGroup(LevelEditorSession session, BusQueueData queue, int id)
         {
             session?.PushUndoSnapshot();

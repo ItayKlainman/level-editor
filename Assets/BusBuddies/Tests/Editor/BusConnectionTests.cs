@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using Hoppa.BusBuddies.Editor;
+using Hoppa.LevelEditor.Core;
+using Hoppa.LevelEditor.Core.Editor;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Hoppa.BusBuddies.Tests
 {
@@ -48,6 +52,29 @@ namespace Hoppa.BusBuddies.Tests
             BusConnection.DisconnectGroup(null, q, 3);
             Assert.AreEqual(-1, q.Columns[0].Buses[0].ConnectedId);
             Assert.AreEqual(-1, q.Columns[1].Buses[0].ConnectedId);
+        }
+
+        [Test]
+        public void ConnectPair_IsOneUndoStep()
+        {
+            var q = TwoColumns();
+            var doc = new LevelDocument { Grid = new GridData<ICellData>(1, 1), TopSection = JObject.FromObject(q) };
+            var session = new LevelEditorSession(ScriptableObject.CreateInstance<GameProfile>(), doc);
+
+            var busA = q.Columns[0].Buses[0];
+            var busB = q.Columns[1].Buses[0];
+            int id = BusConnection.AllocId(q);
+            BusConnection.ConnectPair(session, q, busA, busB, id);
+
+            Assert.AreEqual(id, busA.ConnectedId);
+            Assert.AreEqual(id, busB.ConnectedId);
+
+            // Exactly one undoable step: a single Ctrl+Z fully reverts the pair, never
+            // landing on a half-connected (count==1) intermediate.
+            Assert.IsTrue(session.Undo());
+            var back = session.Document.TopSection.ToObject<BusQueueData>();
+            Assert.AreEqual(-1, back.Columns[0].Buses[0].ConnectedId);
+            Assert.AreEqual(-1, back.Columns[1].Buses[0].ConnectedId);
         }
     }
 }

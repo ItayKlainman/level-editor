@@ -498,8 +498,8 @@ namespace Hoppa.BusBuddies.Editor
                     else
                     {
                         int id = BusConnection.AllocId(queue);
-                        BusConnection.Connect(session, queue, queue.Columns[anchor.col].Buses[anchor.pos], id);
-                        BusConnection.Connect(session, queue, queue.Columns[c].Buses[s], id);
+                        BusConnection.ConnectPair(session, queue,
+                            queue.Columns[anchor.col].Buses[anchor.pos], queue.Columns[c].Buses[s], id);
                         _pendingAnchor = null;
                     }
                 }
