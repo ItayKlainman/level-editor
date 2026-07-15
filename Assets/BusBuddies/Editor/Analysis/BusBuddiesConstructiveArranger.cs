@@ -115,6 +115,65 @@ namespace Hoppa.BusBuddies.Editor
             return map;
         }
 
+        // Pure ordering primitive: round (multiple-of-5) buses first, remainders after,
+        // stable within each partition. Reorders references only — never clones buses.
+        public static List<BusEntry> StableRoundFirst(IReadOnlyList<BusEntry> buses)
+        {
+            var rounds = new List<BusEntry>();
+            var remainder = new List<BusEntry>();
+            if (buses != null)
+                foreach (var b in buses)
+                    (b != null && b.Capacity % 5 == 0 ? rounds : remainder).Add(b);
+            rounds.AddRange(remainder);
+            return rounds;
+        }
+
+        // Public seam over the exact-replay solvability check (ReplayWins stays private).
+        public static bool IsSolvable(
+            GridData<ICellData> grid, BusQueueData queue, int columns, int activeSlots)
+            => ReplayWins(grid, queue, columns, activeSlots);
+
+        // Move round buses toward each column's head (remainders to the tail), guarded
+        // by re-verification: an accepted per-column sort is kept only if the WHOLE
+        // working queue still wins by exact replay; otherwise that column reverts to its
+        // original order (other columns' accepted sorts stay). Reorders references only —
+        // buses are never cloned or moved between columns. Result is guaranteed solvable
+        // whenever the input queue was.
+        public static BusQueueData SortRoundToHead(
+            BusQueueData queue, GridData<ICellData> grid, int columns, int activeSlots)
+        {
+            columns = Math.Max(1, columns);
+            var working = new BusQueueData();
+            if (queue?.Columns != null)
+                foreach (var col in queue.Columns)
+                {
+                    var clone = new BusColumn();
+                    if (col?.Buses != null) clone.Buses.AddRange(col.Buses);
+                    working.Columns.Add(clone);
+                }
+
+            for (int c = 0; c < working.Columns.Count; c++)
+            {
+                var current = working.Columns[c].Buses;
+                var sorted = StableRoundFirst(current);
+                if (SameOrder(current, sorted)) continue;
+
+                var original = new List<BusEntry>(current);
+                working.Columns[c].Buses = sorted;
+                if (!ReplayWins(grid, working, columns, activeSlots))
+                    working.Columns[c].Buses = original; // revert this column only
+            }
+            return working;
+        }
+
+        private static bool SameOrder(List<BusEntry> a, List<BusEntry> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++)
+                if (!ReferenceEquals(a[i], b[i])) return false;
+            return true;
+        }
+
         // Exact replay of the round-robin pull sequence through the real arrangement.
         // Reproduces the derived order (real step i pulls column i%columns), so it wins
         // iff the scratch schedule won; also guards the distribution logic.
