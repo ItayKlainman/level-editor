@@ -109,6 +109,23 @@ namespace Hoppa.BusBuddies.Editor
             // level would open with an empty bus panel.
             doc.TopSection = JObject.FromObject(queue);
 
+            // Connected buses: each {BusA,BusB} pair gets a fresh shared ConnectedId,
+            // set on both referenced (ColumnIndex, Index) buses. Rebuild TopSection after.
+            if (root["ConnectedBuses"] is JArray connections)
+            {
+                int nextId = 0;
+                foreach (var conn in connections)
+                {
+                    var a = conn["BusA"]; var b = conn["BusB"];
+                    if (a == null || b == null) continue;
+                    var busA = BusAt(queue, a.Value<int?>("ColumnIndex"), a.Value<int?>("Index"));
+                    var busB = BusAt(queue, b.Value<int?>("ColumnIndex"), b.Value<int?>("Index"));
+                    if (busA == null || busB == null) continue;
+                    busA.ConnectedId = busB.ConnectedId = nextId++;
+                }
+                doc.TopSection = JObject.FromObject(queue);
+            }
+
             return new ImportedLevel
             {
                 Document = doc,
@@ -116,6 +133,15 @@ namespace Hoppa.BusBuddies.Editor
                 ColumnCount = columnCount,
                 OriginalBuses = originalBuses,
             };
+        }
+
+        private static BusEntry BusAt(BusQueueData queue, int? col, int? index)
+        {
+            if (col == null || index == null) return null;
+            if (col < 0 || col >= queue.Columns.Count) return null;
+            var buses = queue.Columns[col.Value]?.Buses;
+            if (buses == null || index < 0 || index >= buses.Count) return null;
+            return buses[index.Value];
         }
 
         // ordinal → cell. 0 (None) is an empty cell; any mapped nonzero ordinal is a
