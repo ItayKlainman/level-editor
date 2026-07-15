@@ -52,6 +52,20 @@ namespace Hoppa.BusBuddies.Editor
                 grid.Cells[i] = OrdinalToCell(ordinal);
             }
 
+            // Hidden pixels: sparse indices using the game's x*width+y stride (inverse:
+            // x = p / width, y = p % width — exact for square grids).
+            if (root["HiddenPixels"] is JArray hiddenArr)
+            {
+                foreach (var tok in hiddenArr)
+                {
+                    int p = (int)tok;
+                    int x = p / width;
+                    int y = p % width;
+                    if (grid.InBounds(x, y) && grid.Get(x, y) is BBPixelCell cell)
+                        cell.Hidden = true;
+                }
+            }
+
             var doc = new LevelDocument
             {
                 SchemaVersion = "busbuddies.v1",
