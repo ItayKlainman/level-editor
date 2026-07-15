@@ -67,7 +67,10 @@ namespace Hoppa.BusBuddies.Editor
             _settings.Columns          = EditorGUILayout.IntSlider("Columns", _settings.Columns, 1, 5);
             _settings.Difficulty       = EditorGUILayout.IntSlider("Difficulty", _settings.Difficulty, 1, 5);
             _settings.NoSingleBusColor = EditorGUILayout.ToggleLeft("No 1-bus color", _settings.NoSingleBusColor);
-            _settings.RoundToFive      = EditorGUILayout.ToggleLeft("Round to 5", _settings.RoundToFive);
+            _settings.RoundToFive      = EditorGUILayout.ToggleLeft(new GUIContent("Round to 5",
+                "Snap bus capacities to multiples of 5, and on auto-fill move the round buses " +
+                "toward each column's head (remainders to the tail) whenever it keeps the level solvable."),
+                _settings.RoundToFive);
 
             EditorGUIUtility.labelWidth = prevLabelWidth;
 

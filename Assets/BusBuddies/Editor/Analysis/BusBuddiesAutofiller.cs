@@ -122,6 +122,13 @@ namespace Hoppa.BusBuddies.Editor
                 if (bestQueue == null) bestQueue = arr.Queue; // honest fallback
             }
 
+            // Round-to-5 (when the level came out solvable): move round buses toward
+            // each column's head, remainders to the tail — guarded so it never breaks
+            // solvability. APS below then reads the final, shipped order.
+            if (solvable && settings.RoundToFive)
+                bestQueue = BusBuddiesConstructiveArranger.SortRoundToHead(
+                    bestQueue, doc.Grid, columns, slots);
+
             result.TopSection = JObject.FromObject(bestQueue);
             result.Succeeded  = solvable;
 
