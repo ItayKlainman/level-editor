@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Hoppa.LevelEditor.Core;
 using Hoppa.LevelEditor.Core.Editor;
@@ -164,7 +165,7 @@ namespace Hoppa.BusBuddies.Editor
             if (queue?.Columns == null) return result;
 
             BusConnection.BuildConnInfo(queue, out var members, out _);
-            foreach (var kv in members)
+            foreach (var kv in members.OrderBy(k => k.Key))
             {
                 if (kv.Value.Count != 2) continue;
                 var a = kv.Value[0];
