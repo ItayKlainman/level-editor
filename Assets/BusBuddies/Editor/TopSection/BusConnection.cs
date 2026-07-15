@@ -81,5 +81,69 @@ namespace Hoppa.BusBuddies.Editor
                 session.MarkDirty();
             }
         }
+
+        // Color-blind structural soft-lock check. Heads advance monotonically; an
+        // unconnected head clears freely; a connected head clears only when its partner is
+        // simultaneously at ITS column head. Same-column complete pairs can never both be
+        // head → permanently locked. If any head can never reach the top → deadlock.
+        public static bool ConnectionsDeadlock(BusQueueData queue)
+        {
+            int n = queue.Columns.Count;
+            if (n == 0) return false;
+
+            var len  = new int[n];
+            var pCol = new int[n][];
+            var pPos = new int[n][];
+            var sameColLocked = new bool[n][];   // a member whose partner is in its own column
+            for (int c = 0; c < n; c++)
+            {
+                int count = queue.Columns[c]?.Buses?.Count ?? 0;
+                len[c]  = count;
+                pCol[c] = new int[count];
+                pPos[c] = new int[count];
+                sameColLocked[c] = new bool[count];
+                for (int p = 0; p < count; p++) { pCol[c][p] = -1; pPos[c][p] = -1; }
+            }
+
+            BuildConnInfo(queue, out var members, out _);
+            foreach (var kv in members)
+            {
+                if (kv.Value.Count != 2) continue;   // incomplete/over-linked handled by the rule
+                var a = kv.Value[0];
+                var b = kv.Value[1];
+                if (a.col == b.col)
+                {
+                    // Two buses in one column can never both be head → permanent lock.
+                    sameColLocked[a.col][a.pos] = true;
+                    sameColLocked[b.col][b.pos] = true;
+                    continue;
+                }
+                pCol[a.col][a.pos] = b.col; pPos[a.col][a.pos] = b.pos;
+                pCol[b.col][b.pos] = a.col; pPos[b.col][b.pos] = a.pos;
+            }
+
+            var head = new int[n];
+            bool progress = true;
+            while (progress)
+            {
+                progress = false;
+                for (int c = 0; c < n; c++)
+                {
+                    while (head[c] < len[c])
+                    {
+                        int p = head[c];
+                        if (sameColLocked[c][p]) break;                 // never clears
+                        int pc = pCol[c][p];
+                        if (pc < 0) { head[c]++; progress = true; continue; }               // unconnected
+                        if (head[pc] == pPos[c][p]) { head[c]++; head[pc]++; progress = true; continue; } // pair ready
+                        break;                                          // partner not at its head yet
+                    }
+                }
+            }
+
+            for (int c = 0; c < n; c++)
+                if (head[c] < len[c]) return true;
+            return false;
+        }
     }
 }
