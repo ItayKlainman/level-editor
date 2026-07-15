@@ -143,9 +143,9 @@ namespace Hoppa.LevelEditor.Core.Editor
 
             float btnY   = rect.y + BrushHH + 5f;
             float totalW = rect.width - Padding * 2f - 4f;
-            float btnW   = Mathf.Floor(totalW / 3f);
 
-            var toolDefs = new[]
+            var painter = session.Profile?.FlagPainter;
+            var tools = new System.Collections.Generic.List<(GUIContent, GridEditTool)>
             {
                 (ToolContent(ref _selectContent, "d_RectTool",          "Select", "Select cells without painting"),
                  GridEditTool.Select),
@@ -154,6 +154,11 @@ namespace Hoppa.LevelEditor.Core.Editor
                 (ToolContent(ref _moveContent,   "d_MoveTool",           "Move",   "Click two cells to swap them"),
                  GridEditTool.Move),
             };
+            if (painter != null)
+                tools.Add((new GUIContent(painter.ToolLabel, painter.ToolTooltip), GridEditTool.Hide));
+            var toolDefs = tools.ToArray();
+
+            float btnW = Mathf.Floor(totalW / Mathf.Max(3, toolDefs.Length));
 
             var btnStyle = new GUIStyle(EditorStyles.miniButton)
             {
