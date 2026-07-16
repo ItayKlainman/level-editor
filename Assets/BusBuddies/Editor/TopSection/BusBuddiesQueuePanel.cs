@@ -59,6 +59,13 @@ namespace Hoppa.BusBuddies.Editor
         private static readonly Color LinkAnchorBg    = new Color(1.00f, 0.85f, 0.20f);
         private static readonly Color LinkConnectedBg = new Color(0.45f, 0.75f, 0.95f);
 
+        // Idle-state connect glyph. Unity's built-in "Linked" chain icon renders on both
+        // 2022.3 and 6; an emoji literal (🔗, astral-plane) does NOT render in the 2022.3
+        // editor font, so the button came up blank in the BB game project. Cached lazily.
+        private static Texture _linkedIcon;
+        private static Texture LinkedIcon =>
+            _linkedIcon != null ? _linkedIcon : (_linkedIcon = EditorGUIUtility.IconContent("Linked")?.image);
+
         // Reserved height. Sized to show ~5 bus rows + headers + add/remove buttons.
         public override float PreferredHeight =>
             HeaderH + ColLblH + (BusH * 5f) + BtnH + 24f;
@@ -427,7 +434,7 @@ namespace Hoppa.BusBuddies.Editor
         //  - connected bus  → shows its pair number; click disconnects the whole group.
         //  - this bus is the pending anchor → highlighted; click cancels.
         //  - another bus is anchored → "+"; click completes the pair (soft-lock guarded).
-        //  - idle            → "🔗"; click anchors this bus.
+        //  - idle            → chain icon; click anchors this bus.
         private void DrawLinkButton(Rect r, LevelEditorSession session, BusQueueData queue,
             Dictionary<int, List<(int col, int pos)>> members, int c, int s, Color prevBg)
         {
@@ -436,7 +443,7 @@ namespace Hoppa.BusBuddies.Editor
             bool anchorHere    = _pendingAnchor.HasValue && _pendingAnchor.Value.col == c && _pendingAnchor.Value.pos == s;
             bool anchorElse    = _pendingAnchor.HasValue && !anchorHere;
 
-            string caption;
+            string caption = null;   // null → draw the built-in chain icon (idle state)
             string tooltip;
             Color? bg = null;
             if (isConnected)
@@ -459,12 +466,20 @@ namespace Hoppa.BusBuddies.Editor
             }
             else
             {
-                caption = "🔗";
+                caption = null;   // idle → chain icon (with a text fallback if the icon is unavailable)
                 tooltip = "Link: start a connection from this bus";
             }
 
             if (bg.HasValue) GUI.backgroundColor = bg.Value;
-            bool clicked = GUI.Button(r, new GUIContent(caption, tooltip), EditorStyles.miniButton);
+            GUIContent content;
+            if (caption != null)
+                content = new GUIContent(caption, tooltip);
+            else
+            {
+                var icon = LinkedIcon;
+                content = icon != null ? new GUIContent(icon, tooltip) : new GUIContent("∞", tooltip);
+            }
+            bool clicked = GUI.Button(r, content, EditorStyles.miniButton);
             GUI.backgroundColor = prevBg;
             if (!clicked) return;
 
