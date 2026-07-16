@@ -131,12 +131,14 @@ namespace Hoppa.YAK.Editor
             using (new EditorGUI.DisabledScope(_running))
             {
                 string section = null;
+                string batch = null;
                 foreach (var e in _entries)
                 {
                     string key = string.IsNullOrEmpty(e.StyleKey) ? "default" : e.StyleKey;
                     if (key != section)
                     {
                         section = key;
+                        batch = null;   // batch grouping is scoped within a section
                         GUILayout.Space(4f);
                         using (new EditorGUILayout.HorizontalScope())
                         {
@@ -146,13 +148,30 @@ namespace Hoppa.YAK.Editor
                         }
                     }
 
+                    // Batch divider: opens each "# @batch: <name>" group with a label + a
+                    // one-click select (selects that batch across ALL sections, e.g. all 100 of batch 2).
+                    string b = e.Batch ?? "";
+                    if (!string.Equals(b, batch ?? ""))
+                    {
+                        batch = b;
+                        if (!string.IsNullOrEmpty(b))
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                GUILayout.Space(16f);
+                                GUILayout.Label($"── batch {b} ──", EditorStyles.miniBoldLabel, GUILayout.Width(104));
+                                if (GUILayout.Button($"select batch {b}", EditorStyles.miniButton, GUILayout.Width(110)))
+                                    SelectBatch(b);
+                            }
+                    }
+
                     _status.TryGetValue(e.Idea, out var st);
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         bool sel = _selected.Contains(e.Idea);
                         bool now = EditorGUILayout.ToggleLeft(e.Idea, sel, GUILayout.Width(320));
                         if (now != sel) { if (now) _selected.Add(e.Idea); else _selected.Remove(e.Idea); }
-                        GUILayout.Label(key, EditorStyles.miniLabel, GUILayout.Width(70));
+                        GUILayout.Label(string.IsNullOrEmpty(e.Batch) ? key : $"{key}·b{e.Batch}",
+                            EditorStyles.miniLabel, GUILayout.Width(80));
                         GUILayout.FlexibleSpace();
                         GUILayout.Label(st ?? "", GUILayout.Width(90));
                     }
@@ -167,6 +186,17 @@ namespace Hoppa.YAK.Editor
             foreach (var e in _entries)
                 if (string.Equals(string.IsNullOrEmpty(e.StyleKey) ? "default" : e.StyleKey, key,
                         StringComparison.OrdinalIgnoreCase))
+                    _selected.Add(e.Idea);
+        }
+
+        // Tick every idea tagged with the given "# @batch: <name>", across all sections
+        // (e.g. all 100 of batch 2). The way to (re)generate just one batch.
+        private void SelectBatch(string batch)
+        {
+            _selected.Clear();
+            foreach (var e in _entries)
+                if (!string.IsNullOrEmpty(e.Batch) &&
+                    string.Equals(e.Batch, batch, StringComparison.OrdinalIgnoreCase))
                     _selected.Add(e.Idea);
         }
 
@@ -352,7 +382,7 @@ namespace Hoppa.YAK.Editor
                     _status[_current.StatusKey] = "generating…";
                 }
                 string key = YAKImageApiKey.Resolve();
-                string json = YAKOpenAIImageClient.BuildRequestJson(_current.Prompt, _config.Model, _config.ImageSize, _config.Quality);
+                string json = YAKOpenAIImageClient.BuildRequestJson(_current.Prompt, _config.Model, _config.ImageSize, _config.Quality, _config.Background);
                 _req = YAKOpenAIImageClient.CreateRequest(json, key);
                 _req.SendWebRequest();
                 EditorUtility.DisplayProgressBar("Image Library", $"{_current.StatusKey} ({_done}/{_total})", _total == 0 ? 0 : (float)_done / _total);

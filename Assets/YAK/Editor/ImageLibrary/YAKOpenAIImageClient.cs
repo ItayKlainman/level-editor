@@ -12,7 +12,8 @@ namespace Hoppa.YAK.Editor
     {
         public const string Endpoint = "https://api.openai.com/v1/images/generations";
 
-        public static string BuildRequestJson(string prompt, string model, string size, string quality)
+        public static string BuildRequestJson(
+            string prompt, string model, string size, string quality, string background = "opaque")
         {
             var o = new JObject
             {
@@ -22,6 +23,10 @@ namespace Hoppa.YAK.Editor
                 ["size"]    = string.IsNullOrEmpty(size) ? "1024x1024" : size,
             };
             if (!string.IsNullOrEmpty(quality)) o["quality"] = quality;
+            // Force a filled background: with the default (auto) gpt-image-1 sometimes
+            // returns a transparent PNG, which the image→grid converter can't separate
+            // from the subject. "opaque" guarantees the flat solid background the prompt asks for.
+            if (!string.IsNullOrEmpty(background)) o["background"] = background;
             return o.ToString(Newtonsoft.Json.Formatting.None);
         }
 

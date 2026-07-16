@@ -30,8 +30,10 @@ namespace Hoppa.YAK.Editor
         [Tooltip("Image model id. gpt-image-1 deprecates 2026-10-23 — change here when migrating.")]
         public string Model = "gpt-image-1";
         public string ImageSize = "1024x1024";
-        [Tooltip("Quality tier: low | medium | high.")]
-        public string Quality = "medium";
+        [Tooltip("Quality tier: low | medium | high. 'high' avoids the soft glow/bloom and gradient backgrounds gpt-image-1 produces at medium (which the converter reads as blur/aura).")]
+        public string Quality = "high";
+        [Tooltip("Background fill: opaque | transparent | auto. Keep 'opaque' — 'auto' lets gpt-image-1 return transparent PNGs the converter can't separate from the subject.")]
+        public string Background = "opaque";
 
         [Header("Prompt")]
         [Tooltip("The art's native pixel grid, substituted into '{grid}' in the prompt. MUST equal the grid size you convert at — a mismatch makes the converter resample the art pixels and the blocks smear.")]
@@ -44,7 +46,7 @@ namespace Hoppa.YAK.Editor
         [Header("Safety")]
         [Tooltip("Hard cap on images generated in a single run. A full boss-brief batch is 100 (5 prompts × 20 ideas).")]
         [Min(1)] public int MaxImagesPerRun = 100;
-        [Tooltip("USD per image for the chosen size/quality — used only for the pre-run cost estimate dialog.")]
-        public float EstimatedUsdPerImage = 0.07f;
+        [Tooltip("USD per image for the chosen size/quality — used only for the pre-run cost estimate dialog. ~0.19 for gpt-image-1 high @ 1024; ~0.07 at medium.")]
+        public float EstimatedUsdPerImage = 0.19f;
     }
 }

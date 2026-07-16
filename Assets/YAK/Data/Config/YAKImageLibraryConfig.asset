@@ -25,8 +25,9 @@ MonoBehaviour:
   OutputFolder: Assets/YAK/SourceImages
   Model: gpt-image-1
   ImageSize: 1024x1024
-  Quality: medium
+  Quality: high
+  Background: opaque
   PixelGridSize: 40
   StylePreamble:
   MaxImagesPerRun: 100
-  EstimatedUsdPerImage: 0.07
+  EstimatedUsdPerImage: 0.19

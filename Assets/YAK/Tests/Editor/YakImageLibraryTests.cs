@@ -115,6 +115,28 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
+        public void ParseIdeaEntries_TagsBatch_AndResetsAtEachStyle()
+        {
+            string raw =
+                "# @style: animals\n" +
+                "a grumpy cat\n" +
+                "# @batch: 2\n" +
+                "a sleepy sloth\n" +
+                "# @style: objects\n" +   // a new style section resets the batch grouping
+                "a happy mug\n" +
+                "# @batch: 2\n" +
+                "a laughing jar\n";
+            var e = YAKImageLibraryCore.ParseIdeaEntries(raw);
+
+            Assert.AreEqual(4, e.Count);
+            Assert.AreEqual("",  e[0].Batch, "before any @batch -> no batch");
+            Assert.AreEqual("2", e[1].Batch, "@batch: 2 tags the ideas below it");
+            Assert.AreEqual("",  e[2].Batch, "a new @style resets batch back to none");
+            Assert.AreEqual("2", e[3].Batch);
+            Assert.AreEqual("objects", e[2].StyleKey);
+        }
+
+        [Test]
         public void ResolveStyle_PicksTheSectionsPrompt_AndAlwaysAppendsRules()
         {
             var blocks = YAKImageLibraryCore.ParseStyleBlocks(PromptsAsset);
@@ -172,7 +194,7 @@ namespace Hoppa.YAK.Editor.Tests
         // Guards the SHIPPED files, not a fixture: a typo'd "# @style:" tag or an
         // unbalanced section would quietly generate a batch with the wrong prompt.
         [Test]
-        public void ShippedFiles_EveryBossBriefSectionBindsToARealPrompt_With20IdeasEach()
+        public void ShippedFiles_EveryBossBriefSectionBindsToARealPrompt_With20IdeasPerBatch()
         {
             string dir = System.IO.Path.Combine(Application.dataPath, "YAK", "SourceImages");
             var blocks  = YAKImageLibraryCore.ParseStyleBlocks(
@@ -185,7 +207,10 @@ namespace Hoppa.YAK.Editor.Tests
             {
                 Assert.IsTrue(blocks.ContainsKey(key), $"prompts.txt is missing the [{key}] prompt");
                 int n = entries.FindAll(e => string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase)).Count;
-                Assert.AreEqual(20, n, $"the '{key}' section should hold exactly 20 ideas (one prompt's share)");
+                Assert.AreEqual(40, n, $"the '{key}' section should hold 40 ideas (batch 1 + batch 2, 20 each)");
+                int b2 = entries.FindAll(e =>
+                    string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase) && e.Batch == "2").Count;
+                Assert.AreEqual(20, b2, $"the '{key}' section should hold 20 batch-2 ideas");
             }
 
             Assert.IsTrue(blocks.ContainsKey("rules"),   "prompts.txt must keep the shared [rules] block");
@@ -259,14 +284,33 @@ namespace Hoppa.YAK.Editor.Tests
         [Test]
         public void BuildRequestJson_ContainsModelPromptSizeQualityAndN1()
         {
-            string json = YAKOpenAIImageClient.BuildRequestJson("draw a cat", "gpt-image-1", "1024x1024", "medium");
+            string json = YAKOpenAIImageClient.BuildRequestJson("draw a cat", "gpt-image-1", "1024x1024", "high", "opaque");
             var o = Newtonsoft.Json.Linq.JObject.Parse(json);
 
             Assert.AreEqual("gpt-image-1", (string)o["model"]);
             Assert.AreEqual("draw a cat", (string)o["prompt"]);
             Assert.AreEqual("1024x1024", (string)o["size"]);
-            Assert.AreEqual("medium", (string)o["quality"]);
+            Assert.AreEqual("high", (string)o["quality"]);
             Assert.AreEqual(1, (int)o["n"]);
+        }
+
+        // Transparency fix: the request must force an opaque background so gpt-image-1
+        // never returns a transparent PNG the converter can't separate from the subject.
+        [Test]
+        public void BuildRequestJson_ForcesOpaqueBackground()
+        {
+            string json = YAKOpenAIImageClient.BuildRequestJson("draw a cat", "gpt-image-1", "1024x1024", "high", "opaque");
+            var o = Newtonsoft.Json.Linq.JObject.Parse(json);
+            Assert.AreEqual("opaque", (string)o["background"]);
+        }
+
+        // The default background is opaque even when a caller omits the argument.
+        [Test]
+        public void BuildRequestJson_DefaultsToOpaqueBackground()
+        {
+            string json = YAKOpenAIImageClient.BuildRequestJson("draw a cat", "gpt-image-1", "1024x1024", "high");
+            var o = Newtonsoft.Json.Linq.JObject.Parse(json);
+            Assert.AreEqual("opaque", (string)o["background"]);
         }
     }
 }

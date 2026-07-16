@@ -140,6 +140,28 @@ a proud peacock fanning its tail
 a giggling piglet rolling on its back
 a wide-eyed baby fox with oversized ears
 
+# @batch: 2
+a sleepy polar bear wrapped inside a fluffy blanket with rosy cheeks
+a giggling red panda holding a bamboo shoot twice its size
+a shocked chameleon with eyes pointing in opposite directions
+a proud peacock showing off an oversized colorful tail
+a bashful alpaca hiding behind its fluffy wool
+a surprised mole with big round eyes
+a joyful dolphin with sparkling eyes
+a grumpy goat with tiny horns and crossed arms
+a curious meerkat standing upright with oversized eyes
+a smiling capybara with rosy cheeks
+a fluffy sheep with an enormous woolly hairstyle
+a playful monkey hanging from a vine with a cheeky grin
+a sleepy sloth hugging a tree branch while yawning
+a baby walrus with tiny tusks and blushing cheeks
+a laughing hyena rolling on the ground
+a happy puffin balancing a colorful fish on its beak
+a nervous mouse holding a tiny piece of cheese
+a proud flamingo posing dramatically on one leg
+a cheerful beaver hugging a freshly carved log
+a baby rhinoceros with a tiny horn and an oversized smile
+
 # @style: objects
 # Everyday objects turned into living characters
 a smiling coffee mug with sleepy eyes and steam shaped like tiny hearts
@@ -162,6 +184,28 @@ a friendly telescope looking at the stars with sparkling eyes
 a smiling camera with a flashing wink
 a happy picnic basket full of smiling fruits
 a joyful book with tiny glasses and an excited expression
+
+# @batch: 2
+a smiling teacup topped with bubbles
+a cheerful camping backpack
+a happy guitar playing itself with closed eyes
+a playful dancing broom
+a cozy mitten warming its tiny hands by a fire
+a laughing cookie jar
+a friendly mailbox wearing a tiny cap
+a joyful watering can with a smiling face
+a happy compass spinning with excitement
+a smiling backpack stuffed with colorful books
+a sleepy pillow wearing a tiny sleeping cap
+a playful flashlight shining with sparkling eyes
+a cheerful flower pot proudly growing a tiny cactus
+a happy suitcase wearing vacation sunglasses
+a smiling garden sprinkler
+a joyful pair of scissors giving a peace sign
+a tiny notebook filled with smiling doodles
+a friendly spoon carrying a giant strawberry
+a happy hourglass waving while golden sand falls
+a smiling key wearing a tiny golden crown
 
 # @style: hybrids
 # Whimsical hybrids — two unrelated things, one design
@@ -186,6 +230,28 @@ a squirrel with a croissant tail
 a panda wrapped inside bamboo leaves like sushi
 a frog wearing a giant sunflower as its umbrella
 
+# @batch: 2
+a turtle with a blueberry pie shell
+a fox whose tail looks like a fluffy baguette
+a rabbit with butterfly wings instead of ears
+a penguin made from a scoop of vanilla ice cream
+a crocodile with a banana peel back
+a squirrel with a sunflower tail
+a jellyfish shaped like a blooming tulip
+a bear with fluffy cotton candy ears
+a bee whose body is a ripe strawberry
+a shark with watermelon slice fins
+a snail carrying a teapot as its shell
+a panda with bamboo sprouting from its fluffy tail
+a duck with a croissant shaped beak
+a koala hugging a giant mushroom instead of a tree
+a seal with fluffy cloud fins
+a whale with coral growing along its back
+a fox wearing a giant pumpkin as its body
+a hedgehog covered in colorful flowers instead of spikes
+a crab with seashell claws shaped like hearts
+a hummingbird whose wings resemble autumn leaves
+
 # @style: fantasy
 # Tiny fantasy creatures — cozy magical world
 a tiny forest dragon sleeping on a glowing mushroom
@@ -209,6 +275,28 @@ a smiling tree spirit with leafy hair
 a tiny lava monster roasting marshmallows
 a baby cyclops wearing a flower crown
 
+# @batch: 2
+a tiny crystal dragon sleeping inside a geode
+a smiling baby mermaid hugging a pearl
+a miniature cloud unicorn with a rainbow mane
+a tiny forest fairy riding a ladybug
+a cheerful lava sprite holding a glowing ember
+a sleepy star spirit wrapped in a comet tail
+a tiny mushroom dragon breathing glowing spores
+a baby gargoyle nibbling on a pebble
+a fluffy frost spirit wearing an icy scarf
+a tiny goblin carrying an oversized gemstone
+a smiling willow spirit with leafy hair
+a miniature thunder bird sitting on a tiny cloud
+a glowing cave sprite holding a crystal lantern
+a baby hydra with three adorable sleepy heads
+a tiny moon dragon curled around a star
+a magical squirrel with glowing antlers
+a tiny witch kitten riding a floating broom
+a cheerful flower fairy holding a blossom
+a little stone giant hugging a pebble
+a baby sea fairy riding a seashell
+
 # @style: funny
 # Funny miniature characters — meme energy, silly costumes
 a pig dressed as a cowboy riding a tiny cactus
@@ -231,3 +319,25 @@ a sheep wearing boxing gloves and looking confident
 a duck chef proudly presenting a giant pancake
 a mouse dressed as a samurai holding an oversized wooden sword
 a sleepy sloth wearing pajamas while carrying a cup of coffee
+
+# @batch: 2
+a duck wearing a graduation cap that is far too large
+a hamster dressed as a superhero with a towel cape
+a penguin pretending to surf on an ice cube
+a pig wearing ballet shoes while striking a pose
+a turtle dressed as an astronaut floating proudly
+a bear wearing oversized headphones while dancing
+a fox dressed as a magician pulling a carrot from a hat
+a sheep wearing oversized rain boots
+a crocodile sipping tea with perfect manners
+a cat dressed as a ninja
+a rabbit lifting a gigantic carrot like a weightlifter
+a seal wearing snorkel gear on dry land
+a raccoon pushing a tiny shopping cart
+a frog wearing a crown made of lily pads
+a penguin holding a tropical cocktail
+a chicken wearing oversized headphones while singing
+a panda taking a selfie with a bamboo stick
+a cow proudly riding a tiny scooter
+a shark wearing fluffy bunny slippers
+a corgi dressed as a pirate captain

@@ -11,13 +11,18 @@ namespace Hoppa.YAK.Editor
     {
         // An idea plus the style block that generates it. StyleKey is "" for ideas that
         // sit outside any "# @style: <key>" section (they fall back to [default]).
+        // Batch is an optional organizational tag ("# @batch: <name>") — purely for the
+        // window (grouping/divider/select), it does NOT affect the prompt. It resets at
+        // every "# @style:" so a batch label can be reused inside each style section.
         public struct IdeaEntry
         {
             public string Idea;
             public string StyleKey;
+            public string Batch;
         }
 
         public const string StyleTagPrefix = "# @style:";
+        public const string BatchTagPrefix = "# @batch:";
 
         // One idea per line; trims; skips blank + '#' comment lines; de-dupes
         // case-insensitively preserving first-seen order.
@@ -38,6 +43,7 @@ namespace Hoppa.YAK.Editor
             if (string.IsNullOrEmpty(raw)) return result;
 
             string styleKey = string.Empty;
+            string batchKey = string.Empty;
             foreach (var line in raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
             {
                 var t = line.Trim();
@@ -45,10 +51,15 @@ namespace Hoppa.YAK.Editor
                 if (t.StartsWith("#"))
                 {
                     if (t.StartsWith(StyleTagPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
                         styleKey = t.Substring(StyleTagPrefix.Length).Trim();
+                        batchKey = string.Empty;   // a new style section resets batch grouping
+                    }
+                    else if (t.StartsWith(BatchTagPrefix, StringComparison.OrdinalIgnoreCase))
+                        batchKey = t.Substring(BatchTagPrefix.Length).Trim();
                     continue;   // all other '#' lines are plain comments
                 }
-                if (seen.Add(t)) result.Add(new IdeaEntry { Idea = t, StyleKey = styleKey });
+                if (seen.Add(t)) result.Add(new IdeaEntry { Idea = t, StyleKey = styleKey, Batch = batchKey });
             }
             return result;
         }
