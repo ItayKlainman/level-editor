@@ -217,14 +217,30 @@ namespace Hoppa.BusBuddies.Editor
                         const float ToggleW = 18f;
                         float toggleX = HandleW + 2f;
 
-                        // Hidden toggle
-                        bool newHidden = EditorGUI.Toggle(
-                            new Rect(toggleX, vCenter + 1f, ToggleW, ToggleW), bus.Hidden);
-                        if (newHidden != bus.Hidden)
+                        // Hidden toggle. The HEAD bus (top row) is the tappable bus and must
+                        // never be hidden — a hidden head breaks gameplay. So block the toggle
+                        // there, and self-heal any level whose head ended up hidden by another
+                        // path (reorder onto the head, import), keeping the invariant airtight.
+                        var toggleRect = new Rect(toggleX, vCenter + 1f, ToggleW, ToggleW);
+                        if (isHead)
                         {
-                            session.PushUndoSnapshot();
-                            bus.Hidden = newHidden;
-                            session.MarkDirty();
+                            if (bus.Hidden)
+                            {
+                                bus.Hidden = false;   // normalize invalid state; not a user edit → no undo entry
+                                session.MarkDirty();
+                            }
+                            using (new EditorGUI.DisabledGroupScope(true))
+                                EditorGUI.Toggle(toggleRect, false);
+                        }
+                        else
+                        {
+                            bool newHidden = EditorGUI.Toggle(toggleRect, bus.Hidden);
+                            if (newHidden != bus.Hidden)
+                            {
+                                session.PushUndoSnapshot();
+                                bus.Hidden = newHidden;
+                                session.MarkDirty();
+                            }
                         }
 
                         // Color swatch (right-click to pick)
