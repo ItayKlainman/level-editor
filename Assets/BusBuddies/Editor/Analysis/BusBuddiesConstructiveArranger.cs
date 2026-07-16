@@ -193,6 +193,137 @@ namespace Hoppa.BusBuddies.Editor
             GridData<ICellData> grid, BusQueueData queue, int columns, int activeSlots)
             => ReplayWins(grid, queue, columns, activeSlots);
 
+        // ── Cap consecutive same-color buses per column (the boss's rule) ──
+        // No column may show more than `maxRun` buses of the same color in a row.
+        // Each over-long run is fixed MOVE-FIRST (relocate a run bus to a column
+        // where it won't form a new over-run) then MERGE-FALLBACK (fuse two adjacent
+        // same-color buses into one bigger bus — literally "one of 50 instead of two
+        // of 25"). Every candidate edit is kept only if a full solver STILL finds a
+        // winning line — via BusSolver, which (unlike the round-robin ReplayWins)
+        // handles the uneven columns that moving/merging produce. Per-color pixel
+        // totals are preserved (a move keeps the bus, a merge sums it), so export
+        // balance holds. Best-effort and deterministic: a run that neither a safe move
+        // nor a safe merge can fix is left as-is rather than risk an unsolvable board.
+        // Intended for autofiller output (buses have no ConnectedId / Hidden pairing); a
+        // merge/move does not carry a reciprocal ConnectedId, so do not run this over a
+        // hand-authored queue that contains connected pairs.
+        public static BusQueueData CapColorRuns(
+            BusQueueData queue, GridData<ICellData> grid, int activeSlots, int maxRun = 3)
+        {
+            maxRun = Math.Max(1, maxRun);
+            var working = CloneQueueData(queue);
+            if (working.Columns.Count == 0) return working;
+
+            int slots = Math.Max(1, activeSlots);
+            bool Solvable(BusQueueData q)
+            {
+                var model = BusLevelModel.Build(grid, q, slots);
+                return new BusSolver(40_000, 400).Solve(model).Outcome == BusSolver.Outcome.Solvable;
+            }
+
+            int totalBuses = 0;
+            foreach (var col in working.Columns) totalBuses += col.Buses.Count;
+
+            bool progressed = true;
+            int guard = 0, guardMax = totalBuses * 4 + 16;
+            while (progressed && guard++ < guardMax)
+            {
+                progressed = false;
+                for (int c = 0; c < working.Columns.Count; c++)
+                {
+                    if (!FindOverRun(working.Columns[c].Buses, maxRun, out int start, out int len))
+                        continue;
+                    if (TryMoveRunBus(working, c, start + len - 1, maxRun, Solvable)
+                     || TryMergeInRun(working, c, start, len, Solvable))
+                        progressed = true;
+                    // else: no safe fix for this run — leave it.
+                }
+            }
+            return working;
+        }
+
+        // First maximal same-color run longer than maxRun (head->tail). False if none.
+        private static bool FindOverRun(List<BusEntry> buses, int maxRun, out int start, out int len)
+        {
+            start = 0; len = 0;
+            int i = 0;
+            while (i < buses.Count)
+            {
+                string color = buses[i]?.ColorId;
+                int j = i + 1;
+                while (j < buses.Count && string.Equals(buses[j]?.ColorId, color)) j++;
+                if (j - i > maxRun) { start = i; len = j - i; return true; }
+                i = j;
+            }
+            return false;
+        }
+
+        // Move the bus at `idx` in column c to the TAIL of another column where it
+        // won't create a same-color over-run, keeping the whole queue solvable.
+        private static bool TryMoveRunBus(
+            BusQueueData q, int c, int idx, int maxRun, Func<BusQueueData, bool> solvable)
+        {
+            var src = q.Columns[c].Buses;
+            if (idx < 0 || idx >= src.Count) return false;
+            var bus = src[idx];
+            string color = bus?.ColorId;
+
+            for (int d = 0; d < q.Columns.Count; d++)
+            {
+                if (d == c) continue;
+                var dst = q.Columns[d].Buses;
+                int tailRun = 0;
+                for (int k = dst.Count - 1; k >= 0 && string.Equals(dst[k]?.ColorId, color); k--) tailRun++;
+                if (tailRun + 1 > maxRun) continue; // would just move the problem
+
+                src.RemoveAt(idx);
+                dst.Add(bus);
+                if (solvable(q)) return true;
+                dst.RemoveAt(dst.Count - 1);        // revert
+                src.Insert(idx, bus);
+            }
+            return false;
+        }
+
+        // Merge two adjacent same-color buses within the run [start, start+len) into
+        // one bus (capacities summed), keeping the queue solvable. Tail pair first.
+        private static bool TryMergeInRun(
+            BusQueueData q, int c, int start, int len, Func<BusQueueData, bool> solvable)
+        {
+            var buses = q.Columns[c].Buses;
+            for (int i = start + len - 1; i > start; i--)
+            {
+                var a = buses[i - 1];
+                var b = buses[i];
+                if (a == null || b == null) continue;
+                var merged = new BusEntry
+                {
+                    ColorId  = a.ColorId,
+                    Capacity = a.Capacity + b.Capacity,
+                    Hidden   = a.Hidden && b.Hidden,
+                };
+                buses[i - 1] = merged;
+                buses.RemoveAt(i);
+                if (solvable(q)) return true;
+                buses[i - 1] = a;                   // revert
+                buses.Insert(i, b);
+            }
+            return false;
+        }
+
+        private static BusQueueData CloneQueueData(BusQueueData src)
+        {
+            var q = new BusQueueData();
+            if (src?.Columns != null)
+                foreach (var col in src.Columns)
+                {
+                    var nc = new BusColumn();
+                    if (col?.Buses != null) nc.Buses.AddRange(col.Buses);
+                    q.Columns.Add(nc);
+                }
+            return q;
+        }
+
         // Move round buses toward each column's head (remainders to the tail), guarded
         // by re-verification: an accepted per-column sort is kept only if the WHOLE
         // working queue still wins by exact replay; otherwise that column reverts to its

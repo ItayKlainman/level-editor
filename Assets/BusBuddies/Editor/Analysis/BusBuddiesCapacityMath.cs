@@ -13,10 +13,11 @@ namespace Hoppa.BusBuddies.Editor
     // wins next; Round-to-5 yields first (best-effort).
     public static class BusBuddiesCapacityMath
     {
-        // avg pixels per bus for a Buses Chunks value (1..5).
+        // avg pixels per bus for a Buses Chunks value (1..10). 1–5 unchanged from the
+        // original range; 6–10 extend the ramp to coarse buses (e.g. base 10/step 5 → 35..55).
         public static int Avg(int busesChunks, int chunksBase, int chunksStep)
         {
-            int c = Mathf.Clamp(busesChunks, 1, 5);
+            int c = Mathf.Clamp(busesChunks, 1, 10);
             return Mathf.Max(1, chunksBase + (c - 1) * Mathf.Max(0, chunksStep));
         }
 

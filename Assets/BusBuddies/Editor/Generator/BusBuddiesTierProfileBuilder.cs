@@ -61,7 +61,7 @@ namespace Hoppa.BusBuddies.Editor
                 var af = Object.Instantiate(baseAf);
                 var baseCfg = af.GetType().GetField("_config", FF)?.GetValue(af) as BusBuddiesAutofillConfig;
                 var cfg = baseCfg != null ? Object.Instantiate(baseCfg) : ScriptableObject.CreateInstance<BusBuddiesAutofillConfig>();
-                cfg.DefaultChunks            = Mathf.Clamp(d.BusesChunks, 1, 5);
+                cfg.DefaultChunks            = Mathf.Clamp(d.BusesChunks, 1, 10);
                 cfg.DefaultDeviation         = Mathf.Clamp01(d.DeviationPercent);
                 cfg.DefaultColumns           = Mathf.Clamp(d.Columns, 1, 5);
                 cfg.DefaultDifficulty        = Mathf.Clamp(d.Difficulty, 1, 5);

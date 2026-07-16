@@ -29,6 +29,9 @@ namespace Hoppa.BusBuddies.Editor
     {
         [SerializeField] private BusBuddiesAutofillConfig _config;
 
+        // Max buses of the same color allowed in a row within a column (boss's rule).
+        private const int MaxSameColorRun = 3;
+
         // Exposed so the Difficulty panel can read the fixed mapping constants
         // (ChunksBase/Step) and fresh-level defaults for its live readout.
         public BusBuddiesAutofillConfig Config => _config;
@@ -128,6 +131,13 @@ namespace Hoppa.BusBuddies.Editor
             if (solvable && settings.RoundToFive)
                 bestQueue = BusBuddiesConstructiveArranger.SortRoundToHead(
                     bestQueue, doc.Grid, columns, slots);
+
+            // Cap consecutive same-color buses per column (boss's rule): no more than
+            // 3 in a row. Move-first, merge-fallback, solver-guarded so it can't make
+            // the level unsolvable. Only meaningful when the level came out solvable.
+            if (solvable)
+                bestQueue = BusBuddiesConstructiveArranger.CapColorRuns(
+                    bestQueue, doc.Grid, slots, MaxSameColorRun);
 
             result.TopSection = JObject.FromObject(bestQueue);
             result.Succeeded  = solvable;

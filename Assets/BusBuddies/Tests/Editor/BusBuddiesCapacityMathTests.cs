@@ -29,6 +29,20 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.AreEqual(30, BusBuddiesCapacityMath.Avg(5, 10, 5));
         }
 
+        // ── Extended coarse range (Chunks 6..10 → 35,40,45,50,55) for bigger buses ──
+        [Test]
+        public void Avg_ExtendedRange_ReachesCoarseBuses()
+        {
+            Assert.AreEqual(35, BusBuddiesCapacityMath.Avg(6, 10, 5));
+            Assert.AreEqual(40, BusBuddiesCapacityMath.Avg(7, 10, 5));
+            Assert.AreEqual(45, BusBuddiesCapacityMath.Avg(8, 10, 5));
+            Assert.AreEqual(50, BusBuddiesCapacityMath.Avg(9, 10, 5));
+            Assert.AreEqual(55, BusBuddiesCapacityMath.Avg(10, 10, 5));
+            // Clamp ceiling is now 10, not 5: values above 10 saturate at the Chunks-10 avg.
+            Assert.AreEqual(55, BusBuddiesCapacityMath.Avg(11, 10, 5));
+            Assert.AreEqual(55, BusBuddiesCapacityMath.Avg(99, 10, 5));
+        }
+
         // ── Deviation → [min,max] window (Excel: avg 30 @ 50% → 15/45) ──
         [Test]
         public void Window_FromDeviation()

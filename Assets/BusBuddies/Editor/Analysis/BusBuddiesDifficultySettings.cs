@@ -21,7 +21,7 @@ namespace Hoppa.BusBuddies.Editor
         public const string KeyNoSingleBus = "bb.noSingleBus";
         public const string KeyRoundToFive = "bb.roundToFive";
 
-        [Range(1, 5)]   public int   BusesChunks      = 3;   // avg pixels per bus (via ChunksBase/Step)
+        [Range(1, 10)]  public int   BusesChunks      = 3;   // avg pixels per bus (via ChunksBase/Step); 1–10 (6–10 = coarse buses)
         [Range(0f, 1f)] public float DeviationPercent = 0.5f; // capacity spread around avg (0.5 = ±50%)
         [Range(1, 5)]   public int   Columns          = 3;   // queue columns
         [Range(1, 5)]   public int   Difficulty       = 3;   // "dig" depth of main colors
@@ -41,7 +41,7 @@ namespace Hoppa.BusBuddies.Editor
         // Clamp every knob to its documented range. Idempotent.
         public void Clamp()
         {
-            BusesChunks      = Mathf.Clamp(BusesChunks, 1, 5);
+            BusesChunks      = Mathf.Clamp(BusesChunks, 1, 10);
             DeviationPercent = Mathf.Clamp01(DeviationPercent);
             Columns          = Mathf.Clamp(Columns, 1, 5);
             Difficulty       = Mathf.Clamp(Difficulty, 1, 5);

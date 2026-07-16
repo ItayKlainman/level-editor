@@ -68,7 +68,7 @@ namespace Hoppa.BusBuddies.Editor
                 if (p.Difficulty == null) p.Difficulty = new BusBuddiesDifficultySettings();
                 var d = p.Difficulty;
                 EditorGUILayout.LabelField("Difficulty (designer model)", EditorStyles.miniBoldLabel);
-                d.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", d.BusesChunks, 1, 5);
+                d.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", d.BusesChunks, 1, 10);
                 d.DeviationPercent = EditorGUILayout.Slider("Deviation %", d.DeviationPercent, 0f, 1f);
                 d.Columns          = EditorGUILayout.IntSlider("Columns", d.Columns, 1, 5);
                 d.Difficulty       = EditorGUILayout.IntSlider("Difficulty (dig)", d.Difficulty, 1, 5);

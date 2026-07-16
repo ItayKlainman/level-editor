@@ -66,6 +66,15 @@ namespace Hoppa.BusBuddies.Editor
         private static Texture LinkedIcon =>
             _linkedIcon != null ? _linkedIcon : (_linkedIcon = EditorGUIUtility.IconContent("Linked")?.image);
 
+        // Per-column bus-count readout style. Lazily built (EditorStyles isn't ready at static init).
+        private static GUIStyle _countStyleCache;
+        private static GUIStyle _countStyle => _countStyleCache ??= new GUIStyle(EditorStyles.miniLabel)
+        {
+            alignment = TextAnchor.MiddleRight,
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = new Color(0.62f, 0.72f, 0.85f) },
+        };
+
         // Reserved height. Sized to show ~5 bus rows + headers + add/remove buttons.
         public override float PreferredHeight =>
             HeaderH + ColLblH + (BusH * 5f) + BtnH + 24f;
@@ -401,9 +410,8 @@ namespace Hoppa.BusBuddies.Editor
                         swapColA = c;
                 }
 
-                if (GUI.Button(
-                        new Rect(cx + (colW - AddBtnW) * 0.5f, btnRowY, AddBtnW, BtnH),
-                        "+", EditorStyles.miniButton))
+                float plusX = cx + (colW - AddBtnW) * 0.5f;
+                if (GUI.Button(new Rect(plusX, btnRowY, AddBtnW, BtnH), "+", EditorStyles.miniButton))
                 {
                     session.PushUndoSnapshot();
                     string newId = col.Buses.Count > 0
@@ -413,6 +421,15 @@ namespace Hoppa.BusBuddies.Editor
                     int newCap = col.Buses.Count > 0 ? col.Buses[col.Buses.Count - 1].Capacity : 6;
                     col.Buses.Add(new BusEntry { ColorId = newId, Capacity = newCap });
                 }
+
+                // Per-column bus-count readout, tucked just left of the + button.
+                float countLeft = cx + 2f + ArrowBtnW + 2f;
+                float countW    = plusX - 4f - countLeft;
+                if (countW > 10f)
+                    GUI.Label(new Rect(countLeft, btnRowY, countW, BtnH),
+                        new GUIContent(col.Buses.Count.ToString(),
+                            $"{col.Buses.Count} bus(es) in this column"),
+                        _countStyle);
             }
 
             // Safety net: release drag if mouse up outside all columns

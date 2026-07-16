@@ -40,7 +40,7 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.AreEqual(1, cfg.ChunksBase);
             Assert.AreEqual(0, cfg.ChunksStep);
             Assert.AreEqual(1f, cfg.MainColorShareThreshold, 1e-5f);
-            Assert.AreEqual(5, cfg.DefaultChunks);
+            Assert.AreEqual(10, cfg.DefaultChunks);   // DefaultChunks now clamps to 1..10
             Assert.AreEqual(1, cfg.DefaultColumns);
             Assert.AreEqual(1, cfg.DefaultDifficulty);
             Assert.AreEqual(1f, cfg.DefaultDeviation, 1e-5f);

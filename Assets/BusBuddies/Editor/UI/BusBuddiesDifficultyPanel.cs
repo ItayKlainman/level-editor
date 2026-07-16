@@ -62,7 +62,7 @@ namespace Hoppa.BusBuddies.Editor
             int pick = EditorGUILayout.Popup("Apply tier", 0, TierMenu);
             if (pick > 0) ApplyTier(pick - 1);
 
-            _settings.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", _settings.BusesChunks, 1, 5);
+            _settings.BusesChunks      = EditorGUILayout.IntSlider("Buses Chunks", _settings.BusesChunks, 1, 10);
             _settings.DeviationPercent = EditorGUILayout.Slider("Deviation %", _settings.DeviationPercent, 0f, 1f);
             _settings.Columns          = EditorGUILayout.IntSlider("Columns", _settings.Columns, 1, 5);
             _settings.Difficulty       = EditorGUILayout.IntSlider("Difficulty", _settings.Difficulty, 1, 5);

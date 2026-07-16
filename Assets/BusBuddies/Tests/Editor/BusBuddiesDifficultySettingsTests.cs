@@ -74,7 +74,7 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 [BusBuddiesDifficultySettings.KeyDeviation]   = 4.5f,
             };
             var r = BusBuddiesDifficultySettings.ReadFrom(Doc(gd), null);
-            Assert.AreEqual(5, r.BusesChunks);
+            Assert.AreEqual(10, r.BusesChunks);   // Buses Chunks now clamps to 1..10
             Assert.AreEqual(1, r.Columns);
             Assert.AreEqual(1, r.Difficulty);
             Assert.AreEqual(1f, r.DeviationPercent, 1e-5f);

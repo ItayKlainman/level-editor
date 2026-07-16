@@ -22,7 +22,7 @@ namespace Hoppa.BusBuddies.Editor
         public bool ExcludeOutlineFromMain = true;
 
         [Header("Fresh-level difficulty defaults (used when GameData omits a knob)")]
-        [Range(1, 5)]   public int   DefaultChunks     = 3;
+        [Range(1, 10)]  public int   DefaultChunks     = 3;
         [Range(0f, 1f)] public float DefaultDeviation  = 0.5f;
         [Range(1, 5)]   public int   DefaultColumns    = 3;
         [Range(1, 5)]   public int   DefaultDifficulty = 3;
@@ -77,7 +77,7 @@ namespace Hoppa.BusBuddies.Editor
             ChunksBase = Mathf.Max(1, ChunksBase);
             ChunksStep = Mathf.Max(0, ChunksStep);
             MainColorShareThreshold = Mathf.Clamp01(MainColorShareThreshold);
-            DefaultChunks     = Mathf.Clamp(DefaultChunks, 1, 5);
+            DefaultChunks     = Mathf.Clamp(DefaultChunks, 1, 10);
             DefaultDeviation  = Mathf.Clamp01(DefaultDeviation);
             DefaultColumns    = Mathf.Clamp(DefaultColumns, 1, 5);
             DefaultDifficulty = Mathf.Clamp(DefaultDifficulty, 1, 5);
