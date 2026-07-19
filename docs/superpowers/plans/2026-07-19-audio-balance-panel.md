@@ -2304,9 +2304,13 @@ EOF
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `ClipSampleReader.TryRead(AudioClip clip, out float[] interleaved, out string error) -> bool`; `ClipSampleReader.StreamingError` constant.
+- Produces: `ClipSampleReader.TryRead(AudioClip clip, out float[] interleaved, out string error) -> bool`; `ClipSampleReader.StreamingError` and `ClipSampleReader.LoadPendingError` constants.
 
 > Streaming clips return silence from `GetData`. Rather than mutating the project's import settings behind the user's back, those are reported with an actionable message.
+>
+> **`LoadAudioData()` is asynchronous.** A `true` return means the load was *queued*, not that decoding finished — so `loadState` is re-checked afterwards and `GetData` never runs unless it reads `Loaded`. A single re-check with an honest error, not polling: this is editor-time code, and a clip that is not ready is a reportable condition rather than something to block on.
+>
+> **Known, accepted test gap:** the Streaming rejection branch has no automated coverage. `AudioClip.Create` — the only way these tests build clips — always produces a fully-resident non-streaming clip; `Streaming` can only be set on an imported asset via its `AudioImporter`. Covering it would need a committed `.wav` fixture with its `.meta` pinned to Streaming. The lead chose to accept the gap and document it (2026-07-19) rather than put a binary asset in the package; the reasoning is recorded in the XML doc on `StreamingError` so a maintainer does not assume coverage exists.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2403,10 +2407,21 @@ namespace Hoppa.AudioBalance.Editor
                 return false;
             }
 
-            if (clip.loadState != AudioDataLoadState.Loaded && !clip.LoadAudioData())
+            // LoadAudioData() returning true only means the load was QUEUED, not that decoding
+            // finished. GetData must never run before loadState is actually Loaded.
+            if (clip.loadState != AudioDataLoadState.Loaded)
             {
-                error = "failed to load audio data";
-                return false;
+                if (!clip.LoadAudioData())
+                {
+                    error = "failed to load audio data";
+                    return false;
+                }
+
+                if (clip.loadState != AudioDataLoadState.Loaded)
+                {
+                    error = LoadPendingError;
+                    return false;
+                }
             }
 
             var samples = clip.samples * clip.channels;

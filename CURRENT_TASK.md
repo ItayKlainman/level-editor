@@ -35,17 +35,20 @@ match the published 48 kHz table to 1e-9) · `LufsMeter` integrated loudness + t
 `LoudnessCache` → `LoudnessAnalyzer` → window shell → clip table → preview player + write-table + docs.
 Tasks 11–13 are IMGUI and should be expected to need in-editor iteration.
 
-### 🔴 TWO OPEN ITEMS — resolve before Task 10 (it consumes `ClipSampleReader`)
-- **(A) DECIDED, NOT YET APPLIED.** `ClipSampleReader.TryRead` calls `clip.LoadAudioData()` and then
-  `GetData` immediately. `LoadAudioData()` is **async** — a `true` return means *queued*, not loaded.
-  Fix: re-check `clip.loadState` after the call and fail with an actionable error if not `Loaded`.
-  Small, no interface change.
-- **(B) AWAITING LEAD DECISION.** The **Streaming diagnostic — the whole reason `ClipSampleReader`
-  exists — has ZERO test coverage**, because `AudioClip.Create` cannot produce a Streaming clip; only
-  a real imported asset can. Options put to the lead: (1) *recommended* accept the gap + document it
-  in the package README (branch is 5 lines, provably reachable, benign failure mode: an actionable
-  message instead of a wrong gain), or (2) commit a few-KB `.wav` fixture under `Tests/` with its
-  `.meta` pinned to Streaming. **Lead paused before answering — ask again.**
+### ✅ BOTH TASK-8 FOLLOW-UPS CLOSED (2026-07-19, commit `fd4e7ff`)
+- **(A) APPLIED.** `LoadAudioData()` is **async** — a `true` return means *queued*, not loaded, and
+  the code was calling `GetData` immediately. Now re-checks `clip.loadState` afterwards and fails with
+  `ClipSampleReader.LoadPendingError` if it is not `Loaded`. `GetData` is provably unreachable unless
+  `loadState == Loaded`. Single re-check, no polling — editor-time code, so a not-ready clip is a
+  reportable condition, not something to block on.
+- **(B) LEAD DECIDED: accept the gap, document it.** The Streaming rejection branch has no automated
+  coverage and will not get any: `AudioClip.Create` (the only way these tests build clips) always
+  yields a fully-resident non-streaming clip, and `Streaming` can only be set on an imported asset via
+  its `AudioImporter`. Covering it would need a committed `.wav` fixture with `.meta` pinned to
+  Streaming — deliberately rejected to keep binaries out of the package. Reasoning is recorded in the
+  XML doc on `ClipSampleReader.StreamingError` so no future maintainer assumes coverage exists.
+
+**→ Task 9 (`LoudnessCache`) is the next thing to dispatch. Nothing is blocking it.**
 
 ### ⚠️ Three plan errors caught by TESTS, not review (all lead-approved, plan amended + committed)
 1. **T3** — a tolerance that was mathematically impossible to satisfy (block-straddling artifact
