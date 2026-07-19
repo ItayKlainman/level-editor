@@ -15,6 +15,7 @@ namespace Hoppa.AudioBalance.Editor
         private const double LoudnessOffset = -0.691;
         private const double BlockSeconds = 0.4;
         private const double StepSeconds = 0.1;
+        private const double MomentarySeconds = 0.4;
 
         public static LoudnessResult MeasureIntegrated(float[] interleaved, int channels, int sampleRate)
         {
@@ -60,6 +61,48 @@ namespace Hoppa.AudioBalance.Editor
             return double.IsNegativeInfinity(loudness)
                 ? LoudnessResult.Silent
                 : LoudnessResult.At((float)loudness);
+        }
+
+        public static LoudnessResult Measure(float[] interleaved, int channels, int sampleRate,
+            MeasureMode mode)
+        {
+            return mode == MeasureMode.MomentaryMax
+                ? MeasureMomentaryMax(interleaved, channels, sampleRate)
+                : MeasureIntegrated(interleaved, channels, sampleRate);
+        }
+
+        /// <summary>
+        /// Loudest 400 ms window, ungated. For a clip shorter than the window,
+        /// ComputeBlockPowers collapses to a single block over the whole clip -- exactly the
+        /// desired behaviour for the short SFX this mode exists to serve.
+        ///
+        /// The window is 400 ms, not 3 s, for a measured reason: on a one-shot with a long
+        /// quiet tail a 3 s window averages the attack with the silence and reads BELOW
+        /// integrated loudness, which is the opposite of this mode's purpose.
+        /// </summary>
+        public static LoudnessResult MeasureMomentaryMax(float[] interleaved, int channels, int sampleRate)
+        {
+            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, MomentarySeconds, StepSeconds);
+            if (blocks.Count == 0)
+            {
+                return LoudnessResult.Silent;
+            }
+
+            var weights = ChannelWeights(channels);
+            var max = double.NegativeInfinity;
+
+            foreach (var block in blocks)
+            {
+                var loudness = BlockLoudness(block, weights);
+                if (loudness > max)
+                {
+                    max = loudness;
+                }
+            }
+
+            return double.IsNegativeInfinity(max) || max <= AbsoluteGateLufs
+                ? LoudnessResult.Silent
+                : LoudnessResult.At((float)max);
         }
 
         /// <summary>
