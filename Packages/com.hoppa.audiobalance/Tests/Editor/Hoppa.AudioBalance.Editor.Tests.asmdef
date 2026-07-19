@@ -3,6 +3,7 @@
     "rootNamespace": "Hoppa.AudioBalance.Editor.Tests",
     "references": [
         "Hoppa.AudioBalance.Runtime",
+        "Hoppa.AudioBalance.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
