@@ -1,0 +1,4783 @@
+# Audio Balance Panel Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Ship a new `com.hoppa.audiobalance` UPM package whose editor window measures every audio clip's perceived loudness (LUFS), balances it against one anchor clip, and bakes per-clip gains into a runtime table asset.
+
+**Architecture:** Pure-C# DSP (K-weighting biquads → gated block loudness) lives in the Editor assembly with no `UnityEngine` dependency, so it unit-tests in milliseconds against generated signals. An editor-only `AudioBalanceProfile` holds authoring state (folders, anchor, categories); the runtime assembly ships only the baked `AudioGainTable` and its lookup extensions.
+
+**Tech Stack:** Unity 2022.3, C#, IMGUI (absolute `GUI.*` rects), NUnit EditMode tests, `JsonUtility` for the cache (keeps the package dependency-free).
+
+**Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
+
+## Global Constraints
+
+- Package name `com.hoppa.audiobalance`, version `0.1.0`, `"unity": "2022.3"`.
+- **Zero package dependencies.** Use `JsonUtility`, not Newtonsoft.
+- Assembly names: `Hoppa.AudioBalance.Runtime`, `Hoppa.AudioBalance.Editor`, `Hoppa.AudioBalance.Editor.Tests`. Namespaces: `Hoppa.AudioBalance`, `Hoppa.AudioBalance.Editor`, `Hoppa.AudioBalance.Editor.Tests`.
+- **Commit `.meta` files** for every new file and folder. A missing `.meta` breaks the package for every other checkout.
+- **No absolute paths in committed assets.** Folder references are stored project-relative (`Assets/...`).
+- All UI uses absolute `GUI.*` rects, never `GUILayout`. (`GUILayout` islands that open modals caused a layout-stack corruption crash in `LevelEditorWindow`.)
+- No game is wired up in v1. Adoption by Bus Buddies is a separate follow-up.
+- Run tests with the `tests-run` MCP tool: `testMode: EditMode`, `assemblyNames: ["Hoppa.AudioBalance.Editor.Tests"]`. Call `assets-refresh` first when new `.cs` files were added outside Unity.
+
+---
+
+### Task 1: Package scaffold + runtime gain table
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/package.json`
+- Create: `Packages/com.hoppa.audiobalance/Runtime/Hoppa.AudioBalance.Runtime.asmdef`
+- Create: `Packages/com.hoppa.audiobalance/Runtime/AudioGainMath.cs`
+- Create: `Packages/com.hoppa.audiobalance/Runtime/AudioGainTable.cs`
+- Create: `Packages/com.hoppa.audiobalance/Runtime/AudioGainTableExtensions.cs`
+- Create: `Packages/com.hoppa.audiobalance/Tests/Editor/Hoppa.AudioBalance.Editor.Tests.asmdef`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/AudioGainTableTests.cs`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `AudioGainMath.LinearFromDb(float) -> float`, `AudioGainMath.DbFromLinear(float) -> float`, `AudioGainTable.GetGainDb(AudioClip) -> float`, `AudioGainTable.GetGain(AudioClip) -> float`, `AudioGainTable.SetEntries(IEnumerable<AudioGainTable.Entry>)`, `AudioGainTable.Entry { AudioClip Clip; float GainDb; }`.
+
+- [ ] **Step 1: Create the package manifest**
+
+`Packages/com.hoppa.audiobalance/package.json`:
+
+```json
+{
+  "name": "com.hoppa.audiobalance",
+  "version": "0.1.0",
+  "displayName": "Hoppa Audio Balance",
+  "description": "Anchor-relative loudness balancing for Unity audio. Measures perceived loudness (LUFS, ITU-R BS.1770-4) of every clip, balances them against one anchor clip via category offsets, and bakes per-clip gains into a runtime table asset. Source audio files are never modified.",
+  "unity": "2022.3",
+  "keywords": [
+    "audio",
+    "loudness",
+    "lufs",
+    "mixing",
+    "hoppa"
+  ],
+  "author": {
+    "name": "Hoppa"
+  }
+}
+```
+
+- [ ] **Step 2: Create the two assembly definitions**
+
+`Packages/com.hoppa.audiobalance/Runtime/Hoppa.AudioBalance.Runtime.asmdef`:
+
+```json
+{
+    "name": "Hoppa.AudioBalance.Runtime",
+    "rootNamespace": "Hoppa.AudioBalance",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+```
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/Hoppa.AudioBalance.Editor.Tests.asmdef`:
+
+```json
+{
+    "name": "Hoppa.AudioBalance.Editor.Tests",
+    "rootNamespace": "Hoppa.AudioBalance.Editor.Tests",
+    "references": [
+        "Hoppa.AudioBalance.Runtime",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+```
+
+> The test asmdef gains a `Hoppa.AudioBalance.Editor` reference in Task 2. It is omitted now because that assembly does not exist yet and Unity errors on unresolved references.
+
+- [ ] **Step 3: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/AudioGainTableTests.cs`:
+
+```csharp
+using System.Collections.Generic;
+using Hoppa.AudioBalance;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class AudioGainTableTests
+    {
+        private static AudioClip MakeClip(string name)
+        {
+            return AudioClip.Create(name, 128, 1, 44100, false);
+        }
+
+        [Test]
+        public void LinearFromDb_IsCorrectAtKnownPoints()
+        {
+            Assert.AreEqual(1.0f, AudioGainMath.LinearFromDb(0f), 1e-4f);
+            Assert.AreEqual(0.5012f, AudioGainMath.LinearFromDb(-6f), 1e-3f);
+            Assert.AreEqual(0.1f, AudioGainMath.LinearFromDb(-20f), 1e-4f);
+        }
+
+        [Test]
+        public void DbFromLinear_RoundTripsWithLinearFromDb()
+        {
+            Assert.AreEqual(-13.5f, AudioGainMath.DbFromLinear(AudioGainMath.LinearFromDb(-13.5f)), 1e-3f);
+        }
+
+        [Test]
+        public void DbFromLinear_ClampsAtZeroInsteadOfReturningNegativeInfinity()
+        {
+            Assert.AreEqual(AudioGainMath.MinDb, AudioGainMath.DbFromLinear(0f), 1e-4f);
+        }
+
+        [Test]
+        public void GetGainDb_ReturnsStoredValue()
+        {
+            var clip = MakeClip("stored");
+            var table = ScriptableObject.CreateInstance<AudioGainTable>();
+            table.SetEntries(new List<AudioGainTable.Entry>
+            {
+                new AudioGainTable.Entry { Clip = clip, GainDb = -7.5f }
+            });
+
+            Assert.AreEqual(-7.5f, table.GetGainDb(clip), 1e-4f);
+        }
+
+        [Test]
+        public void GetGain_ReturnsUnityGainForUnknownClip()
+        {
+            var known = MakeClip("known");
+            var unknown = MakeClip("unknown");
+            var table = ScriptableObject.CreateInstance<AudioGainTable>();
+            table.SetEntries(new List<AudioGainTable.Entry>
+            {
+                new AudioGainTable.Entry { Clip = known, GainDb = -12f }
+            });
+
+            Assert.AreEqual(1f, table.GetGain(unknown), 1e-4f,
+                "An unknown clip must never be silenced by a missing table entry.");
+        }
+
+        [Test]
+        public void GetGainDb_HandlesNullClipWithoutThrowing()
+        {
+            var table = ScriptableObject.CreateInstance<AudioGainTable>();
+            Assert.AreEqual(0f, table.GetGainDb(null), 1e-4f);
+        }
+
+        [Test]
+        public void SetEntries_ReplacesPreviousLookup()
+        {
+            var clip = MakeClip("replaced");
+            var table = ScriptableObject.CreateInstance<AudioGainTable>();
+            table.SetEntries(new List<AudioGainTable.Entry>
+            {
+                new AudioGainTable.Entry { Clip = clip, GainDb = -3f }
+            });
+            Assert.AreEqual(-3f, table.GetGainDb(clip), 1e-4f);
+
+            table.SetEntries(new List<AudioGainTable.Entry>
+            {
+                new AudioGainTable.Entry { Clip = clip, GainDb = -9f }
+            });
+            Assert.AreEqual(-9f, table.GetGainDb(clip), 1e-4f,
+                "The cached lookup must be invalidated when entries are replaced.");
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run` with `testMode: EditMode`, `assemblyNames: ["Hoppa.AudioBalance.Editor.Tests"]`.
+Expected: compile errors — `AudioGainMath` and `AudioGainTable` do not exist.
+
+- [ ] **Step 5: Implement `AudioGainMath`**
+
+`Packages/com.hoppa.audiobalance/Runtime/AudioGainMath.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance
+{
+    /// <summary>Decibel/linear conversions shared by the editor tooling and the runtime lookup.</summary>
+    public static class AudioGainMath
+    {
+        /// <summary>Floor reported instead of negative infinity for a zero-amplitude signal.</summary>
+        public const float MinDb = -80f;
+
+        public static float LinearFromDb(float db)
+        {
+            return Mathf.Pow(10f, db / 20f);
+        }
+
+        public static float DbFromLinear(float linear)
+        {
+            return linear <= 0f ? MinDb : 20f * Mathf.Log10(linear);
+        }
+    }
+}
+```
+
+- [ ] **Step 6: Implement `AudioGainTable`**
+
+`Packages/com.hoppa.audiobalance/Runtime/AudioGainTable.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance
+{
+    /// <summary>
+    /// Baked output of the Audio Balance window: a per-clip gain in decibels, relative to
+    /// the anchor clip. Every gain is at or below 0 dB (see the headroom pass in the editor
+    /// solver), so applying one can never push a source past AudioSource.volume's 1.0 cap.
+    /// </summary>
+    [CreateAssetMenu(menuName = "Hoppa/Audio/Audio Gain Table", fileName = "AudioGainTable")]
+    public sealed class AudioGainTable : ScriptableObject
+    {
+        [Serializable]
+        public struct Entry
+        {
+            public AudioClip Clip;
+            public float GainDb;
+        }
+
+        [SerializeField] private Entry[] _entries = Array.Empty<Entry>();
+
+        private Dictionary<AudioClip, float> _lookup;
+
+        public IReadOnlyList<Entry> Entries => _entries;
+
+        public void SetEntries(IEnumerable<Entry> entries)
+        {
+            _entries = entries == null ? Array.Empty<Entry>() : new List<Entry>(entries).ToArray();
+            _lookup = null;
+        }
+
+        /// <summary>Gain in dB for the clip, or 0 dB (unity) when the clip is not in the table.</summary>
+        public float GetGainDb(AudioClip clip)
+        {
+            if (clip == null)
+            {
+                return 0f;
+            }
+
+            EnsureLookup();
+            return _lookup.TryGetValue(clip, out var db) ? db : 0f;
+        }
+
+        /// <summary>Linear multiplier for the clip, or 1.0 when the clip is not in the table.</summary>
+        public float GetGain(AudioClip clip)
+        {
+            return AudioGainMath.LinearFromDb(GetGainDb(clip));
+        }
+
+        private void EnsureLookup()
+        {
+            if (_lookup != null)
+            {
+                return;
+            }
+
+            _lookup = new Dictionary<AudioClip, float>(_entries.Length);
+            foreach (var entry in _entries)
+            {
+                if (entry.Clip != null)
+                {
+                    _lookup[entry.Clip] = entry.GainDb;
+                }
+            }
+        }
+
+        private void OnEnable()
+        {
+            _lookup = null;
+        }
+
+        private void OnValidate()
+        {
+            _lookup = null;
+        }
+    }
+}
+```
+
+- [ ] **Step 7: Implement `AudioGainTableExtensions`**
+
+`Packages/com.hoppa.audiobalance/Runtime/AudioGainTableExtensions.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance
+{
+    /// <summary>Play-sound helpers that fold the baked gain into AudioSource.volume.</summary>
+    public static class AudioGainTableExtensions
+    {
+        public static void PlayBalanced(this AudioSource source, AudioClip clip,
+            AudioGainTable table, float userVolume = 1f)
+        {
+            if (source == null || clip == null)
+            {
+                return;
+            }
+
+            source.clip = clip;
+            source.volume = Resolve(table, clip, userVolume);
+            source.Play();
+        }
+
+        public static void PlayOneShotBalanced(this AudioSource source, AudioClip clip,
+            AudioGainTable table, float userVolume = 1f)
+        {
+            if (source == null || clip == null)
+            {
+                return;
+            }
+
+            source.PlayOneShot(clip, Resolve(table, clip, userVolume));
+        }
+
+        private static float Resolve(AudioGainTable table, AudioClip clip, float userVolume)
+        {
+            var gain = table != null ? table.GetGain(clip) : 1f;
+            return Mathf.Clamp01(gain * userVolume);
+        }
+    }
+}
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run` with `testMode: EditMode`, `assemblyNames: ["Hoppa.AudioBalance.Editor.Tests"]`.
+Expected: 7/7 PASS.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): scaffold com.hoppa.audiobalance + runtime gain table
+
+New sibling UPM package. Runtime ships only the baked table and its
+lookup extensions; an unknown clip resolves to unity gain so a missing
+entry can never silence a sound.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 2: K-weighting filter
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Hoppa.AudioBalance.Editor.asmdef`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/BiquadCoefficients.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/KWeighting.cs`
+- Modify: `Packages/com.hoppa.audiobalance/Tests/Editor/Hoppa.AudioBalance.Editor.Tests.asmdef` (add the Editor reference)
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/KWeightingTests.cs`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `BiquadCoefficients { double B0, B1, B2, A1, A2; }` (constructor takes them in that order), `KWeighting.HighShelf(int sampleRate) -> BiquadCoefficients`, `KWeighting.HighPass(int sampleRate) -> BiquadCoefficients`, `KWeighting.ApplyInPlace(double[] samples, BiquadCoefficients c)`.
+
+- [ ] **Step 1: Add the Editor assembly definition**
+
+`Packages/com.hoppa.audiobalance/Editor/Hoppa.AudioBalance.Editor.asmdef`:
+
+```json
+{
+    "name": "Hoppa.AudioBalance.Editor",
+    "rootNamespace": "Hoppa.AudioBalance.Editor",
+    "references": [
+        "Hoppa.AudioBalance.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+```
+
+- [ ] **Step 2: Add the Editor reference to the test assembly**
+
+In `Packages/com.hoppa.audiobalance/Tests/Editor/Hoppa.AudioBalance.Editor.Tests.asmdef`, change the `references` array to:
+
+```json
+    "references": [
+        "Hoppa.AudioBalance.Runtime",
+        "Hoppa.AudioBalance.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+```
+
+- [ ] **Step 3: Write the failing test**
+
+The published BS.1770-4 coefficient table is defined at 48 kHz. Deriving parametrically and asserting it reproduces those constants proves the derivation, which is what lets us measure 44.1 kHz clips without resampling.
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/KWeightingTests.cs`:
+
+```csharp
+using System;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class KWeightingTests
+    {
+        private const double Tolerance = 1e-9;
+
+        [Test]
+        public void HighShelf_At48kHz_MatchesPublishedConstants()
+        {
+            var c = KWeighting.HighShelf(48000);
+
+            Assert.AreEqual(1.53512485958697, c.B0, Tolerance);
+            Assert.AreEqual(-2.69169618940638, c.B1, Tolerance);
+            Assert.AreEqual(1.19839281085285, c.B2, Tolerance);
+            Assert.AreEqual(-1.69065929318241, c.A1, Tolerance);
+            Assert.AreEqual(0.73248077421585, c.A2, Tolerance);
+        }
+
+        [Test]
+        public void HighPass_At48kHz_MatchesPublishedConstants()
+        {
+            var c = KWeighting.HighPass(48000);
+
+            Assert.AreEqual(1.0, c.B0, Tolerance);
+            Assert.AreEqual(-2.0, c.B1, Tolerance);
+            Assert.AreEqual(1.0, c.B2, Tolerance);
+            Assert.AreEqual(-1.99004745483398, c.A1, Tolerance);
+            Assert.AreEqual(0.99007225036621, c.A2, Tolerance);
+        }
+
+        [TestCase(44100)]
+        [TestCase(22050)]
+        [TestCase(96000)]
+        public void Coefficients_AtOtherRates_AreFinite(int sampleRate)
+        {
+            var shelf = KWeighting.HighShelf(sampleRate);
+            var pass = KWeighting.HighPass(sampleRate);
+
+            foreach (var v in new[] { shelf.B0, shelf.B1, shelf.B2, shelf.A1, shelf.A2,
+                                      pass.B0, pass.B1, pass.B2, pass.A1, pass.A2 })
+            {
+                Assert.IsFalse(double.IsNaN(v) || double.IsInfinity(v));
+            }
+        }
+
+        [Test]
+        public void ApplyInPlace_GainAt1kHz_IsAboutPlusPoint691Db()
+        {
+            // The -0.691 offset in the loudness formula exists to cancel K-weighting's
+            // gain at 1 kHz. Proving that gain here is what makes the LUFS calibration
+            // test in LufsMeterTests meaningful.
+            const int sampleRate = 48000;
+            const int frames = sampleRate * 2;
+
+            var signal = new double[frames];
+            for (var i = 0; i < frames; i++)
+            {
+                signal[i] = Math.Sin(2.0 * Math.PI * 1000.0 * i / sampleRate);
+            }
+
+            var filtered = (double[])signal.Clone();
+            KWeighting.ApplyInPlace(filtered, KWeighting.HighShelf(sampleRate));
+            KWeighting.ApplyInPlace(filtered, KWeighting.HighPass(sampleRate));
+
+            // Skip the first 0.5 s so the filters' transient response is excluded.
+            var start = sampleRate / 2;
+            var gainDb = 10.0 * Math.Log10(MeanSquare(filtered, start) / MeanSquare(signal, start));
+
+            Assert.AreEqual(0.691, gainDb, 0.02);
+        }
+
+        private static double MeanSquare(double[] values, int start)
+        {
+            var sum = 0.0;
+            for (var i = start; i < values.Length; i++)
+            {
+                sum += values[i] * values[i];
+            }
+
+            return sum / (values.Length - start);
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `KWeighting` does not exist.
+
+- [ ] **Step 5: Implement `BiquadCoefficients`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/BiquadCoefficients.cs`:
+
+```csharp
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>Normalised direct-form-I biquad coefficients (a0 folded into the rest).</summary>
+    public readonly struct BiquadCoefficients
+    {
+        public readonly double B0;
+        public readonly double B1;
+        public readonly double B2;
+        public readonly double A1;
+        public readonly double A2;
+
+        public BiquadCoefficients(double b0, double b1, double b2, double a1, double a2)
+        {
+            B0 = b0;
+            B1 = b1;
+            B2 = b2;
+            A1 = a1;
+            A2 = a2;
+        }
+    }
+}
+```
+
+- [ ] **Step 6: Implement `KWeighting`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/KWeighting.cs`:
+
+```csharp
+using System;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// ITU-R BS.1770-4 K-weighting: a high-shelf stage followed by an RLB high-pass stage.
+    /// Coefficients are derived from the sample rate rather than resampling the audio, so a
+    /// 44.1 kHz clip is measured natively. Deriving at 48 kHz reproduces the standard's
+    /// published table (asserted in KWeightingTests).
+    /// </summary>
+    public static class KWeighting
+    {
+        public static BiquadCoefficients HighShelf(int sampleRate)
+        {
+            const double f0 = 1681.974450955533;
+            const double gainDb = 3.999843853973347;
+            const double q = 0.7071752369554196;
+
+            var k = Math.Tan(Math.PI * f0 / sampleRate);
+            var vh = Math.Pow(10.0, gainDb / 20.0);
+            var vb = Math.Pow(vh, 0.4996667741545416);
+            var a0 = 1.0 + k / q + k * k;
+
+            return new BiquadCoefficients(
+                (vh + vb * k / q + k * k) / a0,
+                2.0 * (k * k - vh) / a0,
+                (vh - vb * k / q + k * k) / a0,
+                2.0 * (k * k - 1.0) / a0,
+                (1.0 - k / q + k * k) / a0);
+        }
+
+        public static BiquadCoefficients HighPass(int sampleRate)
+        {
+            const double f0 = 38.13547087602444;
+            const double q = 0.5003270373238773;
+
+            var k = Math.Tan(Math.PI * f0 / sampleRate);
+            var denominator = 1.0 + k / q + k * k;
+
+            return new BiquadCoefficients(
+                1.0,
+                -2.0,
+                1.0,
+                2.0 * (k * k - 1.0) / denominator,
+                (1.0 - k / q + k * k) / denominator);
+        }
+
+        /// <summary>Runs a single-channel signal through the biquad in place.</summary>
+        public static void ApplyInPlace(double[] samples, BiquadCoefficients c)
+        {
+            if (samples == null)
+            {
+                return;
+            }
+
+            double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+
+            for (var i = 0; i < samples.Length; i++)
+            {
+                var x0 = samples[i];
+                var y0 = c.B0 * x0 + c.B1 * x1 + c.B2 * x2 - c.A1 * y1 - c.A2 * y2;
+
+                x2 = x1;
+                x1 = x0;
+                y2 = y1;
+                y1 = y0;
+
+                samples[i] = y0;
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 13/13 PASS (7 from Task 1 + 6 here).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): K-weighting biquads derived from sample rate
+
+Deriving parametrically (rather than resampling to 48 kHz) lets 44.1 kHz
+clips be measured natively. Test asserts the 48 kHz derivation reproduces
+the BS.1770-4 published table to 1e-9, and that the filter's 1 kHz gain is
++0.691 dB -- the value the loudness formula's offset cancels.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 3: Integrated loudness (blocks + gating)
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/LoudnessResult.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LufsMeterTests.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/SignalFactory.cs`
+
+**Interfaces:**
+- Consumes: `KWeighting.HighShelf`, `KWeighting.HighPass`, `KWeighting.ApplyInPlace`.
+- Produces: `LoudnessResult { bool IsSilent; float Lufs; }` with `LoudnessResult.Silent` and `LoudnessResult.At(float)`; `LufsMeter.MeasureIntegrated(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; constants `LufsMeter.AbsoluteGateLufs = -70f`, `LufsMeter.RelativeGateLu = -10f`.
+
+- [ ] **Step 1: Write the test signal factory**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/SignalFactory.cs`:
+
+```csharp
+using System;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    /// <summary>
+    /// Generates interleaved test signals so the DSP tests need no committed audio fixtures.
+    /// </summary>
+    public static class SignalFactory
+    {
+        /// <summary>
+        /// A 1 kHz sine whose PEAK amplitude is the given dBFS value, written to every channel.
+        /// A stereo sine built this way measures exactly that dBFS value in LUFS: the sine's
+        /// -3.01 dB crest factor and the +3.01 dB of summing two equal channels cancel.
+        /// </summary>
+        public static float[] Sine(double peakDbfs, double seconds, int channels, int sampleRate,
+            double frequency = 1000.0)
+        {
+            var amplitude = Math.Pow(10.0, peakDbfs / 20.0);
+            var frames = (int)Math.Round(seconds * sampleRate);
+            var data = new float[frames * channels];
+
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var value = (float)(amplitude * Math.Sin(2.0 * Math.PI * frequency * frame / sampleRate));
+                for (var ch = 0; ch < channels; ch++)
+                {
+                    data[frame * channels + ch] = value;
+                }
+            }
+
+            return data;
+        }
+
+        public static float[] Silence(double seconds, int channels, int sampleRate)
+        {
+            return new float[(int)Math.Round(seconds * sampleRate) * channels];
+        }
+
+        public static float[] Concat(params float[][] parts)
+        {
+            var length = 0;
+            foreach (var part in parts)
+            {
+                length += part.Length;
+            }
+
+            var result = new float[length];
+            var offset = 0;
+            foreach (var part in parts)
+            {
+                Array.Copy(part, 0, result, offset, part.Length);
+                offset += part.Length;
+            }
+
+            return result;
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/LufsMeterTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class LufsMeterTests
+    {
+        private const int Rate = 48000;
+
+        [Test]
+        public void Integrated_StereoSineAtMinus23_ReadsMinus23Lufs()
+        {
+            var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
+
+            var result = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+
+            Assert.IsFalse(result.IsSilent);
+            Assert.AreEqual(-23.0f, result.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void Integrated_StereoSineAtMinus20_ReadsMinus20Lufs()
+        {
+            var signal = SignalFactory.Sine(-20.0, 5.0, 2, Rate);
+
+            var result = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+
+            Assert.AreEqual(-20.0f, result.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void Integrated_MonoSine_ReadsThreeDbBelowTheStereoEquivalent()
+        {
+            var mono = LufsMeter.MeasureIntegrated(SignalFactory.Sine(-23.0, 5.0, 1, Rate), 1, Rate);
+
+            Assert.AreEqual(-26.01f, mono.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void Integrated_AtOtherSampleRates_MatchesThe48kResult()
+        {
+            var at441 = LufsMeter.MeasureIntegrated(SignalFactory.Sine(-23.0, 5.0, 2, 44100), 2, 44100);
+
+            Assert.AreEqual(-23.0f, at441.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void Integrated_AllZeroSignal_IsSilentNotNegativeInfinity()
+        {
+            var result = LufsMeter.MeasureIntegrated(SignalFactory.Silence(5.0, 2, Rate), 2, Rate);
+
+            Assert.IsTrue(result.IsSilent);
+            Assert.IsFalse(float.IsNegativeInfinity(result.Lufs));
+            Assert.IsFalse(float.IsNaN(result.Lufs));
+        }
+
+        [Test]
+        public void Integrated_AbsoluteGate_ExcludesAVeryQuietPassage()
+        {
+            // 3 s at -23 dBFS then 3 s at -85 dBFS. The quiet half is below the -70 LUFS
+            // absolute gate, so it must not drag the result down.
+            var loudOnly = LufsMeter.MeasureIntegrated(
+                SignalFactory.Sine(-23.0, 3.0, 2, Rate), 2, Rate);
+
+            var mixed = LufsMeter.MeasureIntegrated(
+                SignalFactory.Concat(
+                    SignalFactory.Sine(-23.0, 3.0, 2, Rate),
+                    SignalFactory.Sine(-85.0, 3.0, 2, Rate)),
+                2, Rate);
+
+            Assert.AreEqual(loudOnly.Lufs, mixed.Lufs, 0.2f);
+        }
+
+        [Test]
+        public void Integrated_RelativeGate_ExcludesAPassageMoreThan10LuDown()
+        {
+            // -23 dBFS then -45 dBFS: the quiet half clears the absolute gate but sits
+            // more than 10 LU below the ungated loudness, so the relative gate drops it.
+            var loudOnly = LufsMeter.MeasureIntegrated(
+                SignalFactory.Sine(-23.0, 3.0, 2, Rate), 2, Rate);
+
+            var mixed = LufsMeter.MeasureIntegrated(
+                SignalFactory.Concat(
+                    SignalFactory.Sine(-23.0, 3.0, 2, Rate),
+                    SignalFactory.Sine(-45.0, 3.0, 2, Rate)),
+                2, Rate);
+
+            Assert.AreEqual(loudOnly.Lufs, mixed.Lufs, 0.5f);
+        }
+
+        [Test]
+        public void Integrated_ClipShorterThanOneBlock_ReturnsAFiniteValue()
+        {
+            // 200 ms is shorter than the 400 ms block, so the block loop produces nothing
+            // and a naive implementation returns -Infinity, which becomes NaN downstream.
+            var signal = SignalFactory.Sine(-23.0, 0.2, 2, Rate);
+
+            var result = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+
+            Assert.IsFalse(result.IsSilent);
+            Assert.IsFalse(float.IsInfinity(result.Lufs) || float.IsNaN(result.Lufs));
+            Assert.AreEqual(-23.0f, result.Lufs, 0.5f);
+        }
+
+        [Test]
+        public void Integrated_EmptySignal_IsSilent()
+        {
+            Assert.IsTrue(LufsMeter.MeasureIntegrated(new float[0], 2, Rate).IsSilent);
+        }
+
+        [Test]
+        public void Integrated_NullSignal_IsSilent()
+        {
+            Assert.IsTrue(LufsMeter.MeasureIntegrated(null, 2, Rate).IsSilent);
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `LufsMeter` does not exist.
+
+- [ ] **Step 4: Implement `LoudnessResult`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/LoudnessResult.cs`:
+
+```csharp
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// A loudness measurement. Silence has no defined loudness, so it is reported as a
+    /// distinct state rather than as -Infinity, which would become NaN once a gain is solved.
+    /// </summary>
+    public readonly struct LoudnessResult
+    {
+        public readonly bool IsSilent;
+        public readonly float Lufs;
+
+        private LoudnessResult(bool isSilent, float lufs)
+        {
+            IsSilent = isSilent;
+            Lufs = lufs;
+        }
+
+        public static LoudnessResult Silent => new LoudnessResult(true, 0f);
+
+        public static LoudnessResult At(float lufs) => new LoudnessResult(false, lufs);
+    }
+}
+```
+
+- [ ] **Step 5: Implement `LufsMeter.MeasureIntegrated`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// ITU-R BS.1770-4 loudness measurement. Pure C# with no UnityEngine dependency so it
+    /// runs in unit tests against generated signals.
+    /// </summary>
+    public static class LufsMeter
+    {
+        public const float AbsoluteGateLufs = -70f;
+        public const float RelativeGateLu = -10f;
+
+        private const double LoudnessOffset = -0.691;
+        private const double BlockSeconds = 0.4;
+        private const double StepSeconds = 0.1;
+
+        public static LoudnessResult MeasureIntegrated(float[] interleaved, int channels, int sampleRate)
+        {
+            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, BlockSeconds, StepSeconds);
+            if (blocks.Count == 0)
+            {
+                return LoudnessResult.Silent;
+            }
+
+            var weights = ChannelWeights(channels);
+
+            var aboveAbsolute = new List<double[]>();
+            foreach (var block in blocks)
+            {
+                if (BlockLoudness(block, weights) > AbsoluteGateLufs)
+                {
+                    aboveAbsolute.Add(block);
+                }
+            }
+
+            if (aboveAbsolute.Count == 0)
+            {
+                return LoudnessResult.Silent;
+            }
+
+            var relativeGate = BlockLoudness(MeanPerChannel(aboveAbsolute, channels), weights) + RelativeGateLu;
+
+            var kept = new List<double[]>();
+            foreach (var block in aboveAbsolute)
+            {
+                if (BlockLoudness(block, weights) > relativeGate)
+                {
+                    kept.Add(block);
+                }
+            }
+
+            if (kept.Count == 0)
+            {
+                return LoudnessResult.Silent;
+            }
+
+            var loudness = BlockLoudness(MeanPerChannel(kept, channels), weights);
+            return double.IsNegativeInfinity(loudness)
+                ? LoudnessResult.Silent
+                : LoudnessResult.At((float)loudness);
+        }
+
+        /// <summary>
+        /// K-weights each channel, then returns the per-channel mean square of every block.
+        /// A signal shorter than one block yields a single block spanning the whole signal --
+        /// without this, short SFX produce no blocks at all.
+        /// </summary>
+        internal static List<double[]> ComputeBlockPowers(float[] interleaved, int channels,
+            int sampleRate, double blockSeconds, double stepSeconds)
+        {
+            var blocks = new List<double[]>();
+            if (interleaved == null || interleaved.Length == 0 || channels <= 0 || sampleRate <= 0)
+            {
+                return blocks;
+            }
+
+            var frames = interleaved.Length / channels;
+            if (frames == 0)
+            {
+                return blocks;
+            }
+
+            var filtered = new double[channels][];
+            var shelf = KWeighting.HighShelf(sampleRate);
+            var pass = KWeighting.HighPass(sampleRate);
+
+            for (var ch = 0; ch < channels; ch++)
+            {
+                var channelData = new double[frames];
+                for (var frame = 0; frame < frames; frame++)
+                {
+                    channelData[frame] = interleaved[frame * channels + ch];
+                }
+
+                KWeighting.ApplyInPlace(channelData, shelf);
+                KWeighting.ApplyInPlace(channelData, pass);
+                filtered[ch] = channelData;
+            }
+
+            var blockFrames = (int)Math.Round(blockSeconds * sampleRate);
+            var stepFrames = Math.Max(1, (int)Math.Round(stepSeconds * sampleRate));
+
+            if (frames < blockFrames)
+            {
+                blocks.Add(MeanSquarePerChannel(filtered, 0, frames));
+                return blocks;
+            }
+
+            for (var start = 0; start + blockFrames <= frames; start += stepFrames)
+            {
+                blocks.Add(MeanSquarePerChannel(filtered, start, blockFrames));
+            }
+
+            return blocks;
+        }
+
+        internal static double BlockLoudness(double[] meanSquares, double[] weights)
+        {
+            var sum = 0.0;
+            for (var ch = 0; ch < meanSquares.Length; ch++)
+            {
+                sum += weights[ch] * meanSquares[ch];
+            }
+
+            return sum <= 0.0 ? double.NegativeInfinity : LoudnessOffset + 10.0 * Math.Log10(sum);
+        }
+
+        /// <summary>L/R/C weigh 1.0; surround channels weigh 1.41 per the standard.</summary>
+        internal static double[] ChannelWeights(int channels)
+        {
+            var weights = new double[channels];
+            for (var ch = 0; ch < channels; ch++)
+            {
+                weights[ch] = ch >= 3 ? 1.41 : 1.0;
+            }
+
+            return weights;
+        }
+
+        private static double[] MeanSquarePerChannel(double[][] filtered, int start, int count)
+        {
+            var result = new double[filtered.Length];
+            for (var ch = 0; ch < filtered.Length; ch++)
+            {
+                var sum = 0.0;
+                var data = filtered[ch];
+                for (var i = start; i < start + count; i++)
+                {
+                    sum += data[i] * data[i];
+                }
+
+                result[ch] = sum / count;
+            }
+
+            return result;
+        }
+
+        private static double[] MeanPerChannel(List<double[]> blocks, int channels)
+        {
+            var result = new double[channels];
+            foreach (var block in blocks)
+            {
+                for (var ch = 0; ch < channels; ch++)
+                {
+                    result[ch] += block[ch];
+                }
+            }
+
+            for (var ch = 0; ch < channels; ch++)
+            {
+                result[ch] /= blocks.Count;
+            }
+
+            return result;
+        }
+    }
+}
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 23/23 PASS (13 prior + 10 here).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): BS.1770-4 integrated loudness with two-stage gating
+
+Calibration is pinned by test: a stereo 1 kHz sine at -23 dBFS peak reads
+-23.0 LUFS. Two edge cases that silently produce NaN downstream are
+handled explicitly -- an all-zero clip reports Silent rather than
+-Infinity, and a clip shorter than one 400 ms block is measured as a
+single block instead of producing none.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 4: Short-term-max measure mode
+
+**Files:**
+- Modify: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs` (add `MeasureShortTermMax`)
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/MeasureMode.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`
+
+**Interfaces:**
+- Consumes: `LufsMeter.ComputeBlockPowers`, `LufsMeter.BlockLoudness`, `LufsMeter.ChannelWeights`, `LoudnessResult`.
+- Produces: `enum MeasureMode { Integrated, ShortTermMax }`; `LufsMeter.MeasureShortTermMax(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; `LufsMeter.Measure(float[] interleaved, int channels, int sampleRate, MeasureMode mode) -> LoudnessResult`.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class ShortTermMaxTests
+    {
+        private const int Rate = 48000;
+
+        [Test]
+        public void ShortTermMax_OnClipUnderThreeSeconds_EqualsUngatedWholeClipLoudness()
+        {
+            var signal = SignalFactory.Sine(-23.0, 1.0, 2, Rate);
+
+            var result = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+
+            Assert.IsFalse(result.IsSilent);
+            Assert.AreEqual(-23.0f, result.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void ShortTermMax_ExceedsIntegrated_ForAOneShotWithALongQuietTail()
+        {
+            // 0.5 s at -18 dBFS then 4 s at -50 dBFS -- a percussive one-shot decaying out.
+            // Integrated gating averages across the whole thing; short-term max finds the hit.
+            var signal = SignalFactory.Concat(
+                SignalFactory.Sine(-18.0, 0.5, 2, Rate),
+                SignalFactory.Sine(-50.0, 4.0, 2, Rate));
+
+            var integrated = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+            var shortTerm = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+
+            Assert.Greater(shortTerm.Lufs, integrated.Lufs,
+                "Short-term max must track the loudest moment, not the gated average.");
+        }
+
+        [Test]
+        public void ShortTermMax_OnSilence_IsSilent()
+        {
+            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Silence(4.0, 2, Rate), 2, Rate);
+
+            Assert.IsTrue(result.IsSilent);
+        }
+
+        [Test]
+        public void ShortTermMax_OnVeryQuietSignalBelowAbsoluteGate_IsSilent()
+        {
+            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Sine(-90.0, 4.0, 2, Rate), 2, Rate);
+
+            Assert.IsTrue(result.IsSilent);
+        }
+
+        [Test]
+        public void Measure_DispatchesOnMode()
+        {
+            var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
+
+            var viaIntegrated = LufsMeter.Measure(signal, 2, Rate, MeasureMode.Integrated);
+            var viaShortTerm = LufsMeter.Measure(signal, 2, Rate, MeasureMode.ShortTermMax);
+
+            Assert.AreEqual(LufsMeter.MeasureIntegrated(signal, 2, Rate).Lufs, viaIntegrated.Lufs, 1e-4f);
+            Assert.AreEqual(LufsMeter.MeasureShortTermMax(signal, 2, Rate).Lufs, viaShortTerm.Lufs, 1e-4f);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `MeasureMode` and `MeasureShortTermMax` do not exist.
+
+- [ ] **Step 3: Implement `MeasureMode`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/MeasureMode.cs`:
+
+```csharp
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>How a category's clips are measured.</summary>
+    public enum MeasureMode
+    {
+        /// <summary>Full gated BS.1770 integrated loudness. Correct for music beds.</summary>
+        Integrated = 0,
+
+        /// <summary>
+        /// Loudest sliding 3 s window, ungated. Correct for short one-shots, whose decay
+        /// tail the integrated gating would otherwise discard, making them under-read.
+        /// </summary>
+        ShortTermMax = 1
+    }
+}
+```
+
+- [ ] **Step 4: Add `MeasureShortTermMax` and `Measure` to `LufsMeter`**
+
+In `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs`, add the constant beside the existing ones:
+
+```csharp
+        private const double ShortTermSeconds = 3.0;
+```
+
+and add these two methods directly after `MeasureIntegrated`:
+
+```csharp
+        public static LoudnessResult Measure(float[] interleaved, int channels, int sampleRate,
+            MeasureMode mode)
+        {
+            return mode == MeasureMode.ShortTermMax
+                ? MeasureShortTermMax(interleaved, channels, sampleRate)
+                : MeasureIntegrated(interleaved, channels, sampleRate);
+        }
+
+        /// <summary>
+        /// Loudest sliding 3 s window. For a clip shorter than the window, ComputeBlockPowers
+        /// collapses to a single block over the whole clip -- which is exactly the desired
+        /// behaviour for the short SFX this mode exists to serve.
+        /// </summary>
+        public static LoudnessResult MeasureShortTermMax(float[] interleaved, int channels, int sampleRate)
+        {
+            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, ShortTermSeconds, StepSeconds);
+            if (blocks.Count == 0)
+            {
+                return LoudnessResult.Silent;
+            }
+
+            var weights = ChannelWeights(channels);
+            var max = double.NegativeInfinity;
+
+            foreach (var block in blocks)
+            {
+                var loudness = BlockLoudness(block, weights);
+                if (loudness > max)
+                {
+                    max = loudness;
+                }
+            }
+
+            return double.IsNegativeInfinity(max) || max <= AbsoluteGateLufs
+                ? LoudnessResult.Silent
+                : LoudnessResult.At((float)max);
+        }
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 28/28 PASS (23 prior + 5 here).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): short-term-max measure mode for one-shot SFX
+
+Integrated gating discards a one-shot's decay tail, making short SFX
+under-read against a music bed. ShortTermMax takes the loudest sliding
+3 s window ungated; for a sub-3 s clip that collapses to the whole clip.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 5: True-peak meter
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/PeakMeter.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/PeakMeterTests.cs`
+
+**Interfaces:**
+- Consumes: `AudioGainMath.DbFromLinear`.
+- Produces: `PeakMeter.SamplePeakDb(float[] interleaved) -> float`, `PeakMeter.ApproxTruePeakDb(float[] interleaved, int channels) -> float`.
+
+> Diagnostic only. Because the headroom pass in Task 7 guarantees every gain is ≤ 0 dB, applied gain cannot create clipping — these numbers exist to spot assets that were already clipped or are near full scale before we touch them. The 4× linear-interpolation oversample is deliberately approximate; the method name says so.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/PeakMeterTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class PeakMeterTests
+    {
+        [Test]
+        public void SamplePeakDb_OfFullScaleSignal_IsZeroDb()
+        {
+            var signal = new[] { 0.1f, -1.0f, 0.5f, 0.2f };
+
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(signal), 1e-3f);
+        }
+
+        [Test]
+        public void SamplePeakDb_OfHalfScaleSignal_IsAboutMinusSixDb()
+        {
+            var signal = new[] { 0.1f, 0.5f, -0.25f };
+
+            Assert.AreEqual(-6.02f, PeakMeter.SamplePeakDb(signal), 0.05f);
+        }
+
+        [Test]
+        public void SamplePeakDb_OfSilence_IsTheFloorNotNegativeInfinity()
+        {
+            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.SamplePeakDb(new float[16]), 1e-3f);
+        }
+
+        [Test]
+        public void SamplePeakDb_OfNullOrEmpty_IsTheFloor()
+        {
+            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.SamplePeakDb(null), 1e-3f);
+            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.SamplePeakDb(new float[0]), 1e-3f);
+        }
+
+        [Test]
+        public void ApproxTruePeakDb_IsAtLeastTheSamplePeak()
+        {
+            var signal = SignalFactory.Sine(-6.0, 0.25, 2, 48000);
+
+            Assert.GreaterOrEqual(
+                PeakMeter.ApproxTruePeakDb(signal, 2),
+                PeakMeter.SamplePeakDb(signal) - 1e-3f);
+        }
+
+        [Test]
+        public void ApproxTruePeakDb_OfSilence_IsTheFloor()
+        {
+            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.ApproxTruePeakDb(new float[64], 2), 1e-3f);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `PeakMeter` does not exist.
+
+- [ ] **Step 3: Implement `PeakMeter`**
+
+`Packages/com.hoppa.audiobalance/Editor/Dsp/PeakMeter.cs`:
+
+```csharp
+using System;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Peak diagnostics. Reported in the window to flag assets that arrived already clipped
+    /// or hard against full scale -- applied gain can never cause clipping, because the
+    /// headroom pass keeps every gain at or below 0 dB.
+    /// </summary>
+    public static class PeakMeter
+    {
+        private const int OversampleFactor = 4;
+
+        public static float SamplePeakDb(float[] interleaved)
+        {
+            if (interleaved == null || interleaved.Length == 0)
+            {
+                return AudioGainMath.MinDb;
+            }
+
+            var peak = 0f;
+            foreach (var sample in interleaved)
+            {
+                var magnitude = Math.Abs(sample);
+                if (magnitude > peak)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return AudioGainMath.DbFromLinear(peak);
+        }
+
+        /// <summary>
+        /// Peak after 4x linear-interpolation oversampling. Approximate by design -- a true
+        /// BS.1770 true-peak meter uses a polyphase FIR, which is more machinery than a
+        /// diagnostic readout justifies.
+        /// </summary>
+        public static float ApproxTruePeakDb(float[] interleaved, int channels)
+        {
+            if (interleaved == null || interleaved.Length == 0 || channels <= 0)
+            {
+                return AudioGainMath.MinDb;
+            }
+
+            var frames = interleaved.Length / channels;
+            if (frames < 2)
+            {
+                return SamplePeakDb(interleaved);
+            }
+
+            var peak = 0f;
+
+            for (var ch = 0; ch < channels; ch++)
+            {
+                for (var frame = 0; frame < frames - 1; frame++)
+                {
+                    var a = interleaved[frame * channels + ch];
+                    var b = interleaved[(frame + 1) * channels + ch];
+
+                    for (var step = 0; step < OversampleFactor; step++)
+                    {
+                        var t = step / (float)OversampleFactor;
+                        var magnitude = Math.Abs(a + (b - a) * t);
+                        if (magnitude > peak)
+                        {
+                            peak = magnitude;
+                        }
+                    }
+                }
+            }
+
+            return AudioGainMath.DbFromLinear(peak);
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 34/34 PASS (28 prior + 6 here).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): sample-peak and approximate true-peak diagnostics
+
+Named ApproxTruePeakDb because it oversamples 4x by linear interpolation
+rather than the standard's polyphase FIR -- honest about being a readout,
+not a compliance meter.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 6: Profile asset + categories
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Data/AudioCategory.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Data/ClipSettings.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Data/AudioBalanceProfile.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/AudioBalanceProfileTests.cs`
+
+**Interfaces:**
+- Consumes: `MeasureMode`, `AudioGainTable`.
+- Produces:
+  - `AudioCategory { string Name; float OffsetDb; MeasureMode Mode; }`
+  - `ClipSettings { AudioClip Clip; string Category; float TrimDb; }`
+  - `AudioBalanceProfile` with fields `List<string> Folders`, `AudioClip Anchor`, `List<AudioCategory> Categories`, `List<ClipSettings> Clips`, `AudioGainTable Table`
+  - `AudioBalanceProfile.ResetToDefaultCategories()`
+  - `AudioBalanceProfile.FindCategory(string name) -> AudioCategory` (falls back to the first category, never null when any exist)
+  - `AudioBalanceProfile.OffsetDbFor(AudioClip) -> float`
+  - `AudioBalanceProfile.TrimDbFor(AudioClip) -> float`
+  - `AudioBalanceProfile.ModeFor(AudioClip) -> MeasureMode`
+  - `AudioBalanceProfile.SettingsFor(AudioClip) -> ClipSettings` (creates and stores one on first call)
+
+> The profile is editor-only on purpose: the baked table carries final numbers, so nothing at runtime needs to know what a category is.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/AudioBalanceProfileTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class AudioBalanceProfileTests
+    {
+        private static AudioClip MakeClip(string name)
+        {
+            return AudioClip.Create(name, 128, 1, 44100, false);
+        }
+
+        private static AudioBalanceProfile MakeProfile()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            return profile;
+        }
+
+        [Test]
+        public void ResetToDefaultCategories_SeedsMusicSfxAndUi()
+        {
+            var profile = MakeProfile();
+
+            Assert.AreEqual(3, profile.Categories.Count);
+            Assert.AreEqual("Music", profile.Categories[0].Name);
+            Assert.AreEqual(0f, profile.Categories[0].OffsetDb, 1e-4f);
+            Assert.AreEqual(MeasureMode.Integrated, profile.Categories[0].Mode);
+
+            Assert.AreEqual("SFX", profile.Categories[1].Name);
+            Assert.AreEqual(3f, profile.Categories[1].OffsetDb, 1e-4f);
+            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[1].Mode);
+
+            Assert.AreEqual("UI", profile.Categories[2].Name);
+            Assert.AreEqual(-6f, profile.Categories[2].OffsetDb, 1e-4f);
+            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[2].Mode);
+        }
+
+        [Test]
+        public void SettingsFor_CreatesAnEntryOnFirstCallAndReusesItAfter()
+        {
+            var profile = MakeProfile();
+            var clip = MakeClip("kick");
+
+            var first = profile.SettingsFor(clip);
+            var second = profile.SettingsFor(clip);
+
+            Assert.AreSame(first, second);
+            Assert.AreEqual(1, profile.Clips.Count);
+        }
+
+        [Test]
+        public void OffsetDbFor_UsesTheClipsAssignedCategory()
+        {
+            var profile = MakeProfile();
+            var clip = MakeClip("blip");
+            profile.SettingsFor(clip).Category = "UI";
+
+            Assert.AreEqual(-6f, profile.OffsetDbFor(clip), 1e-4f);
+        }
+
+        [Test]
+        public void ModeFor_UsesTheClipsAssignedCategory()
+        {
+            var profile = MakeProfile();
+            var music = MakeClip("loop");
+            profile.SettingsFor(music).Category = "Music";
+
+            Assert.AreEqual(MeasureMode.Integrated, profile.ModeFor(music));
+        }
+
+        [Test]
+        public void TrimDbFor_StacksOnTopOfTheCategoryOffset()
+        {
+            var profile = MakeProfile();
+            var clip = MakeClip("trimmed");
+            var settings = profile.SettingsFor(clip);
+            settings.Category = "SFX";
+            settings.TrimDb = -2.5f;
+
+            Assert.AreEqual(3f, profile.OffsetDbFor(clip), 1e-4f);
+            Assert.AreEqual(-2.5f, profile.TrimDbFor(clip), 1e-4f);
+        }
+
+        [Test]
+        public void FindCategory_FallsBackToTheFirstCategoryForAnUnknownName()
+        {
+            var profile = MakeProfile();
+
+            var found = profile.FindCategory("DoesNotExist");
+
+            Assert.IsNotNull(found);
+            Assert.AreEqual("Music", found.Name);
+        }
+
+        [Test]
+        public void FindCategory_ReturnsNullWhenNoCategoriesExist()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.Categories.Clear();
+
+            Assert.IsNull(profile.FindCategory("Music"));
+        }
+
+        [Test]
+        public void OffsetDbFor_IsZeroWhenNoCategoriesExist()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.Categories.Clear();
+
+            Assert.AreEqual(0f, profile.OffsetDbFor(MakeClip("orphan")), 1e-4f);
+        }
+
+        [Test]
+        public void SettingsFor_HandlesNullClipWithoutThrowing()
+        {
+            var profile = MakeProfile();
+
+            Assert.IsNull(profile.SettingsFor(null));
+            Assert.AreEqual(0f, profile.OffsetDbFor(null), 1e-4f);
+            Assert.AreEqual(0f, profile.TrimDbFor(null), 1e-4f);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `AudioBalanceProfile` does not exist.
+
+- [ ] **Step 3: Implement `AudioCategory` and `ClipSettings`**
+
+`Packages/com.hoppa.audiobalance/Editor/Data/AudioCategory.cs`:
+
+```csharp
+using System;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// A group of clips that share an intended level relative to the anchor. The offset is
+    /// what stops everything collapsing to the same loudness: SFX are meant to sit above the
+    /// music bed, UI blips below it.
+    /// </summary>
+    [Serializable]
+    public sealed class AudioCategory
+    {
+        public string Name = "SFX";
+        public float OffsetDb;
+        public MeasureMode Mode = MeasureMode.ShortTermMax;
+    }
+}
+```
+
+`Packages/com.hoppa.audiobalance/Editor/Data/ClipSettings.cs`:
+
+```csharp
+using System;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>Per-clip authoring state: which category it belongs to, plus a manual trim.</summary>
+    [Serializable]
+    public sealed class ClipSettings
+    {
+        public AudioClip Clip;
+        public string Category = "SFX";
+
+        /// <summary>Manual dB adjustment stacked on top of the category offset.</summary>
+        public float TrimDb;
+    }
+}
+```
+
+- [ ] **Step 4: Implement `AudioBalanceProfile`**
+
+`Packages/com.hoppa.audiobalance/Editor/Data/AudioBalanceProfile.cs`:
+
+```csharp
+using System.Collections.Generic;
+using Hoppa.AudioBalance;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Authoring state for the Audio Balance window. Editor-only by design: the baked
+    /// AudioGainTable carries final gains, so the runtime never needs categories.
+    /// </summary>
+    [CreateAssetMenu(menuName = "Hoppa/Audio/Audio Balance Profile", fileName = "AudioBalanceProfile")]
+    public sealed class AudioBalanceProfile : ScriptableObject
+    {
+        /// <summary>Project-relative folders to scan, e.g. "Assets/BusBuddies/Audio".</summary>
+        public List<string> Folders = new List<string>();
+
+        /// <summary>The reference clip -- usually the background music that runs during levels.</summary>
+        public AudioClip Anchor;
+
+        public List<AudioCategory> Categories = new List<AudioCategory>();
+
+        public List<ClipSettings> Clips = new List<ClipSettings>();
+
+        /// <summary>Destination asset for the baked gains.</summary>
+        public AudioGainTable Table;
+
+        public void ResetToDefaultCategories()
+        {
+            Categories = new List<AudioCategory>
+            {
+                new AudioCategory { Name = "Music", OffsetDb = 0f, Mode = MeasureMode.Integrated },
+                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.ShortTermMax },
+                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.ShortTermMax }
+            };
+        }
+
+        /// <summary>
+        /// The named category, or the first one as a fallback so a renamed category never
+        /// silently drops a clip's offset to zero. Null only when no categories exist at all.
+        /// </summary>
+        public AudioCategory FindCategory(string name)
+        {
+            if (Categories == null || Categories.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (var category in Categories)
+            {
+                if (category != null && category.Name == name)
+                {
+                    return category;
+                }
+            }
+
+            return Categories[0];
+        }
+
+        /// <summary>Returns the clip's settings, creating and storing them on first access.</summary>
+        public ClipSettings SettingsFor(AudioClip clip)
+        {
+            if (clip == null)
+            {
+                return null;
+            }
+
+            foreach (var settings in Clips)
+            {
+                if (settings != null && settings.Clip == clip)
+                {
+                    return settings;
+                }
+            }
+
+            var created = new ClipSettings
+            {
+                Clip = clip,
+                Category = Categories != null && Categories.Count > 0 ? Categories[0].Name : "SFX"
+            };
+
+            Clips.Add(created);
+            return created;
+        }
+
+        public float OffsetDbFor(AudioClip clip)
+        {
+            var settings = SettingsFor(clip);
+            if (settings == null)
+            {
+                return 0f;
+            }
+
+            var category = FindCategory(settings.Category);
+            return category?.OffsetDb ?? 0f;
+        }
+
+        public float TrimDbFor(AudioClip clip)
+        {
+            return SettingsFor(clip)?.TrimDb ?? 0f;
+        }
+
+        public MeasureMode ModeFor(AudioClip clip)
+        {
+            var settings = SettingsFor(clip);
+            if (settings == null)
+            {
+                return MeasureMode.Integrated;
+            }
+
+            var category = FindCategory(settings.Category);
+            return category?.Mode ?? MeasureMode.Integrated;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 43/43 PASS (34 prior + 9 here).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): editor-only balance profile with seeded categories
+
+Categories default to Music 0 / SFX +3 / UI -6. FindCategory falls back to
+the first category rather than returning null, so renaming a category
+cannot silently zero a clip's offset.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 7: Gain solver + headroom pass
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Solve/ClipStatus.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Solve/ClipAnalysis.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Solve/GainResult.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Solve/GainSolver.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/GainSolverTests.cs`
+
+**Interfaces:**
+- Consumes: nothing beyond `UnityEngine.AudioClip`.
+- Produces:
+  - `enum ClipStatus { Ok, Silent, Unanalyzable }`
+  - `ClipAnalysis` — readonly struct, constructor `ClipAnalysis(AudioClip clip, ClipStatus status, float lufs, float samplePeakDb, float truePeakDb)`, plus statics `ClipAnalysis.Ok(AudioClip, float lufs, float samplePeakDb, float truePeakDb)`, `ClipAnalysis.Silent(AudioClip)`, `ClipAnalysis.Unanalyzable(AudioClip, string reason)`; fields `Clip`, `Status`, `Lufs`, `SamplePeakDb`, `TruePeakDb`, `Reason`
+  - `GainResult` — readonly struct with fields `Clip`, `Status`, `RawGainDb`, `FinalGainDb`, `IsOutlier`
+  - `GainSolver.Solve(IReadOnlyList<ClipAnalysis> analyses, float anchorLufs, Func<AudioClip,float> categoryOffsetDb, Func<AudioClip,float> trimDb) -> IReadOnlyList<GainResult>`
+  - `GainSolver.OutlierThresholdDb = 12f`
+
+> This is where §6 of the spec lives. `AudioSource.volume` caps at 1.0, so a clip needing +6 dB simply cannot get it — the request silently does nothing and the table lies about the balance. Subtracting the maximum raw gain from every raw gain pins the loudest clip at exactly 0 dB, preserves relative spacing exactly, and makes clipping structurally impossible.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/GainSolverTests.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class GainSolverTests
+    {
+        private static AudioClip MakeClip(string name)
+        {
+            return AudioClip.Create(name, 128, 1, 44100, false);
+        }
+
+        private static IReadOnlyList<GainResult> Solve(
+            IReadOnlyList<ClipAnalysis> analyses,
+            float anchorLufs,
+            Dictionary<AudioClip, float> offsets = null,
+            Dictionary<AudioClip, float> trims = null)
+        {
+            return GainSolver.Solve(
+                analyses,
+                anchorLufs,
+                clip => offsets != null && offsets.TryGetValue(clip, out var o) ? o : 0f,
+                clip => trims != null && trims.TryGetValue(clip, out var t) ? t : 0f);
+        }
+
+        [Test]
+        public void Anchor_InAZeroOffsetCategoryWithNoTrim_ResolvesToZeroRawGain()
+        {
+            var anchor = MakeClip("anchor");
+            var results = Solve(new[] { ClipAnalysis.Ok(anchor, -18f, -1f, -0.9f) }, -18f);
+
+            Assert.AreEqual(0f, results[0].RawGainDb, 1e-4f);
+        }
+
+        [Test]
+        public void CategoryOffset_ShiftsGainByExactlyThatManyDb()
+        {
+            var clip = MakeClip("sfx");
+            var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
+
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets);
+
+            Assert.AreEqual(3f, results[0].RawGainDb, 1e-4f);
+        }
+
+        [Test]
+        public void Trim_StacksAdditivelyOnTopOfTheCategoryOffset()
+        {
+            var clip = MakeClip("sfx");
+            var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
+            var trims = new Dictionary<AudioClip, float> { { clip, -1.5f } };
+
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets, trims);
+
+            Assert.AreEqual(1.5f, results[0].RawGainDb, 1e-4f);
+        }
+
+        [Test]
+        public void QuieterClipThanAnchor_NeedsPositiveRawGain()
+        {
+            var clip = MakeClip("quiet");
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -30f, -12f, -11.8f) }, -18f);
+
+            Assert.AreEqual(12f, results[0].RawGainDb, 1e-4f);
+        }
+
+        [Test]
+        public void AfterNormalization_TheMaximumFinalGainIsExactlyZeroDb()
+        {
+            var loud = MakeClip("loud");
+            var quiet = MakeClip("quiet");
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(loud, -12f, -1f, -0.9f),
+                ClipAnalysis.Ok(quiet, -30f, -14f, -13.8f)
+            }, -18f);
+
+            Assert.AreEqual(0f, results.Max(r => r.FinalGainDb), 1e-4f);
+        }
+
+        [Test]
+        public void AfterNormalization_EveryFinalGainIsAtOrBelowZeroDb()
+        {
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(MakeClip("a"), -30f, -14f, -13.8f),
+                ClipAnalysis.Ok(MakeClip("b"), -26f, -10f, -9.8f),
+                ClipAnalysis.Ok(MakeClip("c"), -40f, -20f, -19.8f)
+            }, -18f);
+
+            foreach (var result in results)
+            {
+                Assert.LessOrEqual(result.FinalGainDb, 1e-4f,
+                    "AudioSource.volume caps at 1.0, so a positive gain is unachievable.");
+            }
+        }
+
+        [Test]
+        public void Normalization_PreservesRelativeSpacingExactly()
+        {
+            var a = MakeClip("a");
+            var b = MakeClip("b");
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(a, -30f, -14f, -13.8f),
+                ClipAnalysis.Ok(b, -22f, -6f, -5.8f)
+            }, -18f);
+
+            var rawSpacing = results[0].RawGainDb - results[1].RawGainDb;
+            var finalSpacing = results[0].FinalGainDb - results[1].FinalGainDb;
+
+            Assert.AreEqual(rawSpacing, finalSpacing, 1e-4f);
+        }
+
+        [Test]
+        public void SilentAndUnanalyzableClips_AreExcludedFromTheMaxGainCalculation()
+        {
+            var ok = MakeClip("ok");
+            var silent = MakeClip("silent");
+            var broken = MakeClip("broken");
+
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(ok, -22f, -6f, -5.8f),
+                ClipAnalysis.Silent(silent),
+                ClipAnalysis.Unanalyzable(broken, "streaming")
+            }, -18f);
+
+            var okResult = results.First(r => r.Clip == ok);
+            Assert.AreEqual(0f, okResult.FinalGainDb, 1e-4f,
+                "The single analyzable clip should define the 0 dB ceiling.");
+        }
+
+        [Test]
+        public void SilentAndUnanalyzableClips_GetZeroGainAndKeepTheirStatus()
+        {
+            var silent = MakeClip("silent");
+            var broken = MakeClip("broken");
+
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(MakeClip("ok"), -22f, -6f, -5.8f),
+                ClipAnalysis.Silent(silent),
+                ClipAnalysis.Unanalyzable(broken, "streaming")
+            }, -18f);
+
+            var silentResult = results.First(r => r.Clip == silent);
+            Assert.AreEqual(ClipStatus.Silent, silentResult.Status);
+            Assert.AreEqual(0f, silentResult.FinalGainDb, 1e-4f);
+
+            var brokenResult = results.First(r => r.Clip == broken);
+            Assert.AreEqual(ClipStatus.Unanalyzable, brokenResult.Status);
+            Assert.AreEqual(0f, brokenResult.FinalGainDb, 1e-4f);
+        }
+
+        [Test]
+        public void OutlierFlag_TriggersAboveTwelveDbAndNotBelow()
+        {
+            var inside = MakeClip("inside");
+            var outside = MakeClip("outside");
+
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Ok(inside, -29f, -12f, -11.8f),   // raw = +11
+                ClipAnalysis.Ok(outside, -35f, -20f, -19.8f)   // raw = +17
+            }, -18f);
+
+            Assert.IsFalse(results.First(r => r.Clip == inside).IsOutlier);
+            Assert.IsTrue(results.First(r => r.Clip == outside).IsOutlier);
+        }
+
+        [Test]
+        public void OutlierFlag_TriggersOnLargeNegativeRawGainToo()
+        {
+            var clip = MakeClip("blaring");
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -2f, -0.1f, 0f) }, -18f);
+
+            Assert.AreEqual(-16f, results[0].RawGainDb, 1e-4f);
+            Assert.IsTrue(results[0].IsOutlier);
+        }
+
+        [Test]
+        public void Solve_WithNoAnalyzableClips_ReturnsZeroGainsWithoutThrowing()
+        {
+            var results = Solve(new[]
+            {
+                ClipAnalysis.Silent(MakeClip("s1")),
+                ClipAnalysis.Unanalyzable(MakeClip("s2"), "streaming")
+            }, -18f);
+
+            Assert.AreEqual(2, results.Count);
+            foreach (var result in results)
+            {
+                Assert.AreEqual(0f, result.FinalGainDb, 1e-4f);
+            }
+        }
+
+        [Test]
+        public void Solve_WithEmptyInput_ReturnsAnEmptyList()
+        {
+            Assert.AreEqual(0, Solve(new ClipAnalysis[0], -18f).Count);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `GainSolver` does not exist.
+
+- [ ] **Step 3: Implement `ClipStatus`, `ClipAnalysis`, `GainResult`**
+
+`Packages/com.hoppa.audiobalance/Editor/Solve/ClipStatus.cs`:
+
+```csharp
+namespace Hoppa.AudioBalance.Editor
+{
+    public enum ClipStatus
+    {
+        /// <summary>Measured successfully.</summary>
+        Ok = 0,
+
+        /// <summary>All-zero or below the absolute gate -- has no defined loudness.</summary>
+        Silent = 1,
+
+        /// <summary>Could not be read, e.g. a Streaming clip whose GetData returns silence.</summary>
+        Unanalyzable = 2
+    }
+}
+```
+
+`Packages/com.hoppa.audiobalance/Editor/Solve/ClipAnalysis.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>The measured facts about one clip, before any balancing decision is made.</summary>
+    public readonly struct ClipAnalysis
+    {
+        public readonly AudioClip Clip;
+        public readonly ClipStatus Status;
+        public readonly float Lufs;
+        public readonly float SamplePeakDb;
+        public readonly float TruePeakDb;
+        public readonly string Reason;
+
+        public ClipAnalysis(AudioClip clip, ClipStatus status, float lufs,
+            float samplePeakDb, float truePeakDb, string reason = null)
+        {
+            Clip = clip;
+            Status = status;
+            Lufs = lufs;
+            SamplePeakDb = samplePeakDb;
+            TruePeakDb = truePeakDb;
+            Reason = reason;
+        }
+
+        public static ClipAnalysis Ok(AudioClip clip, float lufs, float samplePeakDb, float truePeakDb)
+        {
+            return new ClipAnalysis(clip, ClipStatus.Ok, lufs, samplePeakDb, truePeakDb);
+        }
+
+        public static ClipAnalysis Silent(AudioClip clip)
+        {
+            return new ClipAnalysis(clip, ClipStatus.Silent, 0f,
+                AudioGainMath.MinDb, AudioGainMath.MinDb, "silent");
+        }
+
+        public static ClipAnalysis Unanalyzable(AudioClip clip, string reason)
+        {
+            return new ClipAnalysis(clip, ClipStatus.Unanalyzable, 0f,
+                AudioGainMath.MinDb, AudioGainMath.MinDb, reason);
+        }
+    }
+}
+```
+
+`Packages/com.hoppa.audiobalance/Editor/Solve/GainResult.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>One clip's solved gain. FinalGainDb is what gets baked into the table.</summary>
+    public readonly struct GainResult
+    {
+        public readonly AudioClip Clip;
+        public readonly ClipStatus Status;
+
+        /// <summary>Gain before the headroom pass. May be positive.</summary>
+        public readonly float RawGainDb;
+
+        /// <summary>Gain after the headroom pass. Always at or below 0 dB.</summary>
+        public readonly float FinalGainDb;
+
+        public readonly bool IsOutlier;
+
+        public GainResult(AudioClip clip, ClipStatus status, float rawGainDb,
+            float finalGainDb, bool isOutlier)
+        {
+            Clip = clip;
+            Status = status;
+            RawGainDb = rawGainDb;
+            FinalGainDb = finalGainDb;
+            IsOutlier = isOutlier;
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Implement `GainSolver`**
+
+`Packages/com.hoppa.audiobalance/Editor/Solve/GainSolver.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Turns measurements into bakeable gains.
+    ///
+    ///   raw   = (anchorLufs + categoryOffset + trim) - measuredLufs
+    ///   final = raw - max(raw over analyzable clips)
+    ///
+    /// The second line is the headroom pass. AudioSource.volume is hard-capped at 1.0, so a
+    /// clip needing +6 dB simply cannot receive it -- the request silently does nothing and
+    /// the table no longer describes what you hear. Subtracting the maximum pins the loudest
+    /// clip at exactly 0 dB, preserves relative spacing exactly, and makes clipping
+    /// structurally impossible rather than merely warned about. The cost is that overall
+    /// output is quieter, which is compensated once on the master mixer.
+    /// </summary>
+    public static class GainSolver
+    {
+        /// <summary>Beyond this, a clip is almost always broken rather than genuinely quiet.</summary>
+        public const float OutlierThresholdDb = 12f;
+
+        public static IReadOnlyList<GainResult> Solve(
+            IReadOnlyList<ClipAnalysis> analyses,
+            float anchorLufs,
+            Func<AudioClip, float> categoryOffsetDb,
+            Func<AudioClip, float> trimDb)
+        {
+            var results = new List<GainResult>();
+            if (analyses == null || analyses.Count == 0)
+            {
+                return results;
+            }
+
+            var raw = new float[analyses.Count];
+            var maxRaw = float.NegativeInfinity;
+
+            for (var i = 0; i < analyses.Count; i++)
+            {
+                var analysis = analyses[i];
+                if (analysis.Status != ClipStatus.Ok)
+                {
+                    continue;
+                }
+
+                var offset = categoryOffsetDb?.Invoke(analysis.Clip) ?? 0f;
+                var trim = trimDb?.Invoke(analysis.Clip) ?? 0f;
+
+                raw[i] = anchorLufs + offset + trim - analysis.Lufs;
+
+                if (raw[i] > maxRaw)
+                {
+                    maxRaw = raw[i];
+                }
+            }
+
+            // No analyzable clip means nothing defines the ceiling; leave every gain at unity.
+            var headroomOffset = float.IsNegativeInfinity(maxRaw) ? 0f : maxRaw;
+
+            for (var i = 0; i < analyses.Count; i++)
+            {
+                var analysis = analyses[i];
+
+                if (analysis.Status != ClipStatus.Ok)
+                {
+                    results.Add(new GainResult(analysis.Clip, analysis.Status, 0f, 0f, false));
+                    continue;
+                }
+
+                results.Add(new GainResult(
+                    analysis.Clip,
+                    analysis.Status,
+                    raw[i],
+                    raw[i] - headroomOffset,
+                    Mathf.Abs(raw[i]) > OutlierThresholdDb));
+            }
+
+            return results;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 56/56 PASS (43 prior + 13 here).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): gain solver with downward-only headroom normalization
+
+AudioSource.volume caps at 1.0, so positive gains are unachievable.
+Subtracting the max raw gain pins the loudest clip at 0 dB and preserves
+relative spacing exactly -- tested. Silent and unanalyzable clips are
+excluded from the ceiling calculation so one broken asset cannot
+attenuate the whole project.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 8: Clip sample reader
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Analysis/ClipSampleReader.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/ClipSampleReaderTests.cs`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `ClipSampleReader.TryRead(AudioClip clip, out float[] interleaved, out string error) -> bool`; `ClipSampleReader.StreamingError` constant.
+
+> Streaming clips return silence from `GetData`. Rather than mutating the project's import settings behind the user's back, those are reported with an actionable message.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/ClipSampleReaderTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class ClipSampleReaderTests
+    {
+        [Test]
+        public void TryRead_OnAProceduralClip_ReturnsInterleavedSamples()
+        {
+            var clip = AudioClip.Create("tone", 256, 2, 48000, false);
+            var data = SignalFactory.Sine(-6.0, 256 / 48000.0, 2, 48000);
+            clip.SetData(data, 0);
+
+            var ok = ClipSampleReader.TryRead(clip, out var samples, out var error);
+
+            Assert.IsTrue(ok, error);
+            Assert.IsNull(error);
+            Assert.AreEqual(256 * 2, samples.Length);
+        }
+
+        [Test]
+        public void TryRead_OnNullClip_FailsWithAnError()
+        {
+            var ok = ClipSampleReader.TryRead(null, out var samples, out var error);
+
+            Assert.IsFalse(ok);
+            Assert.IsNull(samples);
+            Assert.IsNotNull(error);
+        }
+
+        [Test]
+        public void TryRead_RoundTripsSampleValues()
+        {
+            var clip = AudioClip.Create("ramp", 4, 1, 48000, false);
+            clip.SetData(new[] { 0.25f, -0.5f, 0.75f, -1f }, 0);
+
+            Assert.IsTrue(ClipSampleReader.TryRead(clip, out var samples, out _));
+
+            Assert.AreEqual(0.25f, samples[0], 1e-4f);
+            Assert.AreEqual(-0.5f, samples[1], 1e-4f);
+            Assert.AreEqual(0.75f, samples[2], 1e-4f);
+            Assert.AreEqual(-1f, samples[3], 1e-4f);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `ClipSampleReader` does not exist.
+
+- [ ] **Step 3: Implement `ClipSampleReader`**
+
+`Packages/com.hoppa.audiobalance/Editor/Analysis/ClipSampleReader.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>Reads decoded PCM out of an AudioClip for analysis.</summary>
+    public static class ClipSampleReader
+    {
+        /// <summary>
+        /// Streaming clips return silence from GetData. We report this rather than flipping
+        /// the importer's load type, because silently rewriting someone's import settings is
+        /// a worse surprise than an actionable message.
+        /// </summary>
+        public const string StreamingError = "set Load Type to Decompress On Load";
+
+        public static bool TryRead(AudioClip clip, out float[] interleaved, out string error)
+        {
+            interleaved = null;
+            error = null;
+
+            if (clip == null)
+            {
+                error = "clip is null";
+                return false;
+            }
+
+            if (clip.loadType == AudioClipLoadType.Streaming)
+            {
+                error = StreamingError;
+                return false;
+            }
+
+            if (clip.loadState != AudioDataLoadState.Loaded && !clip.LoadAudioData())
+            {
+                error = "failed to load audio data";
+                return false;
+            }
+
+            var samples = clip.samples * clip.channels;
+            if (samples <= 0)
+            {
+                error = "clip contains no samples";
+                return false;
+            }
+
+            var data = new float[samples];
+            if (!clip.GetData(data, 0))
+            {
+                error = "GetData failed";
+                return false;
+            }
+
+            interleaved = data;
+            return true;
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 59/59 PASS (56 prior + 3 here).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): clip sample reader with actionable streaming diagnostic
+
+Streaming clips return silence from GetData. Reported as an actionable
+message rather than silently rewriting the asset's import settings.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 9: Loudness cache
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Analysis/CachedLoudness.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessCache.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessCacheTests.cs`
+
+**Interfaces:**
+- Consumes: `ClipStatus`.
+- Produces:
+  - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float SamplePeakDb`, `float TruePeakDb`
+  - `LoudnessCache.Load(string path = null) -> LoudnessCache`
+  - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool`
+  - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)`
+  - `LoudnessCache.Save()`
+  - `LoudnessCache.Clear()`
+  - `LoudnessCache.DefaultPath` = `"Library/HoppaAudioBalance/loudness-cache.json"`
+
+> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, lastWriteTicks)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessCacheTests.cs`:
+
+```csharp
+using System.IO;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class LoudnessCacheTests
+    {
+        private string _path;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _path = Path.Combine(Path.GetTempPath(), "hoppa-audiobalance-cache-test.json");
+            if (File.Exists(_path))
+            {
+                File.Delete(_path);
+            }
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (File.Exists(_path))
+            {
+                File.Delete(_path);
+            }
+        }
+
+        private static CachedLoudness Sample()
+        {
+            return new CachedLoudness
+            {
+                Status = (int)ClipStatus.Ok,
+                Lufs = -21.5f,
+                SamplePeakDb = -3f,
+                TruePeakDb = -2.8f
+            };
+        }
+
+        [Test]
+        public void TryGet_HitsOnUnchangedFileIdentity()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+
+            Assert.IsTrue(cache.TryGet("guid-a", 1000, 5555, out var value));
+            Assert.AreEqual(-21.5f, value.Lufs, 1e-4f);
+        }
+
+        [Test]
+        public void TryGet_MissesWhenFileLengthChanges()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+
+            Assert.IsFalse(cache.TryGet("guid-a", 2000, 5555, out _));
+        }
+
+        [Test]
+        public void TryGet_MissesWhenModifiedTimeChanges()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+
+            Assert.IsFalse(cache.TryGet("guid-a", 1000, 9999, out _));
+        }
+
+        [Test]
+        public void TryGet_MissesForAnUnknownGuid()
+        {
+            var cache = LoudnessCache.Load(_path);
+
+            Assert.IsFalse(cache.TryGet("never-seen", 1, 1, out _));
+        }
+
+        [Test]
+        public void SaveThenLoad_RoundTripsEntries()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+            cache.Save();
+
+            var reloaded = LoudnessCache.Load(_path);
+
+            Assert.IsTrue(reloaded.TryGet("guid-a", 1000, 5555, out var value));
+            Assert.AreEqual(-21.5f, value.Lufs, 1e-4f);
+            Assert.AreEqual((int)ClipStatus.Ok, value.Status);
+        }
+
+        [Test]
+        public void Put_OverwritesAnExistingEntryForTheSameGuid()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+            cache.Put("guid-a", 1000, 6666, new CachedLoudness { Lufs = -9f });
+
+            Assert.IsFalse(cache.TryGet("guid-a", 1000, 5555, out _),
+                "The stale identity must no longer hit.");
+            Assert.IsTrue(cache.TryGet("guid-a", 1000, 6666, out var value));
+            Assert.AreEqual(-9f, value.Lufs, 1e-4f);
+        }
+
+        [Test]
+        public void Load_OnCorruptFile_DegradesToAnEmptyCacheWithoutThrowing()
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path));
+            File.WriteAllText(_path, "{ this is not valid json ][");
+
+            LoudnessCache cache = null;
+            Assert.DoesNotThrow(() => cache = LoudnessCache.Load(_path));
+            Assert.IsFalse(cache.TryGet("anything", 1, 1, out _));
+        }
+
+        [Test]
+        public void Load_OnMissingFile_ReturnsAnEmptyCache()
+        {
+            var cache = LoudnessCache.Load(_path);
+
+            Assert.IsFalse(cache.TryGet("anything", 1, 1, out _));
+        }
+
+        [Test]
+        public void Clear_DropsAllEntries()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put("guid-a", 1000, 5555, Sample());
+            cache.Clear();
+
+            Assert.IsFalse(cache.TryGet("guid-a", 1000, 5555, out _));
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `LoudnessCache` does not exist.
+
+- [ ] **Step 3: Implement `CachedLoudness`**
+
+`Packages/com.hoppa.audiobalance/Editor/Analysis/CachedLoudness.cs`:
+
+```csharp
+using System;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// One cached measurement. Status is stored as an int because JsonUtility handles enums
+    /// inconsistently across Unity versions.
+    /// </summary>
+    [Serializable]
+    public sealed class CachedLoudness
+    {
+        public int Status;
+        public float Lufs;
+        public float SamplePeakDb;
+        public float TruePeakDb;
+    }
+}
+```
+
+- [ ] **Step 4: Implement `LoudnessCache`**
+
+`Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessCache.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Persists measurements so reopening the window is instant and only changed clips are
+    /// re-analyzed. Lives under Library/ because it is regenerable and must not be committed.
+    /// </summary>
+    public sealed class LoudnessCache
+    {
+        public const string DefaultPath = "Library/HoppaAudioBalance/loudness-cache.json";
+
+        [Serializable]
+        private sealed class Entry
+        {
+            public string Guid;
+            public long Length;
+            public long Ticks;
+            public CachedLoudness Value;
+        }
+
+        [Serializable]
+        private sealed class Store
+        {
+            public List<Entry> Entries = new List<Entry>();
+        }
+
+        private readonly string _path;
+        private readonly Dictionary<string, Entry> _byGuid = new Dictionary<string, Entry>();
+
+        private LoudnessCache(string path)
+        {
+            _path = path;
+        }
+
+        public static LoudnessCache Load(string path = null)
+        {
+            var cache = new LoudnessCache(string.IsNullOrEmpty(path) ? DefaultPath : path);
+
+            try
+            {
+                if (!File.Exists(cache._path))
+                {
+                    return cache;
+                }
+
+                var store = JsonUtility.FromJson<Store>(File.ReadAllText(cache._path));
+                if (store?.Entries == null)
+                {
+                    return cache;
+                }
+
+                foreach (var entry in store.Entries)
+                {
+                    if (entry != null && !string.IsNullOrEmpty(entry.Guid))
+                    {
+                        cache._byGuid[entry.Guid] = entry;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // A corrupt or unreadable cache is not worth failing over -- it is
+                // regenerable by definition. Fall back to a full re-analysis.
+                cache._byGuid.Clear();
+            }
+
+            return cache;
+        }
+
+        public bool TryGet(string guid, long length, long ticks, out CachedLoudness value)
+        {
+            value = null;
+
+            if (string.IsNullOrEmpty(guid) || !_byGuid.TryGetValue(guid, out var entry))
+            {
+                return false;
+            }
+
+            if (entry.Length != length || entry.Ticks != ticks)
+            {
+                return false;
+            }
+
+            value = entry.Value;
+            return value != null;
+        }
+
+        public void Put(string guid, long length, long ticks, CachedLoudness value)
+        {
+            if (string.IsNullOrEmpty(guid))
+            {
+                return;
+            }
+
+            _byGuid[guid] = new Entry
+            {
+                Guid = guid,
+                Length = length,
+                Ticks = ticks,
+                Value = value
+            };
+        }
+
+        public void Clear()
+        {
+            _byGuid.Clear();
+        }
+
+        public void Save()
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(_path);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var store = new Store();
+                store.Entries.AddRange(_byGuid.Values);
+
+                File.WriteAllText(_path, JsonUtility.ToJson(store));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"[AudioBalance] Could not write the loudness cache: {exception.Message}");
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 68/68 PASS (59 prior + 9 here).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): incremental loudness cache under Library/
+
+Keyed on (guid, file length, mtime) rather than a content hash -- trades a
+rare needless re-analysis for not hashing megabytes on every window open.
+A corrupt cache degrades to a full re-analysis instead of throwing.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 10: Analyzer orchestration
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessAnalyzer.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessAnalyzerTests.cs`
+
+**Interfaces:**
+- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `PeakMeter.ApproxTruePeakDb`, `LoudnessCache`, `ClipAnalysis`, `MeasureMode`.
+- Produces:
+  - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis`
+  - `LoudnessAnalyzer.FindClips(IEnumerable<string> projectRelativeFolders) -> List<AudioClip>`
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessAnalyzerTests.cs`:
+
+```csharp
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class LoudnessAnalyzerTests
+    {
+        private const int Rate = 48000;
+
+        private static AudioClip MakeToneClip(string name, double peakDbfs, double seconds)
+        {
+            var frames = (int)(seconds * Rate);
+            var clip = AudioClip.Create(name, frames, 2, Rate, false);
+            clip.SetData(SignalFactory.Sine(peakDbfs, seconds, 2, Rate), 0);
+            return clip;
+        }
+
+        [Test]
+        public void Analyze_OnAToneClip_ReportsOkWithTheExpectedLoudness()
+        {
+            var clip = MakeToneClip("tone", -23.0, 4.0);
+
+            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, null);
+
+            Assert.AreEqual(ClipStatus.Ok, analysis.Status);
+            Assert.AreEqual(-23f, analysis.Lufs, 0.2f);
+            Assert.AreSame(clip, analysis.Clip);
+        }
+
+        [Test]
+        public void Analyze_PopulatesPeakDiagnostics()
+        {
+            var clip = MakeToneClip("tone", -6.0, 1.0);
+
+            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+
+            Assert.AreEqual(-6f, analysis.SamplePeakDb, 0.2f);
+            Assert.GreaterOrEqual(analysis.TruePeakDb, analysis.SamplePeakDb - 1e-3f);
+        }
+
+        [Test]
+        public void Analyze_OnASilentClip_ReportsSilent()
+        {
+            var clip = AudioClip.Create("quiet", Rate * 2, 2, Rate, false);
+
+            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, null);
+
+            Assert.AreEqual(ClipStatus.Silent, analysis.Status);
+        }
+
+        [Test]
+        public void Analyze_OnNullClip_ReportsUnanalyzable()
+        {
+            var analysis = LoudnessAnalyzer.Analyze(null, MeasureMode.Integrated, null);
+
+            Assert.AreEqual(ClipStatus.Unanalyzable, analysis.Status);
+        }
+
+        [Test]
+        public void Analyze_HonoursTheMeasureMode()
+        {
+            // Loud burst then a long quiet tail: the two modes must disagree.
+            var seconds = 4.5;
+            var frames = (int)(seconds * Rate);
+            var clip = AudioClip.Create("oneshot", frames, 2, Rate, false);
+            clip.SetData(SignalFactory.Concat(
+                SignalFactory.Sine(-18.0, 0.5, 2, Rate),
+                SignalFactory.Sine(-50.0, 4.0, 2, Rate)), 0);
+
+            var integrated = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, null);
+            var shortTerm = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+
+            Assert.Greater(shortTerm.Lufs, integrated.Lufs);
+        }
+
+        [Test]
+        public void FindClips_WithNullOrEmptyFolders_ReturnsAnEmptyList()
+        {
+            Assert.AreEqual(0, LoudnessAnalyzer.FindClips(null).Count);
+            Assert.AreEqual(0, LoudnessAnalyzer.FindClips(new string[0]).Count);
+        }
+
+        [Test]
+        public void FindClips_SkipsFoldersThatDoNotExist()
+        {
+            var clips = LoudnessAnalyzer.FindClips(new[] { "Assets/ThisFolderDoesNotExist" });
+
+            Assert.AreEqual(0, clips.Count);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `LoudnessAnalyzer` does not exist.
+
+- [ ] **Step 3: Implement `LoudnessAnalyzer`**
+
+`Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessAnalyzer.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>Decode -> measure -> cache. The single entry point the window calls per clip.</summary>
+    public static class LoudnessAnalyzer
+    {
+        public static ClipAnalysis Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache)
+        {
+            if (clip == null)
+            {
+                return ClipAnalysis.Unanalyzable(null, "clip is null");
+            }
+
+            var identity = ResolveIdentity(clip);
+
+            // The mode is part of the cache key: the same clip measured Integrated and
+            // ShortTermMax are two different answers.
+            var cacheKey = identity.Guid == null ? null : $"{identity.Guid}:{(int)mode}";
+
+            if (cache != null && cacheKey != null &&
+                cache.TryGet(cacheKey, identity.Length, identity.Ticks, out var cached))
+            {
+                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs,
+                    cached.SamplePeakDb, cached.TruePeakDb);
+            }
+
+            var analysis = Measure(clip, mode);
+
+            if (cache != null && cacheKey != null)
+            {
+                cache.Put(cacheKey, identity.Length, identity.Ticks, new CachedLoudness
+                {
+                    Status = (int)analysis.Status,
+                    Lufs = analysis.Lufs,
+                    SamplePeakDb = analysis.SamplePeakDb,
+                    TruePeakDb = analysis.TruePeakDb
+                });
+            }
+
+            return analysis;
+        }
+
+        public static List<AudioClip> FindClips(IEnumerable<string> projectRelativeFolders)
+        {
+            var clips = new List<AudioClip>();
+            if (projectRelativeFolders == null)
+            {
+                return clips;
+            }
+
+            var valid = new List<string>();
+            foreach (var folder in projectRelativeFolders)
+            {
+                if (!string.IsNullOrEmpty(folder) && AssetDatabase.IsValidFolder(folder))
+                {
+                    valid.Add(folder);
+                }
+            }
+
+            if (valid.Count == 0)
+            {
+                return clips;
+            }
+
+            var seen = new HashSet<string>();
+            foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", valid.ToArray()))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!seen.Add(path))
+                {
+                    continue;
+                }
+
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                if (clip != null)
+                {
+                    clips.Add(clip);
+                }
+            }
+
+            clips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            return clips;
+        }
+
+        private static ClipAnalysis Measure(AudioClip clip, MeasureMode mode)
+        {
+            if (!ClipSampleReader.TryRead(clip, out var samples, out var error))
+            {
+                return ClipAnalysis.Unanalyzable(clip, error);
+            }
+
+            var loudness = LufsMeter.Measure(samples, clip.channels, clip.frequency, mode);
+            if (loudness.IsSilent)
+            {
+                return ClipAnalysis.Silent(clip);
+            }
+
+            return ClipAnalysis.Ok(
+                clip,
+                loudness.Lufs,
+                PeakMeter.SamplePeakDb(samples),
+                PeakMeter.ApproxTruePeakDb(samples, clip.channels));
+        }
+
+        private readonly struct AssetIdentity
+        {
+            public readonly string Guid;
+            public readonly long Length;
+            public readonly long Ticks;
+
+            public AssetIdentity(string guid, long length, long ticks)
+            {
+                Guid = guid;
+                Length = length;
+                Ticks = ticks;
+            }
+        }
+
+        /// <summary>
+        /// Identity for cache keying. Procedural clips created in tests have no asset path,
+        /// so they get a null guid and simply bypass the cache.
+        /// </summary>
+        private static AssetIdentity ResolveIdentity(AudioClip clip)
+        {
+            var path = AssetDatabase.GetAssetPath(clip);
+            if (string.IsNullOrEmpty(path))
+            {
+                return new AssetIdentity(null, 0, 0);
+            }
+
+            var guid = AssetDatabase.AssetPathToGUID(path);
+            var absolute = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? string.Empty, path);
+
+            try
+            {
+                var info = new FileInfo(absolute);
+                return info.Exists
+                    ? new AssetIdentity(guid, info.Length, info.LastWriteTimeUtc.Ticks)
+                    : new AssetIdentity(guid, 0, 0);
+            }
+            catch (IOException)
+            {
+                return new AssetIdentity(guid, 0, 0);
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 75/75 PASS (68 prior + 7 here).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): analyzer orchestration (decode -> measure -> cache)
+
+The measure mode is folded into the cache key: the same clip measured
+Integrated and ShortTermMax are two different answers. Procedural clips
+with no asset path bypass the cache rather than colliding on an empty guid.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 11: Window shell — toolbar, categories, Analyze
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceRow.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceSession.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/AudioBalanceSessionTests.cs`
+
+**Interfaces:**
+- Consumes: `AudioBalanceProfile`, `LoudnessAnalyzer`, `LoudnessCache`, `GainSolver`, `ClipAnalysis`, `GainResult`.
+- Produces:
+  - `AudioBalanceRow` — class with fields `AudioClip Clip`, `ClipAnalysis Analysis`, `GainResult Gain`
+  - `AudioBalanceSession` — `Rows` (`IReadOnlyList<AudioBalanceRow>`), `AnchorLufs` (float), `AnchorStatus` (`ClipStatus`), `Analyze(AudioBalanceProfile profile, LoudnessCache cache)`, `Resolve(AudioBalanceProfile profile)`
+  - `AudioBalanceWindow.Open()` (menu `Window ▸ Hoppa ▸ Audio Balance`)
+
+> Analysis lives in `AudioBalanceSession`, not in the window, precisely so it can be tested without opening an `EditorWindow`. The window is a thin renderer over it.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/AudioBalanceSessionTests.cs`:
+
+```csharp
+using System.Linq;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class AudioBalanceSessionTests
+    {
+        private const int Rate = 48000;
+
+        private static AudioClip Tone(string name, double peakDbfs, double seconds = 4.0)
+        {
+            var frames = (int)(seconds * Rate);
+            var clip = AudioClip.Create(name, frames, 2, Rate, false);
+            clip.SetData(SignalFactory.Sine(peakDbfs, seconds, 2, Rate), 0);
+            return clip;
+        }
+
+        private static AudioBalanceProfile Profile(AudioClip anchor, params AudioClip[] others)
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            profile.Anchor = anchor;
+
+            profile.SettingsFor(anchor).Category = "Music";
+            foreach (var clip in others)
+            {
+                profile.SettingsFor(clip).Category = "Music";
+            }
+
+            return profile;
+        }
+
+        [Test]
+        public void Analyze_MeasuresTheAnchorAndExposesItsLoudness()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(Profile(anchor), null);
+
+            Assert.AreEqual(ClipStatus.Ok, session.AnchorStatus);
+            Assert.AreEqual(-23f, session.AnchorLufs, 0.2f);
+        }
+
+        [Test]
+        public void Analyze_ProducesOneRowPerProfileClip()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var other = Tone("other", -30.0);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(Profile(anchor, other), null);
+
+            Assert.AreEqual(2, session.Rows.Count);
+            CollectionAssert.AreEquivalent(
+                new[] { "anchor", "other" },
+                session.Rows.Select(r => r.Clip.name).ToArray());
+        }
+
+        [Test]
+        public void Analyze_SolvesGainsSoTheLoudestClipSitsAtZeroDb()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var loud = Tone("loud", -12.0);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(Profile(anchor, loud), null);
+
+            Assert.AreEqual(0f, session.Rows.Max(r => r.Gain.FinalGainDb), 1e-3f);
+        }
+
+        [Test]
+        public void Analyze_AQuieterClipEndsUpLouderInGainThanALoudOne()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var quiet = Tone("quiet", -35.0);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(Profile(anchor, quiet), null);
+
+            var quietGain = session.Rows.First(r => r.Clip.name == "quiet").Gain.FinalGainDb;
+            var anchorGain = session.Rows.First(r => r.Clip.name == "anchor").Gain.FinalGainDb;
+
+            Assert.Greater(quietGain, anchorGain,
+                "The quieter source needs relatively more gain to reach the same target.");
+        }
+
+        [Test]
+        public void Analyze_WithNoAnchor_LeavesTheAnchorStatusUnanalyzableAndDoesNotThrow()
+        {
+            var clip = Tone("lonely", -23.0);
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            profile.SettingsFor(clip);
+
+            var session = new AudioBalanceSession();
+
+            Assert.DoesNotThrow(() => session.Analyze(profile, null));
+            Assert.AreEqual(ClipStatus.Unanalyzable, session.AnchorStatus);
+        }
+
+        [Test]
+        public void Analyze_WithANullProfile_ClearsRowsWithoutThrowing()
+        {
+            var session = new AudioBalanceSession();
+
+            Assert.DoesNotThrow(() => session.Analyze(null, null));
+            Assert.AreEqual(0, session.Rows.Count);
+        }
+
+        [Test]
+        public void Resolve_RecomputesGainsWithoutReMeasuring()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var other = Tone("other", -23.0);
+            var profile = Profile(anchor, other);
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            var before = session.Rows.First(r => r.Clip.name == "other").Gain.FinalGainDb;
+
+            // Move "other" into a category 6 dB quieter and re-solve only.
+            profile.SettingsFor(other).Category = "UI";
+            session.Resolve(profile);
+
+            var after = session.Rows.First(r => r.Clip.name == "other").Gain.FinalGainDb;
+
+            Assert.Less(after, before - 5f,
+                "Changing a category must shift the solved gain without a re-measure.");
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `AudioBalanceSession` does not exist.
+
+- [ ] **Step 3: Implement `AudioBalanceRow`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceRow.cs`:
+
+```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>One line in the window: a clip plus its measurement and solved gain.</summary>
+    public sealed class AudioBalanceRow
+    {
+        public AudioClip Clip;
+        public ClipAnalysis Analysis;
+        public GainResult Gain;
+    }
+}
+```
+
+- [ ] **Step 4: Implement `AudioBalanceSession`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceSession.cs`:
+
+```csharp
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// The window's model. Analysis and solving live here rather than in the EditorWindow so
+    /// they can be tested without opening any UI.
+    /// </summary>
+    public sealed class AudioBalanceSession
+    {
+        private readonly List<AudioBalanceRow> _rows = new List<AudioBalanceRow>();
+
+        public IReadOnlyList<AudioBalanceRow> Rows => _rows;
+
+        public float AnchorLufs { get; private set; }
+
+        public ClipStatus AnchorStatus { get; private set; } = ClipStatus.Unanalyzable;
+
+        /// <summary>Measures the anchor and every profile clip, then solves gains.</summary>
+        public void Analyze(AudioBalanceProfile profile, LoudnessCache cache)
+        {
+            _rows.Clear();
+            AnchorLufs = 0f;
+            AnchorStatus = ClipStatus.Unanalyzable;
+
+            if (profile == null)
+            {
+                return;
+            }
+
+            if (profile.Anchor != null)
+            {
+                var anchorAnalysis = LoudnessAnalyzer.Analyze(
+                    profile.Anchor, profile.ModeFor(profile.Anchor), cache);
+
+                AnchorStatus = anchorAnalysis.Status;
+                AnchorLufs = anchorAnalysis.Lufs;
+            }
+
+            foreach (var settings in profile.Clips)
+            {
+                if (settings?.Clip == null)
+                {
+                    continue;
+                }
+
+                _rows.Add(new AudioBalanceRow
+                {
+                    Clip = settings.Clip,
+                    Analysis = LoudnessAnalyzer.Analyze(
+                        settings.Clip, profile.ModeFor(settings.Clip), cache)
+                });
+            }
+
+            Resolve(profile);
+        }
+
+        /// <summary>
+        /// Re-solves gains from the existing measurements. Called when a category offset or a
+        /// trim changes -- those affect the target, not the measurement, so re-decoding every
+        /// clip would be wasted work.
+        /// </summary>
+        public void Resolve(AudioBalanceProfile profile)
+        {
+            if (profile == null || _rows.Count == 0)
+            {
+                return;
+            }
+
+            var analyses = new List<ClipAnalysis>(_rows.Count);
+            foreach (var row in _rows)
+            {
+                analyses.Add(row.Analysis);
+            }
+
+            var solved = GainSolver.Solve(
+                analyses,
+                AnchorStatus == ClipStatus.Ok ? AnchorLufs : 0f,
+                profile.OffsetDbFor,
+                profile.TrimDbFor);
+
+            for (var i = 0; i < _rows.Count && i < solved.Count; i++)
+            {
+                _rows[i].Gain = solved[i];
+            }
+        }
+
+        public void Clear()
+        {
+            _rows.Clear();
+            AnchorLufs = 0f;
+            AnchorStatus = ClipStatus.Unanalyzable;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Implement the window shell**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`:
+
+```csharp
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Audio Balance panel. Laid out with absolute GUI.* rects rather than GUILayout: a
+    /// GUILayout island whose buttons open modal dialogs corrupts the layout stack when the
+    /// modal throws ExitGUIException, which is exactly the crash class LevelEditorWindow hit.
+    /// </summary>
+    public sealed class AudioBalanceWindow : EditorWindow
+    {
+        private const float ToolbarHeight = 24f;
+        private const float RowHeight = 20f;
+        private const float Pad = 6f;
+        private const float CategoryBlockHeight = 130f;
+
+        private AudioBalanceProfile _profile;
+        private readonly AudioBalanceSession _session = new AudioBalanceSession();
+        private LoudnessCache _cache;
+        private Vector2 _clipScroll;
+
+        [MenuItem("Window/Hoppa/Audio Balance")]
+        public static void Open()
+        {
+            var window = GetWindow<AudioBalanceWindow>(false, "Audio Balance", true);
+            window.minSize = new Vector2(720f, 400f);
+            window.Show();
+        }
+
+        private void OnEnable()
+        {
+            _cache = LoudnessCache.Load();
+        }
+
+        private void OnDisable()
+        {
+            _cache?.Save();
+        }
+
+        private void OnGUI()
+        {
+            var y = Pad;
+
+            DrawToolbar(new Rect(Pad, y, position.width - Pad * 2f, ToolbarHeight));
+            y += ToolbarHeight + Pad;
+
+            if (_profile == null)
+            {
+                GUI.Label(new Rect(Pad, y, position.width - Pad * 2f, 40f),
+                    "Assign an Audio Balance Profile to begin.\n" +
+                    "Create one via Assets ▸ Create ▸ Hoppa ▸ Audio ▸ Audio Balance Profile.");
+                return;
+            }
+
+            DrawAnchor(new Rect(Pad, y, position.width - Pad * 2f, RowHeight));
+            y += RowHeight + Pad;
+
+            DrawCategories(new Rect(Pad, y, position.width - Pad * 2f, CategoryBlockHeight));
+            y += CategoryBlockHeight + Pad;
+
+            DrawClips(new Rect(Pad, y, position.width - Pad * 2f, position.height - y - Pad));
+        }
+
+        private void DrawToolbar(Rect rect)
+        {
+            var x = rect.x;
+
+            GUI.Label(new Rect(x, rect.y, 50f, rect.height), "Profile");
+            x += 54f;
+
+            var picked = (AudioBalanceProfile)EditorGUI.ObjectField(
+                new Rect(x, rect.y, 220f, rect.height - 4f), _profile,
+                typeof(AudioBalanceProfile), false);
+
+            if (picked != _profile)
+            {
+                _profile = picked;
+                _session.Clear();
+            }
+
+            x += 226f;
+
+            if (GUI.Button(new Rect(x, rect.y, 110f, rect.height - 4f), "Add Folder…"))
+            {
+                AddFolder();
+            }
+
+            x += 116f;
+
+            GUI.enabled = _profile != null;
+
+            if (GUI.Button(new Rect(x, rect.y, 90f, rect.height - 4f), "Analyze"))
+            {
+                RunAnalysis();
+            }
+
+            GUI.enabled = true;
+        }
+
+        private void DrawAnchor(Rect rect)
+        {
+            GUI.Label(new Rect(rect.x, rect.y, 50f, rect.height), "Anchor");
+
+            var picked = (AudioClip)EditorGUI.ObjectField(
+                new Rect(rect.x + 54f, rect.y, 220f, rect.height - 2f),
+                _profile.Anchor, typeof(AudioClip), false);
+
+            if (picked != _profile.Anchor)
+            {
+                Undo.RecordObject(_profile, "Set Audio Balance Anchor");
+                _profile.Anchor = picked;
+                EditorUtility.SetDirty(_profile);
+            }
+
+            var summary = _session.AnchorStatus == ClipStatus.Ok
+                ? $"{_session.AnchorLufs:0.0} LUFS"
+                : "not analyzed";
+
+            GUI.Label(new Rect(rect.x + 282f, rect.y, 240f, rect.height), summary);
+        }
+
+        private void DrawCategories(Rect rect)
+        {
+            GUI.Box(rect, GUIContent.none);
+
+            var y = rect.y + 4f;
+            GUI.Label(new Rect(rect.x + 6f, y, 200f, RowHeight), "Categories (dB vs anchor)");
+            y += RowHeight;
+
+            for (var i = 0; i < _profile.Categories.Count; i++)
+            {
+                var category = _profile.Categories[i];
+                var x = rect.x + 6f;
+
+                var name = EditorGUI.TextField(new Rect(x, y, 120f, RowHeight - 2f), category.Name);
+                x += 126f;
+
+                var offset = EditorGUI.FloatField(new Rect(x, y, 60f, RowHeight - 2f), category.OffsetDb);
+                x += 66f;
+
+                var mode = (MeasureMode)EditorGUI.EnumPopup(
+                    new Rect(x, y, 130f, RowHeight - 2f), category.Mode);
+
+                if (name != category.Name || !Mathf.Approximately(offset, category.OffsetDb) ||
+                    mode != category.Mode)
+                {
+                    Undo.RecordObject(_profile, "Edit Audio Category");
+                    category.Name = name;
+                    category.OffsetDb = offset;
+                    category.Mode = mode;
+                    EditorUtility.SetDirty(_profile);
+                    _session.Resolve(_profile);
+                }
+
+                y += RowHeight;
+            }
+
+            if (GUI.Button(new Rect(rect.x + 6f, y, 110f, RowHeight - 2f), "Add Category"))
+            {
+                Undo.RecordObject(_profile, "Add Audio Category");
+                _profile.Categories.Add(new AudioCategory { Name = "New", OffsetDb = 0f });
+                EditorUtility.SetDirty(_profile);
+            }
+        }
+
+        /// <summary>Replaced with the full sortable table in Task 12.</summary>
+        private void DrawClips(Rect rect)
+        {
+            GUI.Box(rect, GUIContent.none);
+
+            var content = new Rect(0f, 0f, rect.width - 20f, _session.Rows.Count * RowHeight + 4f);
+            _clipScroll = GUI.BeginScrollView(rect, _clipScroll, content);
+
+            var y = 2f;
+            foreach (var row in _session.Rows)
+            {
+                var label = row.Analysis.Status == ClipStatus.Ok
+                    ? $"{row.Clip.name}    {row.Analysis.Lufs:0.0} LUFS    {row.Gain.FinalGainDb:0.0} dB"
+                    : $"{row.Clip.name}    {row.Analysis.Reason}";
+
+                GUI.Label(new Rect(4f, y, content.width - 8f, RowHeight), label);
+                y += RowHeight;
+            }
+
+            GUI.EndScrollView();
+        }
+
+        private void AddFolder()
+        {
+            var absolute = EditorUtility.OpenFolderPanel("Add Audio Folder", "Assets", string.Empty);
+            if (string.IsNullOrEmpty(absolute))
+            {
+                return;
+            }
+
+            var relative = ToProjectRelative(absolute);
+            if (relative == null)
+            {
+                EditorUtility.DisplayDialog("Audio Balance",
+                    "Pick a folder inside this project's Assets directory.", "OK");
+                return;
+            }
+
+            if (!_profile.Folders.Contains(relative))
+            {
+                Undo.RecordObject(_profile, "Add Audio Folder");
+                _profile.Folders.Add(relative);
+                EditorUtility.SetDirty(_profile);
+            }
+        }
+
+        /// <summary>
+        /// Absolute paths in a committed asset break every other checkout, so folders are
+        /// always stored relative to the project root.
+        /// </summary>
+        private static string ToProjectRelative(string absolutePath)
+        {
+            var projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
+            if (string.IsNullOrEmpty(projectRoot))
+            {
+                return null;
+            }
+
+            var normalizedRoot = projectRoot.Replace('\\', '/') + "/";
+            var normalizedPath = absolutePath.Replace('\\', '/');
+
+            return normalizedPath.StartsWith(normalizedRoot)
+                ? normalizedPath.Substring(normalizedRoot.Length)
+                : null;
+        }
+
+        private void RunAnalysis()
+        {
+            var discovered = LoudnessAnalyzer.FindClips(_profile.Folders);
+
+            Undo.RecordObject(_profile, "Scan Audio Folders");
+            foreach (var clip in discovered)
+            {
+                _profile.SettingsFor(clip);
+            }
+
+            EditorUtility.SetDirty(_profile);
+
+            try
+            {
+                var total = Mathf.Max(1, _profile.Clips.Count);
+                for (var i = 0; i < _profile.Clips.Count; i++)
+                {
+                    var clip = _profile.Clips[i]?.Clip;
+                    if (clip == null)
+                    {
+                        continue;
+                    }
+
+                    if (EditorUtility.DisplayCancelableProgressBar(
+                            "Audio Balance", $"Analyzing {clip.name}", i / (float)total))
+                    {
+                        break;
+                    }
+                }
+
+                _session.Analyze(_profile, _cache);
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+
+            _cache?.Save();
+            Repaint();
+        }
+    }
+}
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 82/82 PASS (75 prior + 7 here).
+
+- [ ] **Step 7: Open the window and confirm it renders**
+
+Open `Window ▸ Hoppa ▸ Audio Balance` in the Unity Editor. Confirm: the profile field renders, the empty-state message appears with no profile assigned, and no console errors or layout exceptions occur.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): Audio Balance window shell with analysis session
+
+Analysis and gain solving live in AudioBalanceSession rather than the
+EditorWindow so they unit-test without opening any UI. Resolve() re-solves
+from existing measurements when only a category or trim changed, avoiding
+a needless re-decode. Layout uses absolute GUI.* rects throughout.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 12: Sortable, filterable clip table with bulk assign
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/ClipSortMode.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/ClipListView.cs`
+- Modify: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs` (replace `DrawClips`)
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/ClipListViewTests.cs`
+
+**Interfaces:**
+- Consumes: `AudioBalanceRow`, `ClipStatus`, `AudioBalanceProfile`.
+- Produces:
+  - `enum ClipSortMode { Name, Loudness, Gain, Category }`
+  - `ClipListView.BuildVisible(IReadOnlyList<AudioBalanceRow> rows, string filter, ClipSortMode sort, bool ascending, AudioBalanceProfile profile) -> List<AudioBalanceRow>`
+  - `ClipListView.StatusIcon(AudioBalanceRow row) -> string`
+  - `ClipListView.BulkAssignCategory(IEnumerable<AudioBalanceRow> rows, AudioBalanceProfile profile, string category)`
+
+> Filtering and sorting are pure functions over the row list, so they test directly. Only the drawing lives in the window.
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/ClipListViewTests.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class ClipListViewTests
+    {
+        private static AudioBalanceRow Row(string name, float lufs, float gainDb,
+            ClipStatus status = ClipStatus.Ok, bool outlier = false)
+        {
+            var clip = AudioClip.Create(name, 128, 1, 44100, false);
+            return new AudioBalanceRow
+            {
+                Clip = clip,
+                Analysis = status == ClipStatus.Ok
+                    ? ClipAnalysis.Ok(clip, lufs, -3f, -2.8f)
+                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                Gain = new GainResult(clip, status, gainDb, gainDb, outlier)
+            };
+        }
+
+        private static AudioBalanceProfile Profile(params AudioBalanceRow[] rows)
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            foreach (var row in rows)
+            {
+                profile.SettingsFor(row.Clip);
+            }
+
+            return profile;
+        }
+
+        [Test]
+        public void BuildVisible_WithNoFilter_ReturnsEveryRow()
+        {
+            var rows = new List<AudioBalanceRow> { Row("kick", -20f, -3f), Row("snare", -18f, -1f) };
+
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, Profile(rows.ToArray()));
+
+            Assert.AreEqual(2, visible.Count);
+        }
+
+        [Test]
+        public void BuildVisible_FiltersByNameCaseInsensitively()
+        {
+            var rows = new List<AudioBalanceRow> { Row("Kick_Heavy", -20f, -3f), Row("snare", -18f, -1f) };
+
+            var visible = ClipListView.BuildVisible(rows, "kick", ClipSortMode.Name, true, Profile(rows.ToArray()));
+
+            Assert.AreEqual(1, visible.Count);
+            Assert.AreEqual("Kick_Heavy", visible[0].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_SortsByNameAscendingAndDescending()
+        {
+            var rows = new List<AudioBalanceRow> { Row("zebra", -20f, -3f), Row("apple", -18f, -1f) };
+            var profile = Profile(rows.ToArray());
+
+            var ascending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, profile);
+            var descending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, false, profile);
+
+            Assert.AreEqual("apple", ascending[0].Clip.name);
+            Assert.AreEqual("zebra", descending[0].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_SortsByLoudness()
+        {
+            var rows = new List<AudioBalanceRow> { Row("loud", -12f, -6f), Row("quiet", -30f, 0f) };
+
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Loudness, true,
+                Profile(rows.ToArray()));
+
+            Assert.AreEqual("quiet", visible[0].Clip.name, "Ascending loudness puts the quietest first.");
+        }
+
+        [Test]
+        public void BuildVisible_SortsByGain()
+        {
+            var rows = new List<AudioBalanceRow> { Row("a", -20f, -1f), Row("b", -20f, -12f) };
+
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Gain, true,
+                Profile(rows.ToArray()));
+
+            Assert.AreEqual("b", visible[0].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_SortsByCategory()
+        {
+            var music = Row("bed", -20f, -3f);
+            var ui = Row("blip", -20f, -3f);
+            var profile = Profile(music, ui);
+            profile.SettingsFor(music.Clip).Category = "Music";
+            profile.SettingsFor(ui.Clip).Category = "UI";
+
+            var visible = ClipListView.BuildVisible(new List<AudioBalanceRow> { ui, music },
+                string.Empty, ClipSortMode.Category, true, profile);
+
+            Assert.AreEqual("Music", profile.SettingsFor(visible[0].Clip).Category);
+        }
+
+        [Test]
+        public void BuildVisible_SortIsStableForEqualKeys()
+        {
+            var rows = new List<AudioBalanceRow> { Row("first", -20f, -3f), Row("second", -20f, -3f) };
+
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Loudness, true,
+                Profile(rows.ToArray()));
+
+            Assert.AreEqual("first", visible[0].Clip.name);
+            Assert.AreEqual("second", visible[1].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_HandlesNullRowsWithoutThrowing()
+        {
+            Assert.AreEqual(0, ClipListView.BuildVisible(null, string.Empty, ClipSortMode.Name, true, null).Count);
+        }
+
+        [Test]
+        public void StatusIcon_MarksOutliersAndBrokenClipsButNotHealthyOnes()
+        {
+            Assert.AreEqual(string.Empty, ClipListView.StatusIcon(Row("fine", -20f, -3f)));
+            Assert.AreNotEqual(string.Empty, ClipListView.StatusIcon(Row("odd", -20f, -20f, ClipStatus.Ok, true)));
+            Assert.AreNotEqual(string.Empty, ClipListView.StatusIcon(Row("mute", 0f, 0f, ClipStatus.Silent)));
+            Assert.AreNotEqual(string.Empty,
+                ClipListView.StatusIcon(Row("broken", 0f, 0f, ClipStatus.Unanalyzable)));
+        }
+
+        [Test]
+        public void BulkAssignCategory_SetsTheCategoryOnEverySuppliedRow()
+        {
+            var a = Row("a", -20f, -3f);
+            var b = Row("b", -20f, -3f);
+            var profile = Profile(a, b);
+
+            ClipListView.BulkAssignCategory(new[] { a, b }, profile, "UI");
+
+            Assert.AreEqual("UI", profile.SettingsFor(a.Clip).Category);
+            Assert.AreEqual("UI", profile.SettingsFor(b.Clip).Category);
+        }
+
+        [Test]
+        public void BulkAssignCategory_IgnoresNullInputsWithoutThrowing()
+        {
+            var profile = Profile();
+
+            Assert.DoesNotThrow(() => ClipListView.BulkAssignCategory(null, profile, "UI"));
+            Assert.DoesNotThrow(() => ClipListView.BulkAssignCategory(new AudioBalanceRow[0], null, "UI"));
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `ClipListView` does not exist.
+
+- [ ] **Step 3: Implement `ClipSortMode`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/ClipSortMode.cs`:
+
+```csharp
+namespace Hoppa.AudioBalance.Editor
+{
+    public enum ClipSortMode
+    {
+        Name = 0,
+        Loudness = 1,
+        Gain = 2,
+        Category = 3
+    }
+}
+```
+
+- [ ] **Step 4: Implement `ClipListView`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/ClipListView.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Filtering, sorting and bulk edits for the clip table. Kept as pure functions over the
+    /// row list so they test without any UI.
+    /// </summary>
+    public static class ClipListView
+    {
+        public static List<AudioBalanceRow> BuildVisible(
+            IReadOnlyList<AudioBalanceRow> rows,
+            string filter,
+            ClipSortMode sort,
+            bool ascending,
+            AudioBalanceProfile profile)
+        {
+            var visible = new List<AudioBalanceRow>();
+            if (rows == null)
+            {
+                return visible;
+            }
+
+            foreach (var row in rows)
+            {
+                if (row?.Clip == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(filter) &&
+                    row.Clip.name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                visible.Add(row);
+            }
+
+            // OrderBy is a stable sort, so rows with equal keys keep their discovery order.
+            IEnumerable<AudioBalanceRow> ordered;
+            switch (sort)
+            {
+                case ClipSortMode.Loudness:
+                    ordered = visible.OrderBy(r => r.Analysis.Status == ClipStatus.Ok
+                        ? r.Analysis.Lufs
+                        : float.MinValue);
+                    break;
+                case ClipSortMode.Gain:
+                    ordered = visible.OrderBy(r => r.Gain.FinalGainDb);
+                    break;
+                case ClipSortMode.Category:
+                    ordered = visible.OrderBy(r => CategoryOf(r, profile), StringComparer.OrdinalIgnoreCase);
+                    break;
+                default:
+                    ordered = visible.OrderBy(r => r.Clip.name, StringComparer.OrdinalIgnoreCase);
+                    break;
+            }
+
+            var result = ordered.ToList();
+            if (!ascending)
+            {
+                result.Reverse();
+            }
+
+            return result;
+        }
+
+        /// <summary>Empty string for a healthy row -- the table should not be a wall of icons.</summary>
+        public static string StatusIcon(AudioBalanceRow row)
+        {
+            if (row == null)
+            {
+                return string.Empty;
+            }
+
+            switch (row.Analysis.Status)
+            {
+                case ClipStatus.Silent:
+                    return "silent";
+                case ClipStatus.Unanalyzable:
+                    return "!";
+                default:
+                    return row.Gain.IsOutlier ? "outlier" : string.Empty;
+            }
+        }
+
+        public static void BulkAssignCategory(IEnumerable<AudioBalanceRow> rows,
+            AudioBalanceProfile profile, string category)
+        {
+            if (rows == null || profile == null || string.IsNullOrEmpty(category))
+            {
+                return;
+            }
+
+            Undo.RecordObject(profile, "Assign Audio Category");
+
+            foreach (var row in rows)
+            {
+                if (row?.Clip == null)
+                {
+                    continue;
+                }
+
+                var settings = profile.SettingsFor(row.Clip);
+                if (settings != null)
+                {
+                    settings.Category = category;
+                }
+            }
+
+            EditorUtility.SetDirty(profile);
+        }
+
+        private static string CategoryOf(AudioBalanceRow row, AudioBalanceProfile profile)
+        {
+            return profile?.SettingsFor(row.Clip)?.Category ?? string.Empty;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Replace `DrawClips` in the window**
+
+In `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`, add these fields beside the existing ones:
+
+```csharp
+        private string _filter = string.Empty;
+        private ClipSortMode _sort = ClipSortMode.Name;
+        private bool _ascending = true;
+        private readonly HashSet<AudioClip> _selected = new HashSet<AudioClip>();
+```
+
+Then replace the whole `DrawClips` method with:
+
+```csharp
+        private void DrawClips(Rect rect)
+        {
+            var header = new Rect(rect.x, rect.y, rect.width, RowHeight);
+            DrawClipHeader(header);
+
+            var body = new Rect(rect.x, rect.y + RowHeight + 2f, rect.width,
+                rect.height - RowHeight - 2f);
+            GUI.Box(body, GUIContent.none);
+
+            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, _profile);
+            var content = new Rect(0f, 0f, body.width - 20f, visible.Count * RowHeight + 4f);
+
+            _clipScroll = GUI.BeginScrollView(body, _clipScroll, content);
+
+            var y = 2f;
+            foreach (var row in visible)
+            {
+                DrawClipRow(new Rect(4f, y, content.width - 8f, RowHeight), row);
+                y += RowHeight;
+            }
+
+            GUI.EndScrollView();
+        }
+
+        private void DrawClipHeader(Rect rect)
+        {
+            var x = rect.x;
+
+            GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Filter");
+            x += 44f;
+
+            _filter = EditorGUI.TextField(new Rect(x, rect.y, 140f, rect.height - 2f), _filter);
+            x += 146f;
+
+            GUI.Label(new Rect(x, rect.y, 32f, rect.height), "Sort");
+            x += 36f;
+
+            _sort = (ClipSortMode)EditorGUI.EnumPopup(
+                new Rect(x, rect.y, 100f, rect.height - 2f), _sort);
+            x += 106f;
+
+            if (GUI.Button(new Rect(x, rect.y, 30f, rect.height - 2f), _ascending ? "▲" : "▼"))
+            {
+                _ascending = !_ascending;
+            }
+
+            x += 36f;
+
+            GUI.enabled = _selected.Count > 0;
+
+            if (GUI.Button(new Rect(x, rect.y, 130f, rect.height - 2f),
+                    $"Set Category ({_selected.Count})"))
+            {
+                ShowBulkCategoryMenu();
+            }
+
+            GUI.enabled = true;
+        }
+
+        private void DrawClipRow(Rect rect, AudioBalanceRow row)
+        {
+            var x = rect.x;
+
+            var wasSelected = _selected.Contains(row.Clip);
+            var isSelected = EditorGUI.Toggle(new Rect(x, rect.y, 18f, rect.height), wasSelected);
+            if (isSelected != wasSelected)
+            {
+                if (isSelected)
+                {
+                    _selected.Add(row.Clip);
+                }
+                else
+                {
+                    _selected.Remove(row.Clip);
+                }
+            }
+
+            x += 22f;
+
+            GUI.Label(new Rect(x, rect.y, 170f, rect.height), row.Clip.name);
+            x += 174f;
+
+            var settings = _profile.SettingsFor(row.Clip);
+            var names = _profile.Categories.Select(c => c.Name).ToArray();
+            var current = Mathf.Max(0, System.Array.IndexOf(names, settings.Category));
+
+            var picked = EditorGUI.Popup(new Rect(x, rect.y, 90f, rect.height - 2f), current, names);
+            if (picked != current && picked >= 0 && picked < names.Length)
+            {
+                Undo.RecordObject(_profile, "Change Audio Category");
+                settings.Category = names[picked];
+                EditorUtility.SetDirty(_profile);
+                _session.Resolve(_profile);
+            }
+
+            x += 96f;
+
+            GUI.Label(new Rect(x, rect.y, 90f, rect.height),
+                row.Analysis.Status == ClipStatus.Ok ? $"{row.Analysis.Lufs:0.0} LUFS" : "—");
+            x += 94f;
+
+            GUI.Label(new Rect(x, rect.y, 70f, rect.height),
+                row.Analysis.Status == ClipStatus.Ok ? $"{row.Gain.FinalGainDb:0.0} dB" : "—");
+            x += 74f;
+
+            var trim = EditorGUI.Slider(new Rect(x, rect.y, 150f, rect.height - 2f),
+                settings.TrimDb, -12f, 12f);
+
+            if (!Mathf.Approximately(trim, settings.TrimDb))
+            {
+                Undo.RecordObject(_profile, "Change Audio Trim");
+                settings.TrimDb = trim;
+                EditorUtility.SetDirty(_profile);
+                _session.Resolve(_profile);
+            }
+
+            x += 156f;
+
+            var icon = ClipListView.StatusIcon(row);
+            if (!string.IsNullOrEmpty(icon))
+            {
+                GUI.Label(new Rect(x, rect.y, 90f, rect.height),
+                    new GUIContent(icon, row.Analysis.Reason ?? "gain is far from the category target"));
+            }
+        }
+
+        private void ShowBulkCategoryMenu()
+        {
+            var menu = new GenericMenu();
+            var targets = _session.Rows.Where(r => _selected.Contains(r.Clip)).ToArray();
+
+            foreach (var category in _profile.Categories)
+            {
+                var name = category.Name;
+                menu.AddItem(new GUIContent(name), false, () =>
+                {
+                    ClipListView.BulkAssignCategory(targets, _profile, name);
+                    _session.Resolve(_profile);
+                    Repaint();
+                });
+            }
+
+            menu.ShowAsContext();
+        }
+```
+
+Add `using System.Linq;` to the file's using block.
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 93/93 PASS (82 prior + 11 here).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): sortable, filterable clip table with bulk category assign
+
+Filtering and sorting are pure functions over the row list, tested
+directly; only drawing lives in the window. Editing a category or trim
+re-solves from existing measurements rather than re-decoding.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 13: Preview player, Write Table, and docs
+
+**Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/AudioPreviewPlayer.cs`
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/GainTableWriter.cs`
+- Create: `Packages/com.hoppa.audiobalance/README.md`
+- Create: `Packages/com.hoppa.audiobalance/Documentation~/audio-balance-guide.md`
+- Modify: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs` (preview buttons + Write Table)
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/GainTableWriterTests.cs`
+
+**Interfaces:**
+- Consumes: `AudioBalanceRow`, `AudioGainTable`, `ClipStatus`, `AudioBalanceProfile`.
+- Produces:
+  - `GainTableWriter.BuildEntries(IReadOnlyList<AudioBalanceRow> rows) -> List<AudioGainTable.Entry>`
+  - `GainTableWriter.Write(AudioBalanceProfile profile, IReadOnlyList<AudioBalanceRow> rows) -> bool`
+  - `AudioPreviewPlayer.PlayWithGain(AudioClip clip, float gainDb)`
+  - `AudioPreviewPlayer.PlayAgainstAnchor(AudioClip clip, float gainDb, AudioClip anchor, float anchorGainDb)`
+  - `AudioPreviewPlayer.StopAll()`
+
+- [ ] **Step 1: Write the failing test**
+
+`Packages/com.hoppa.audiobalance/Tests/Editor/GainTableWriterTests.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using Hoppa.AudioBalance;
+using Hoppa.AudioBalance.Editor;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    public class GainTableWriterTests
+    {
+        private static AudioBalanceRow Row(string name, float gainDb, ClipStatus status = ClipStatus.Ok)
+        {
+            var clip = AudioClip.Create(name, 128, 1, 44100, false);
+            return new AudioBalanceRow
+            {
+                Clip = clip,
+                Analysis = status == ClipStatus.Ok
+                    ? ClipAnalysis.Ok(clip, -20f, -3f, -2.8f)
+                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                Gain = new GainResult(clip, status, gainDb, gainDb, false)
+            };
+        }
+
+        [Test]
+        public void BuildEntries_IncludesAnalyzableRowsWithTheirFinalGain()
+        {
+            var rows = new List<AudioBalanceRow> { Row("kick", -6f), Row("snare", 0f) };
+
+            var entries = GainTableWriter.BuildEntries(rows);
+
+            Assert.AreEqual(2, entries.Count);
+            Assert.AreEqual(-6f, entries.First(e => e.Clip.name == "kick").GainDb, 1e-4f);
+            Assert.AreEqual(0f, entries.First(e => e.Clip.name == "snare").GainDb, 1e-4f);
+        }
+
+        [Test]
+        public void BuildEntries_SkipsSilentAndUnanalyzableRows()
+        {
+            var rows = new List<AudioBalanceRow>
+            {
+                Row("good", -3f),
+                Row("mute", 0f, ClipStatus.Silent),
+                Row("broken", 0f, ClipStatus.Unanalyzable)
+            };
+
+            var entries = GainTableWriter.BuildEntries(rows);
+
+            Assert.AreEqual(1, entries.Count);
+            Assert.AreEqual("good", entries[0].Clip.name);
+        }
+
+        [Test]
+        public void BuildEntries_IsDeterministicallyOrderedByClipName()
+        {
+            var rows = new List<AudioBalanceRow> { Row("zebra", -1f), Row("apple", -2f) };
+
+            var entries = GainTableWriter.BuildEntries(rows);
+
+            Assert.AreEqual("apple", entries[0].Clip.name,
+                "A stable order keeps the asset's git diff clean between runs.");
+            Assert.AreEqual("zebra", entries[1].Clip.name);
+        }
+
+        [Test]
+        public void BuildEntries_OnNullOrEmptyInput_ReturnsAnEmptyList()
+        {
+            Assert.AreEqual(0, GainTableWriter.BuildEntries(null).Count);
+            Assert.AreEqual(0, GainTableWriter.BuildEntries(new List<AudioBalanceRow>()).Count);
+        }
+
+        [Test]
+        public void EntriesFedIntoATable_AreReadableThroughTheRuntimeLookup()
+        {
+            var rows = new List<AudioBalanceRow> { Row("kick", -6f) };
+            var table = ScriptableObject.CreateInstance<AudioGainTable>();
+
+            table.SetEntries(GainTableWriter.BuildEntries(rows));
+
+            Assert.AreEqual(-6f, table.GetGainDb(rows[0].Clip), 1e-4f);
+            Assert.AreEqual(0.5012f, table.GetGain(rows[0].Clip), 1e-3f);
+        }
+
+        [Test]
+        public void Write_WithNoTableAssigned_ReturnsFalseWithoutThrowing()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+
+            Assert.IsFalse(GainTableWriter.Write(profile, new List<AudioBalanceRow> { Row("kick", -6f) }));
+        }
+
+        [Test]
+        public void Write_WithNullProfile_ReturnsFalseWithoutThrowing()
+        {
+            Assert.IsFalse(GainTableWriter.Write(null, new List<AudioBalanceRow>()));
+        }
+
+        [Test]
+        public void Write_PopulatesTheAssignedTable()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            profile.Table = ScriptableObject.CreateInstance<AudioGainTable>();
+
+            var rows = new List<AudioBalanceRow> { Row("kick", -6f) };
+
+            Assert.IsTrue(GainTableWriter.Write(profile, rows));
+            Assert.AreEqual(-6f, profile.Table.GetGainDb(rows[0].Clip), 1e-4f);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: compile errors — `GainTableWriter` does not exist.
+
+- [ ] **Step 3: Implement `GainTableWriter`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/GainTableWriter.cs`:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using Hoppa.AudioBalance;
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>Bakes solved gains into the profile's AudioGainTable asset.</summary>
+    public static class GainTableWriter
+    {
+        public static List<AudioGainTable.Entry> BuildEntries(IReadOnlyList<AudioBalanceRow> rows)
+        {
+            var entries = new List<AudioGainTable.Entry>();
+            if (rows == null)
+            {
+                return entries;
+            }
+
+            foreach (var row in rows)
+            {
+                // A silent or unreadable clip has no meaningful gain. Omitting it means the
+                // runtime lookup falls through to unity gain rather than baking in a guess.
+                if (row?.Clip == null || row.Analysis.Status != ClipStatus.Ok)
+                {
+                    continue;
+                }
+
+                entries.Add(new AudioGainTable.Entry
+                {
+                    Clip = row.Clip,
+                    GainDb = row.Gain.FinalGainDb
+                });
+            }
+
+            // Stable ordering keeps the asset's git diff clean between runs.
+            entries.Sort((a, b) => string.CompareOrdinal(a.Clip.name, b.Clip.name));
+            return entries;
+        }
+
+        public static bool Write(AudioBalanceProfile profile, IReadOnlyList<AudioBalanceRow> rows)
+        {
+            if (profile == null || profile.Table == null)
+            {
+                return false;
+            }
+
+            Undo.RecordObject(profile.Table, "Write Audio Gain Table");
+            profile.Table.SetEntries(BuildEntries(rows));
+            EditorUtility.SetDirty(profile.Table);
+            AssetDatabase.SaveAssets();
+
+            return true;
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Implement `AudioPreviewPlayer`**
+
+`Packages/com.hoppa.audiobalance/Editor/Window/AudioPreviewPlayer.cs`:
+
+```csharp
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Auditions clips with their solved gain applied. Uses a hidden scene AudioSource pair
+    /// rather than the editor's built-in clip preview, because that preview offers no volume
+    /// control -- and hearing the gain is the entire point.
+    /// </summary>
+    [InitializeOnLoad]
+    public static class AudioPreviewPlayer
+    {
+        private static GameObject _host;
+        private static AudioSource _clipSource;
+        private static AudioSource _anchorSource;
+
+        static AudioPreviewPlayer()
+        {
+            // The hidden host must not survive a domain reload as a leaked object.
+            AssemblyReloadEvents.beforeAssemblyReload += Teardown;
+            EditorApplication.playModeStateChanged += _ => Teardown();
+        }
+
+        public static void PlayWithGain(AudioClip clip, float gainDb)
+        {
+            if (clip == null)
+            {
+                return;
+            }
+
+            EnsureHost();
+            StopAll();
+
+            _clipSource.clip = clip;
+            _clipSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(gainDb));
+            _clipSource.Play();
+        }
+
+        /// <summary>Plays the clip over the anchor bed, so it is judged in context.</summary>
+        public static void PlayAgainstAnchor(AudioClip clip, float gainDb,
+            AudioClip anchor, float anchorGainDb)
+        {
+            if (clip == null)
+            {
+                return;
+            }
+
+            EnsureHost();
+            StopAll();
+
+            if (anchor != null)
+            {
+                _anchorSource.clip = anchor;
+                _anchorSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(anchorGainDb));
+                _anchorSource.loop = true;
+                _anchorSource.Play();
+            }
+
+            _clipSource.clip = clip;
+            _clipSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(gainDb));
+            _clipSource.Play();
+        }
+
+        public static void StopAll()
+        {
+            if (_clipSource != null)
+            {
+                _clipSource.Stop();
+            }
+
+            if (_anchorSource != null)
+            {
+                _anchorSource.Stop();
+            }
+        }
+
+        public static void Teardown()
+        {
+            StopAll();
+
+            if (_host != null)
+            {
+                Object.DestroyImmediate(_host);
+            }
+
+            _host = null;
+            _clipSource = null;
+            _anchorSource = null;
+        }
+
+        private static void EnsureHost()
+        {
+            if (_host != null)
+            {
+                return;
+            }
+
+            _host = new GameObject("~AudioBalancePreview")
+            {
+                hideFlags = HideFlags.HideAndDontSave
+            };
+
+            _clipSource = _host.AddComponent<AudioSource>();
+            _clipSource.playOnAwake = false;
+
+            _anchorSource = _host.AddComponent<AudioSource>();
+            _anchorSource.playOnAwake = false;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Wire preview buttons and Write Table into the window**
+
+In `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`:
+
+Add to `DrawToolbar`, after the Analyze button (`x += 96f;` first):
+
+```csharp
+            GUI.enabled = _profile != null && _profile.Table != null && _session.Rows.Count > 0;
+
+            if (GUI.Button(new Rect(x, rect.y, 110f, rect.height - 4f), "Write Table"))
+            {
+                if (GainTableWriter.Write(_profile, _session.Rows))
+                {
+                    ShowNotification(new GUIContent("Gain table written"));
+                }
+            }
+
+            GUI.enabled = true;
+            x += 116f;
+
+            GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Table");
+            x += 44f;
+
+            if (_profile != null)
+            {
+                var table = (AudioGainTable)EditorGUI.ObjectField(
+                    new Rect(x, rect.y, 180f, rect.height - 4f),
+                    _profile.Table, typeof(AudioGainTable), false);
+
+                if (table != _profile.Table)
+                {
+                    Undo.RecordObject(_profile, "Set Gain Table");
+                    _profile.Table = table;
+                    EditorUtility.SetDirty(_profile);
+                }
+            }
+```
+
+Add to the end of `DrawClipRow`, after the status icon block (`x += 94f;` first):
+
+```csharp
+            GUI.enabled = row.Analysis.Status == ClipStatus.Ok;
+
+            if (GUI.Button(new Rect(x, rect.y, 26f, rect.height - 2f),
+                    new GUIContent("▶", "Preview with the solved gain applied")))
+            {
+                AudioPreviewPlayer.PlayWithGain(row.Clip, row.Gain.FinalGainDb);
+            }
+
+            x += 30f;
+
+            if (GUI.Button(new Rect(x, rect.y, 36f, rect.height - 2f),
+                    new GUIContent("A/B", "Play over the anchor bed")))
+            {
+                var anchorRow = _session.Rows.FirstOrDefault(r => r.Clip == _profile.Anchor);
+                AudioPreviewPlayer.PlayAgainstAnchor(
+                    row.Clip, row.Gain.FinalGainDb,
+                    _profile.Anchor, anchorRow?.Gain.FinalGainDb ?? 0f);
+            }
+
+            GUI.enabled = true;
+```
+
+Add to `OnDisable`, before the cache save:
+
+```csharp
+            AudioPreviewPlayer.StopAll();
+```
+
+Add `using Hoppa.AudioBalance;` to the file's using block so `AudioGainTable` resolves.
+
+- [ ] **Step 6: Write the package README**
+
+`Packages/com.hoppa.audiobalance/README.md`:
+
+```markdown
+# Hoppa Audio Balance
+
+Anchor-relative loudness balancing for Unity audio.
+
+Pick one clip as the **anchor** — normally the background music that runs during
+levels. Every other clip is measured with the same perceived-loudness metric
+(LUFS, ITU-R BS.1770-4) and assigned a gain that places it at a deliberate offset
+from that anchor. The result is baked into an `AudioGainTable` asset.
+
+**Source audio files are never modified.**
+
+## Quick start
+
+1. `Assets ▸ Create ▸ Hoppa ▸ Audio ▸ Audio Balance Profile`
+2. `Assets ▸ Create ▸ Hoppa ▸ Audio ▸ Audio Gain Table`
+3. `Window ▸ Hoppa ▸ Audio Balance` — assign both, then **Add Folder…**
+4. Set the **Anchor** clip, press **Analyze**, then **Write Table**
+
+## Using the table at runtime
+
+```csharp
+[SerializeField] private AudioGainTable _gains;
+[SerializeField] private AudioSource _source;
+
+_source.PlayOneShotBalanced(clip, _gains, userVolume: _sfxSlider.value);
+```
+
+An unknown clip resolves to unity gain, so a missing entry never silences a sound.
+
+## Why everything gets quieter
+
+`AudioSource.volume` is capped at 1.0, so a clip needing +6 dB cannot receive it.
+Gains are therefore normalised downward: the loudest clip lands at exactly 0 dB and
+everything else sits below it. Relative balance is preserved exactly, and clipping
+becomes impossible. Compensate the overall drop once, on your master mixer.
+
+## Known limitation
+
+Clips imported with **Streaming** load type return silence from `GetData` and are
+reported as unanalyzable rather than having their import settings rewritten. Set
+their Load Type to *Decompress On Load* to include them.
+```
+
+- [ ] **Step 7: Write the guide**
+
+`Packages/com.hoppa.audiobalance/Documentation~/audio-balance-guide.md`:
+
+```markdown
+# Audio Balance — Designer Guide
+
+## What this solves
+
+The `volume` number on an `AudioSource` says nothing about how loud a clip actually
+sounds. A dense bass-heavy loop and a thin UI blip can both sit at `1.0` and be 15 dB
+apart to the ear. This tool measures what your ears hear and does the arithmetic.
+
+## Workflow
+
+1. **Point it at your audio.** Add one or more folders in the toolbar. They are
+   stored project-relative, so they work on every teammate's checkout.
+2. **Choose the anchor.** Use the background music that plays during levels. Every
+   other sound is positioned relative to it, so pick something representative.
+3. **Assign categories.** Multi-select rows and use *Set Category*. Defaults:
+
+   | Category | Offset | Measure mode | Meaning |
+   |---|---|---|---|
+   | Music | 0 dB | Integrated | Sits at the anchor's level |
+   | SFX | +3 dB | Short-term max | Sits above the music bed |
+   | UI | −6 dB | Short-term max | Sits below it |
+
+4. **Analyze.** Measurements are cached, so later runs only re-measure changed clips.
+5. **Listen.** `▶` plays a clip with its gain applied; `A/B` plays it over the anchor
+   bed. Trust your ears over the numbers.
+6. **Trim what's still wrong.** The per-clip slider stacks on top of the category
+   offset. Reach for it only after the category offset is right.
+7. **Write Table.**
+
+## Reading the warnings
+
+| Marker | Meaning |
+|---|---|
+| `outlier` | Gain is more than 12 dB from the target. Usually a broken, near-silent, or wrong-format asset rather than a genuinely quiet sound. |
+| `silent` | No measurable signal. Check the file actually contains audio. |
+| `!` | Could not be read. Hover for the reason — most often a Streaming load type. |
+
+## Why the measure modes differ
+
+Integrated loudness gates out quiet passages, which is right for a music loop but
+makes a short one-shot under-read — its decay tail gets discarded and the sound
+lands too quiet against the bed. Short-term max takes the loudest 3-second window
+instead, so percussive SFX are measured on their impact.
+
+## Two things worth knowing
+
+- **Everything gets quieter, on purpose.** `AudioSource.volume` caps at 1.0, so
+  positive gain is unachievable. The loudest clip is pinned at 0 dB and the rest sit
+  below. Raise your master mixer once to compensate.
+- **Re-run after replacing a sound.** The gain of every *other* clip can shift, because
+  the loudest clip defines the 0 dB ceiling for the whole set.
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run `assets-refresh`, then `tests-run`.
+Expected: 101/101 PASS (93 prior + 8 here).
+
+- [ ] **Step 9: Verify the full loop in the Editor**
+
+Create a profile and a gain table, add a folder containing at least two audio clips of visibly different loudness, set an anchor, press **Analyze**. Confirm: LUFS values appear, gains are all ≤ 0 dB with the loudest at exactly 0, `▶` audibly plays with gain applied, `A/B` plays over the anchor, and **Write Table** populates the asset (check it in the Inspector). Confirm the console is clean.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add Packages/com.hoppa.audiobalance
+git commit -m "$(cat <<'EOF'
+feat(audio): preview player, gain table writer, and docs
+
+Preview uses a hidden HideAndDontSave AudioSource pair rather than the
+editor's built-in clip preview, which offers no volume control -- hearing
+the gain is the point. Table entries are sorted by clip name so the
+asset's git diff stays clean between runs, and silent/unanalyzable clips
+are omitted so the runtime falls through to unity gain rather than baking
+in a guess.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Plan self-review
+
+**Spec coverage** — every spec section maps to a task:
+
+| Spec § | Requirement | Task |
+|---|---|---|
+| 4 | Package split, assembly names | 1, 2 |
+| 5.1 | LUFS meter, K-weighting, gating, sample-rate derivation | 2, 3 |
+| 5.1 | Measure modes, short-clip and silence edge cases | 3, 4 |
+| 5.2 | True-peak meter | 5 |
+| 5.3 | `ClipSampleReader`, streaming limitation | 8 |
+| 5.4 | `LoudnessCache` under `Library/` | 9 |
+| 5.5 | `GainSolver`, outlier flag | 7 |
+| 5.6 | `AudioGainTable` + runtime extensions | 1 |
+| 5.7 | Window, toolbar, categories, clip table | 11, 12 |
+| 5.8 | `AudioPreviewPlayer`, preview + A/B | 13 |
+| 6 | Headroom normalization | 7 |
+| 7 | Full test list | 1–13 |
+| 8 | Deployment note (no game wired in v1) | Global Constraints |
+
+**Deviations from the spec, deliberate:**
+
+1. **Spec §7 says "1 kHz sine at −23 dBFS reads −23.0 LUFS" without stating the convention.** The plan pins it precisely: *stereo*, *peak* amplitude `10^(-23/20)`. A mono sine built the same way reads −26.0, and an RMS-referenced sine would read −20.7 — so the unstated convention was the difference between a passing and a failing test. Both cases are now tested.
+2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `ShortTermMax` category.
+3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
+
+**Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
+
+**Test count:** 101 EditMode tests across 13 tasks, all with concrete assertions.
