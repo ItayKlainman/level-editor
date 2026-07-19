@@ -127,7 +127,13 @@ namespace Hoppa.AudioBalance.Editor
             return sum <= 0.0 ? double.NegativeInfinity : LoudnessOffset + 10.0 * Math.Log10(sum);
         }
 
-        /// <summary>L/R/C weigh 1.0; surround channels weigh 1.41 per the standard.</summary>
+        /// <summary>
+        /// This meter supports mono and stereo only. The `ch &gt;= 3` weighting is a
+        /// simplification, not a BS.1770-4 implementation: in the standard 5.1 interleave
+        /// (L, R, C, LFE, Ls, Rs) index 3 is the LFE channel, which the standard excludes
+        /// from the measurement entirely (G = 0) rather than weighting it 1.41. 5.1 and quad
+        /// layouts are NOT correctly weighted by this code.
+        /// </summary>
         internal static double[] ChannelWeights(int channels)
         {
             var weights = new double[channels];

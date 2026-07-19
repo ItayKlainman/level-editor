@@ -57,25 +57,35 @@ namespace Hoppa.AudioBalance.Editor.Tests
         [Test]
         public void Integrated_AbsoluteGate_ExcludesAVeryQuietPassage()
         {
-            // 3 s at -23 dBFS then 3 s at -85 dBFS. The quiet half is below the -70 LUFS
-            // absolute gate, so it must not drag the result down.
+            // 3 s at -65 dBFS then 3 s at -72 dBFS. Unlike a -23/-85 split, -72 LUFS clears the
+            // relative gate on its own: the mean loudness of the blocks that clear the absolute
+            // gate is ~-65.18 LUFS, putting the relative threshold at ~-75.18 LU -- well below
+            // -72. So this signal only comes out right if the -70 LUFS absolute gate
+            // independently excludes the quiet half; a -23/-85 split does not prove this because
+            // -85 is already far below the relative threshold too, so the relative gate alone
+            // would exclude it even with the absolute gate deleted. That is what this signal
+            // isolates that the relative-gate test below does not.
             var loudOnly = LufsMeter.MeasureIntegrated(
-                SignalFactory.Sine(-23.0, 3.0, 2, Rate), 2, Rate);
+                SignalFactory.Sine(-65.0, 3.0, 2, Rate), 2, Rate);
 
             var mixed = LufsMeter.MeasureIntegrated(
                 SignalFactory.Concat(
-                    SignalFactory.Sine(-23.0, 3.0, 2, Rate),
-                    SignalFactory.Sine(-85.0, 3.0, 2, Rate)),
+                    SignalFactory.Sine(-65.0, 3.0, 2, Rate),
+                    SignalFactory.Sine(-72.0, 3.0, 2, Rate)),
                 2, Rate);
 
-            // Tolerance widened from 0.2 to 0.26: three of the ~30 gated 400 ms blocks
-            // straddle the hard t=3s transition with loud-signal duty cycles of 75%/50%/25%
-            // (a consequence of the mandated 75%-overlap block scheme, not a gating bug).
-            // Their diluted power pulls the gated mean down by 10*log10(28.5/30) = -0.223 dB,
-            // verified independently against the measured output to five decimal places.
-            // This is inherent to any spec-faithful implementation of this exact hard-cut
-            // scenario, not an artifact of this implementation.
-            Assert.AreEqual(loudOnly.Lufs, mixed.Lufs, 0.26f);
+            // Same 75%-overlap block scheme as the sibling gating tests: 3 of the ~57 total
+            // 400 ms blocks straddle the hard t=3s transition at loud-duty-cycles of
+            // 75%/50%/25%. Unlike the -23/-85 case, all three straddling blocks here still
+            // clear the -70 absolute gate on their own blended loudness (even the 25%-loud
+            // block averages to ~-68.98 LUFS), so all 30 above-gate blocks (27 full-loud + 3
+            // straddling) are kept -- none are additionally dropped by the relative gate.
+            // Modelling each straddling block's per-channel power as f*P_loud + (1-f)*P_quiet
+            // for f in {0.75, 0.5, 0.25} and averaging with the 27 full-loud blocks predicts a
+            // gated result of -65.177 LUFS against a loud-only reference of -65.000 LUFS: a
+            // diluted -0.177 dB offset from those 3 blocks, not a gating bug (matches the
+            // measured output). 0.22 tolerance covers that offset plus ordinary filter noise.
+            Assert.AreEqual(loudOnly.Lufs, mixed.Lufs, 0.22f);
         }
 
         [Test]
