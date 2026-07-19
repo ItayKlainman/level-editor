@@ -1,0 +1,17 @@
+{
+  "name": "com.hoppa.audiobalance",
+  "version": "0.1.0",
+  "displayName": "Hoppa Audio Balance",
+  "description": "Anchor-relative loudness balancing for Unity audio. Measures perceived loudness (LUFS, ITU-R BS.1770-4) of every clip, balances them against one anchor clip via category offsets, and bakes per-clip gains into a runtime table asset. Source audio files are never modified.",
+  "unity": "2022.3",
+  "keywords": [
+    "audio",
+    "loudness",
+    "lufs",
+    "mixing",
+    "hoppa"
+  ],
+  "author": {
+    "name": "Hoppa"
+  }
+}
