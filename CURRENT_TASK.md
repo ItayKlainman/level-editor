@@ -6,6 +6,82 @@
 
 ---
 
+## ⏸ PAUSED MID-BUILD (2026-07-19) — Audio Balance panel (new package `com.hoppa.audiobalance`)
+
+**Resume here first tomorrow.** Branch `feat/audio-balance`, **16 commits, NOTHING PUSHED**.
+Tasks **1–8 of 13** complete and reviewed. **512/512 EditMode green** (60 in the new package).
+
+- **Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
+- **Plan:** `docs/superpowers/plans/2026-07-19-audio-balance-panel.md` (13 TDD tasks; its
+  **"Plan self-review" section at the bottom records all 5 deviations** and why)
+- **Ledger (GITIGNORED — do not rely on it surviving `git clean -fdx`):** `.superpowers/sdd/progress.md`
+- Executed with `superpowers:subagent-driven-development`: fresh implementer per task, opus/sonnet
+  reviewer per task, fix-round + re-review when a review finds Critical/Important.
+
+### What it does
+Pick one clip as the **anchor** (normally level BG music). Every other clip is measured for
+*perceived* loudness (LUFS, ITU-R BS.1770-4 — not the Unity volume field) and assigned a gain
+placing it at a deliberate offset from the anchor, via category offsets (Music 0 / SFX +3 / UI −6)
+plus a per-clip trim. Gains bake into a runtime `AudioGainTable` asset. **Source .wav files are
+never modified.** v1 wires up **no game** — BB adoption is a separate, deliberate step.
+
+### Built (Tasks 1–8)
+`AudioGainMath`/`AudioGainTable`/`AudioGainTableExtensions` (Runtime) · `KWeighting` (coefficients
+match the published 48 kHz table to 1e-9) · `LufsMeter` integrated loudness + two-stage gating
+(**calibration test reads −22.9933 LUFS**) · `MomentaryMax` · `PeakMeter.SamplePeakDb` ·
+`AudioBalanceProfile`/`AudioCategory`/`ClipSettings` · `GainSolver` + headroom pass · `ClipSampleReader`.
+
+### Remaining (Tasks 9–13)
+`LoudnessCache` → `LoudnessAnalyzer` → window shell → clip table → preview player + write-table + docs.
+Tasks 11–13 are IMGUI and should be expected to need in-editor iteration.
+
+### 🔴 TWO OPEN ITEMS — resolve before Task 10 (it consumes `ClipSampleReader`)
+- **(A) DECIDED, NOT YET APPLIED.** `ClipSampleReader.TryRead` calls `clip.LoadAudioData()` and then
+  `GetData` immediately. `LoadAudioData()` is **async** — a `true` return means *queued*, not loaded.
+  Fix: re-check `clip.loadState` after the call and fail with an actionable error if not `Loaded`.
+  Small, no interface change.
+- **(B) AWAITING LEAD DECISION.** The **Streaming diagnostic — the whole reason `ClipSampleReader`
+  exists — has ZERO test coverage**, because `AudioClip.Create` cannot produce a Streaming clip; only
+  a real imported asset can. Options put to the lead: (1) *recommended* accept the gap + document it
+  in the package README (branch is 5 lines, provably reachable, benign failure mode: an actionable
+  message instead of a wrong gain), or (2) commit a few-KB `.wav` fixture under `Tests/` with its
+  `.meta` pinned to Streaming. **Lead paused before answering — ask again.**
+
+### ⚠️ Three plan errors caught by TESTS, not review (all lead-approved, plan amended + committed)
+1. **T3** — a tolerance that was mathematically impossible to satisfy (block-straddling artifact
+   forces a −0.223 dB offset; the plan asserted 0.2).
+2. **T4 — the measure mode's rationale was BACKWARDS.** The claim was "integrated gating discards a
+   one-shot's decay tail so short SFX under-read." The relative gate *already* excludes the tail —
+   that is its job — so the specified 3 s window averaged the attack with silence and read **6 dB
+   below** the mode it was meant to beat (−25.8 vs −19.5). Now `MomentaryMax` at **400 ms**
+   (−17.99 vs −19.54). Renamed throughout; Tasks 6/10/11 reference the new name.
+3. **T5 — `ApproxTruePeakDb` struck entirely.** Linear interpolation yields a convex combination of
+   its endpoints, so `|a+(b−a)t| ≤ max(|a|,|b|)`: it can never exceed the sample peak, hence never
+   detect an inter-sample peak — the only purpose of a true-peak meter. It also read 2.5 dB *below*
+   sample peak on mono `[0,0,1.0]`. `ClipAnalysis`/`CachedLoudness` now carry **one `PeakDb`** field.
+
+### Design constraint worth re-reading before touching `GainSolver`
+`AudioSource.volume` is hard-capped at 1.0, so a clip needing +6 dB **cannot get it**. Gains are
+therefore normalised **downward**: `final = raw − max(raw over analyzable clips)`, pinning the
+loudest clip at exactly 0 dB. Relative spacing is preserved exactly and clipping becomes structurally
+impossible. Accepted cost (lead signed off at design time): overall output is quieter, compensated
+once on the master mixer. Silent/unanalyzable clips are excluded from the max so one broken asset
+cannot attenuate the whole project.
+
+### Op notes for this initiative
+- Unity MCP is bound to **this** checkout (`dataPath` probe confirmed) — that is why the work is on
+  a **branch in place, NOT a worktree**: a worktree would be invisible to `tests-run`, which would
+  report green on code it never compiled.
+- Unity **6000.3.8f1**; package targets `"unity": "2022.3"`; **zero package dependencies** (JsonUtility,
+  not Newtonsoft).
+- **HAZARD:** a subagent ran MCP `enroll_engine_plugin`, which auto-resolved the Unity MCP plugin to
+  "latest" (0.84.3) and broke compatibility. It was reverted and verified (`manifest.json` still pins
+  `com.ivanmurzak.unity.mcp: 0.76.0`). **Tell subagents not to run `enroll_engine_plugin`.**
+- The lead's pre-existing `Assets/` dirt (designer `BusBuddiesImageToGrid.asset` edit + YAK
+  `_prev_prompts` deletions) is **not ours — leave it alone.**
+
+---
+
 ## ✅ SHIPPED (2026-07-15) — BB Hidden Pixels · Hidden Buses · Connected Buses
 
 Three hand-authored Bus Buddies mechanics, TDD'd task-by-task on branch
