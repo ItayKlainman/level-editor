@@ -1104,7 +1104,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 23/23 PASS (13 prior + 10 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 10 new ones from this task.
 
 - [ ] **Step 7: Commit**
 
@@ -1315,7 +1315,7 @@ and add these two methods directly after `MeasureIntegrated`:
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 29/29 PASS (23 prior + 6 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 6 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -1340,7 +1340,7 @@ EOF
 
 ---
 
-### Task 5: True-peak meter
+### Task 5: Peak meter
 
 **Files:**
 - Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/PeakMeter.cs`
@@ -1348,9 +1348,11 @@ EOF
 
 **Interfaces:**
 - Consumes: `AudioGainMath.DbFromLinear`.
-- Produces: `PeakMeter.SamplePeakDb(float[] interleaved) -> float`, `PeakMeter.ApproxTruePeakDb(float[] interleaved, int channels) -> float`.
+- Produces: `PeakMeter.SamplePeakDb(float[] interleaved) -> float`.
 
-> Diagnostic only. Because the headroom pass in Task 7 guarantees every gain is ≤ 0 dB, applied gain cannot create clipping — these numbers exist to spot assets that were already clipped or are near full scale before we touch them. The 4× linear-interpolation oversample is deliberately approximate; the method name says so.
+> Diagnostic only. Because the headroom pass in Task 7 guarantees every gain is ≤ 0 dB, applied gain cannot create clipping — this number exists to spot assets that were already clipped or are near full scale before we touch them.
+>
+> **No true-peak meter.** An earlier revision specified an `ApproxTruePeakDb` that oversampled 4× by linear interpolation. That was struck after review: linear interpolation produces a convex combination of its two endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` for every `t ∈ [0,1]` — it can *never* exceed the sample peak, and therefore can never detect an inter-sample peak, which is the only thing a true-peak meter is for. It also read *below* the sample peak whenever the loudest sample fell on a buffer's final frame. Real true-peak detection needs polyphase FIR upsampling (BS.1770-4 Annex 2); that is a follow-up if it is ever needed, not a diagnostic readout.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1395,19 +1397,21 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void ApproxTruePeakDb_IsAtLeastTheSamplePeak()
+        public void SamplePeakDb_FindsThePeakOnTheFinalFrame()
         {
-            var signal = SignalFactory.Sine(-6.0, 0.25, 2, 48000);
-
-            Assert.GreaterOrEqual(
-                PeakMeter.ApproxTruePeakDb(signal, 2),
-                PeakMeter.SamplePeakDb(signal) - 1e-3f);
+            // Guards the boundary an earlier interpolating implementation got wrong:
+            // the loudest sample sits on the very last frame and must still be found.
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(new[] { 0f, 0f, 1f }), 1e-3f);
         }
 
         [Test]
-        public void ApproxTruePeakDb_OfSilence_IsTheFloor()
+        public void SamplePeakDb_ScansEveryChannelOfAnInterleavedBuffer()
         {
-            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.ApproxTruePeakDb(new float[64], 2), 1e-3f);
+            // Quiet left, full-scale right. A meter that only scanned channel 0 would
+            // report -20 dB and miss a clipped right channel entirely.
+            var stereo = new[] { 0.1f, 0.5f, 0.1f, -1f };
+
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(stereo), 1e-3f);
         }
     }
 }
@@ -1434,8 +1438,6 @@ namespace Hoppa.AudioBalance.Editor
     /// </summary>
     public static class PeakMeter
     {
-        private const int OversampleFactor = 4;
-
         public static float SamplePeakDb(float[] interleaved)
         {
             if (interleaved == null || interleaved.Length == 0)
@@ -1456,66 +1458,34 @@ namespace Hoppa.AudioBalance.Editor
             return AudioGainMath.DbFromLinear(peak);
         }
 
-        /// <summary>
-        /// Peak after 4x linear-interpolation oversampling. Approximate by design -- a true
-        /// BS.1770 true-peak meter uses a polyphase FIR, which is more machinery than a
-        /// diagnostic readout justifies.
-        /// </summary>
-        public static float ApproxTruePeakDb(float[] interleaved, int channels)
-        {
-            if (interleaved == null || interleaved.Length == 0 || channels <= 0)
-            {
-                return AudioGainMath.MinDb;
-            }
-
-            var frames = interleaved.Length / channels;
-            if (frames < 2)
-            {
-                return SamplePeakDb(interleaved);
-            }
-
-            var peak = 0f;
-
-            for (var ch = 0; ch < channels; ch++)
-            {
-                for (var frame = 0; frame < frames - 1; frame++)
-                {
-                    var a = interleaved[frame * channels + ch];
-                    var b = interleaved[(frame + 1) * channels + ch];
-
-                    for (var step = 0; step < OversampleFactor; step++)
-                    {
-                        var t = step / (float)OversampleFactor;
-                        var magnitude = Math.Abs(a + (b - a) * t);
-                        if (magnitude > peak)
-                        {
-                            peak = magnitude;
-                        }
-                    }
-                }
-            }
-
-            return AudioGainMath.DbFromLinear(peak);
-        }
     }
 }
 ```
 
+`SamplePeakDb` scans the interleaved buffer flat, so it covers every channel and every
+frame including the last. It needs no `channels` parameter — the maximum absolute sample
+is the same regardless of how the buffer is grouped into frames.
+
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 34/34 PASS (28 prior + 6 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 6 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add Packages/com.hoppa.audiobalance
 git commit -m "$(cat <<'EOF'
-feat(audio): sample-peak and approximate true-peak diagnostics
+feat(audio): sample-peak diagnostic
 
-Named ApproxTruePeakDb because it oversamples 4x by linear interpolation
-rather than the standard's polyphase FIR -- honest about being a readout,
-not a compliance meter.
+Flags assets that arrived already clipped or hard against full scale.
+Applied gain can never cause clipping itself, because the headroom pass
+keeps every gain at or below 0 dB.
+
+No true-peak meter: linear interpolation yields a convex combination of
+its endpoints, so it can never exceed the sample peak and therefore can
+never find an inter-sample peak. Real true-peak needs polyphase FIR
+upsampling -- a follow-up if ever needed, not a diagnostic readout.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -1853,7 +1823,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 43/43 PASS (34 prior + 9 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 9 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -1886,7 +1856,7 @@ EOF
 - Consumes: nothing beyond `UnityEngine.AudioClip`.
 - Produces:
   - `enum ClipStatus { Ok, Silent, Unanalyzable }`
-  - `ClipAnalysis` — readonly struct, constructor `ClipAnalysis(AudioClip clip, ClipStatus status, float lufs, float samplePeakDb, float truePeakDb)`, plus statics `ClipAnalysis.Ok(AudioClip, float lufs, float samplePeakDb, float truePeakDb)`, `ClipAnalysis.Silent(AudioClip)`, `ClipAnalysis.Unanalyzable(AudioClip, string reason)`; fields `Clip`, `Status`, `Lufs`, `SamplePeakDb`, `TruePeakDb`, `Reason`
+  - `ClipAnalysis` — readonly struct, constructor `ClipAnalysis(AudioClip clip, ClipStatus status, float lufs, float peakDb)`, plus statics `ClipAnalysis.Ok(AudioClip, float lufs, float peakDb)`, `ClipAnalysis.Silent(AudioClip)`, `ClipAnalysis.Unanalyzable(AudioClip, string reason)`; fields `Clip`, `Status`, `Lufs`, `PeakDb`, `Reason`
   - `GainResult` — readonly struct with fields `Clip`, `Status`, `RawGainDb`, `FinalGainDb`, `IsOutlier`
   - `GainSolver.Solve(IReadOnlyList<ClipAnalysis> analyses, float anchorLufs, Func<AudioClip,float> categoryOffsetDb, Func<AudioClip,float> trimDb) -> IReadOnlyList<GainResult>`
   - `GainSolver.OutlierThresholdDb = 12f`
@@ -1930,7 +1900,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void Anchor_InAZeroOffsetCategoryWithNoTrim_ResolvesToZeroRawGain()
         {
             var anchor = MakeClip("anchor");
-            var results = Solve(new[] { ClipAnalysis.Ok(anchor, -18f, -1f, -0.9f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(anchor, -18f, -1f) }, -18f);
 
             Assert.AreEqual(0f, results[0].RawGainDb, 1e-4f);
         }
@@ -1941,7 +1911,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var clip = MakeClip("sfx");
             var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
 
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f) }, -18f, offsets);
 
             Assert.AreEqual(3f, results[0].RawGainDb, 1e-4f);
         }
@@ -1953,7 +1923,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
             var trims = new Dictionary<AudioClip, float> { { clip, -1.5f } };
 
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets, trims);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f) }, -18f, offsets, trims);
 
             Assert.AreEqual(1.5f, results[0].RawGainDb, 1e-4f);
         }
@@ -1962,7 +1932,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void QuieterClipThanAnchor_NeedsPositiveRawGain()
         {
             var clip = MakeClip("quiet");
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -30f, -12f, -11.8f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -30f, -12f) }, -18f);
 
             Assert.AreEqual(12f, results[0].RawGainDb, 1e-4f);
         }
@@ -1974,8 +1944,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var quiet = MakeClip("quiet");
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(loud, -12f, -1f, -0.9f),
-                ClipAnalysis.Ok(quiet, -30f, -14f, -13.8f)
+                ClipAnalysis.Ok(loud, -12f, -1f),
+                ClipAnalysis.Ok(quiet, -30f, -14f)
             }, -18f);
 
             Assert.AreEqual(0f, results.Max(r => r.FinalGainDb), 1e-4f);
@@ -1986,9 +1956,9 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(MakeClip("a"), -30f, -14f, -13.8f),
-                ClipAnalysis.Ok(MakeClip("b"), -26f, -10f, -9.8f),
-                ClipAnalysis.Ok(MakeClip("c"), -40f, -20f, -19.8f)
+                ClipAnalysis.Ok(MakeClip("a"), -30f, -14f),
+                ClipAnalysis.Ok(MakeClip("b"), -26f, -10f),
+                ClipAnalysis.Ok(MakeClip("c"), -40f, -20f)
             }, -18f);
 
             foreach (var result in results)
@@ -2005,8 +1975,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var b = MakeClip("b");
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(a, -30f, -14f, -13.8f),
-                ClipAnalysis.Ok(b, -22f, -6f, -5.8f)
+                ClipAnalysis.Ok(a, -30f, -14f),
+                ClipAnalysis.Ok(b, -22f, -6f)
             }, -18f);
 
             var rawSpacing = results[0].RawGainDb - results[1].RawGainDb;
@@ -2024,7 +1994,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(ok, -22f, -6f, -5.8f),
+                ClipAnalysis.Ok(ok, -22f, -6f),
                 ClipAnalysis.Silent(silent),
                 ClipAnalysis.Unanalyzable(broken, "streaming")
             }, -18f);
@@ -2042,7 +2012,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(MakeClip("ok"), -22f, -6f, -5.8f),
+                ClipAnalysis.Ok(MakeClip("ok"), -22f, -6f),
                 ClipAnalysis.Silent(silent),
                 ClipAnalysis.Unanalyzable(broken, "streaming")
             }, -18f);
@@ -2064,8 +2034,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(inside, -29f, -12f, -11.8f),   // raw = +11
-                ClipAnalysis.Ok(outside, -35f, -20f, -19.8f)   // raw = +17
+                ClipAnalysis.Ok(inside, -29f, -12f),   // raw = +11
+                ClipAnalysis.Ok(outside, -35f, -20f)   // raw = +17
             }, -18f);
 
             Assert.IsFalse(results.First(r => r.Clip == inside).IsOutlier);
@@ -2076,7 +2046,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void OutlierFlag_TriggersOnLargeNegativeRawGainToo()
         {
             var clip = MakeClip("blaring");
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -2f, -0.1f, 0f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -2f, -0.1f) }, -18f);
 
             Assert.AreEqual(-16f, results[0].RawGainDb, 1e-4f);
             Assert.IsTrue(results[0].IsOutlier);
@@ -2146,36 +2116,32 @@ namespace Hoppa.AudioBalance.Editor
         public readonly AudioClip Clip;
         public readonly ClipStatus Status;
         public readonly float Lufs;
-        public readonly float SamplePeakDb;
-        public readonly float TruePeakDb;
+        public readonly float PeakDb;
         public readonly string Reason;
 
         public ClipAnalysis(AudioClip clip, ClipStatus status, float lufs,
-            float samplePeakDb, float truePeakDb, string reason = null)
+            float peakDb, string reason = null)
         {
             Clip = clip;
             Status = status;
             Lufs = lufs;
-            SamplePeakDb = samplePeakDb;
-            TruePeakDb = truePeakDb;
+            PeakDb = peakDb;
             Reason = reason;
         }
 
-        public static ClipAnalysis Ok(AudioClip clip, float lufs, float samplePeakDb, float truePeakDb)
+        public static ClipAnalysis Ok(AudioClip clip, float lufs, float peakDb)
         {
-            return new ClipAnalysis(clip, ClipStatus.Ok, lufs, samplePeakDb, truePeakDb);
+            return new ClipAnalysis(clip, ClipStatus.Ok, lufs, peakDb);
         }
 
         public static ClipAnalysis Silent(AudioClip clip)
         {
-            return new ClipAnalysis(clip, ClipStatus.Silent, 0f,
-                AudioGainMath.MinDb, AudioGainMath.MinDb, "silent");
+            return new ClipAnalysis(clip, ClipStatus.Silent, 0f, AudioGainMath.MinDb, "silent");
         }
 
         public static ClipAnalysis Unanalyzable(AudioClip clip, string reason)
         {
-            return new ClipAnalysis(clip, ClipStatus.Unanalyzable, 0f,
-                AudioGainMath.MinDb, AudioGainMath.MinDb, reason);
+            return new ClipAnalysis(clip, ClipStatus.Unanalyzable, 0f, AudioGainMath.MinDb, reason);
         }
     }
 }
@@ -2308,7 +2274,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 56/56 PASS (43 prior + 13 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 13 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -2467,7 +2433,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 59/59 PASS (56 prior + 3 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 3 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
@@ -2496,7 +2462,7 @@ EOF
 **Interfaces:**
 - Consumes: `ClipStatus`.
 - Produces:
-  - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float SamplePeakDb`, `float TruePeakDb`
+  - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float PeakDb`
   - `LoudnessCache.Load(string path = null) -> LoudnessCache`
   - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool`
   - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)`
@@ -2546,8 +2512,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 Status = (int)ClipStatus.Ok,
                 Lufs = -21.5f,
-                SamplePeakDb = -3f,
-                TruePeakDb = -2.8f
+                PeakDb = -3f
             };
         }
 
@@ -2669,8 +2634,7 @@ namespace Hoppa.AudioBalance.Editor
     {
         public int Status;
         public float Lufs;
-        public float SamplePeakDb;
-        public float TruePeakDb;
+        public float PeakDb;
     }
 }
 ```
@@ -2819,7 +2783,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 68/68 PASS (59 prior + 9 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 9 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -2846,7 +2810,7 @@ EOF
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessAnalyzerTests.cs`
 
 **Interfaces:**
-- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `PeakMeter.ApproxTruePeakDb`, `LoudnessCache`, `ClipAnalysis`, `MeasureMode`.
+- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `LoudnessCache`, `ClipAnalysis`, `MeasureMode`.
 - Produces:
   - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis`
   - `LoudnessAnalyzer.FindClips(IEnumerable<string> projectRelativeFolders) -> List<AudioClip>`
@@ -2893,8 +2857,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.MomentaryMax, null);
 
-            Assert.AreEqual(-6f, analysis.SamplePeakDb, 0.2f);
-            Assert.GreaterOrEqual(analysis.TruePeakDb, analysis.SamplePeakDb - 1e-3f);
+            Assert.AreEqual(-6f, analysis.PeakDb, 0.2f);
         }
 
         [Test]
@@ -2986,8 +2949,7 @@ namespace Hoppa.AudioBalance.Editor
             if (cache != null && cacheKey != null &&
                 cache.TryGet(cacheKey, identity.Length, identity.Ticks, out var cached))
             {
-                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs,
-                    cached.SamplePeakDb, cached.TruePeakDb);
+                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs, cached.PeakDb);
             }
 
             var analysis = Measure(clip, mode);
@@ -2998,8 +2960,7 @@ namespace Hoppa.AudioBalance.Editor
                 {
                     Status = (int)analysis.Status,
                     Lufs = analysis.Lufs,
-                    SamplePeakDb = analysis.SamplePeakDb,
-                    TruePeakDb = analysis.TruePeakDb
+                    PeakDb = analysis.PeakDb
                 });
             }
 
@@ -3064,8 +3025,7 @@ namespace Hoppa.AudioBalance.Editor
             return ClipAnalysis.Ok(
                 clip,
                 loudness.Lufs,
-                PeakMeter.SamplePeakDb(samples),
-                PeakMeter.ApproxTruePeakDb(samples, clip.channels));
+                PeakMeter.SamplePeakDb(samples));
         }
 
         private readonly struct AssetIdentity
@@ -3116,7 +3076,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 75/75 PASS (68 prior + 7 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 7 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
@@ -3706,7 +3666,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 82/82 PASS (75 prior + 7 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 7 new ones from this task.
 
 - [ ] **Step 7: Open the window and confirm it renders**
 
@@ -3773,7 +3733,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 Clip = clip,
                 Analysis = status == ClipStatus.Ok
                     ? ClipAnalysis.Ok(clip, lufs, -3f, -2.8f)
-                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                    : new ClipAnalysis(clip, status, 0f, -80f, "reason"),
                 Gain = new GainResult(clip, status, gainDb, gainDb, outlier)
             };
         }
@@ -4232,7 +4192,7 @@ Add `using System.Linq;` to the file's using block.
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 93/93 PASS (82 prior + 11 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 11 new ones from this task.
 
 - [ ] **Step 7: Commit**
 
@@ -4294,8 +4254,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 Clip = clip,
                 Analysis = status == ClipStatus.Ok
-                    ? ClipAnalysis.Ok(clip, -20f, -3f, -2.8f)
-                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                    ? ClipAnalysis.Ok(clip, -20f, -3f)
+                    : new ClipAnalysis(clip, status, 0f, -80f, "reason"),
                 Gain = new GainResult(clip, status, gainDb, gainDb, false)
             };
         }
@@ -4756,7 +4716,7 @@ instead, so percussive SFX are measured on their impact.
 - [ ] **Step 8: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 101/101 PASS (93 prior + 8 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 8 new ones from this task.
 
 - [ ] **Step 9: Verify the full loop in the Editor**
 
@@ -4808,6 +4768,7 @@ EOF
 1. **Spec §7 says "1 kHz sine at −23 dBFS reads −23.0 LUFS" without stating the convention.** The plan pins it precisely: *stereo*, *peak* amplitude `10^(-23/20)`. A mono sine built the same way reads −26.0, and an RMS-referenced sine would read −20.7 — so the unstated convention was the difference between a passing and a failing test. Both cases are now tested.
 2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `MomentaryMax` category.
 3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
+5. **`ApproxTruePeakDb` was struck entirely** — amended mid-execution, 2026-07-19, lead-approved. Spec §5.2 called for a 4× linear-interpolation true-peak meter. Linear interpolation produces a convex combination of its endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` always: it cannot exceed the sample peak, and so cannot detect an inter-sample peak — the only reason true-peak meters exist. Review also produced a counter-example (mono `[0, 0, 1.0]`) where it read 2.5 dB *below* the sample peak, because the loop never evaluated `t = 1` on the final frame. `SamplePeakDb` survives as the single honest peak diagnostic; `ClipAnalysis`/`CachedLoudness` carry one `PeakDb` field instead of two. Real true-peak would need polyphase FIR upsampling (BS.1770-4 Annex 2) — a follow-up if ever needed.
 4. **`ShortTermMax` (3 s) became `MomentaryMax` (400 ms)** — amended mid-execution, 2026-07-19, lead-approved. The original rationale in spec §5.1 was simply wrong: integrated loudness' relative gate already excludes a decay tail, so a 3 s window did not rescue short SFX, it *hurt* them. Measured on the plan's own test signal (0.5 s at −18 dBFS + 4 s at −50 dBFS): integrated −19.5, 3 s window −25.8. The 3 s mode read 6 dB **below** the mode it was meant to beat. A 400 ms window lands inside the attack (≈ −18) and delivers the intended behaviour. Task 4's failing test is what surfaced this — the implementer correctly reported BLOCKED rather than adjusting a constant to make it pass.
 
 **Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
