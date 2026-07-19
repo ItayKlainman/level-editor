@@ -1126,20 +1126,20 @@ EOF
 
 ---
 
-### Task 4: Short-term-max measure mode
+### Task 4: Momentary-max measure mode
 
 **Files:**
-- Modify: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs` (add `MeasureShortTermMax`)
+- Modify: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs` (add `MeasureMomentaryMax`)
 - Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/MeasureMode.cs`
-- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/MomentaryMaxTests.cs`
 
 **Interfaces:**
 - Consumes: `LufsMeter.ComputeBlockPowers`, `LufsMeter.BlockLoudness`, `LufsMeter.ChannelWeights`, `LoudnessResult`.
-- Produces: `enum MeasureMode { Integrated, ShortTermMax }`; `LufsMeter.MeasureShortTermMax(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; `LufsMeter.Measure(float[] interleaved, int channels, int sampleRate, MeasureMode mode) -> LoudnessResult`.
+- Produces: `enum MeasureMode { Integrated, MomentaryMax }`; `LufsMeter.MeasureMomentaryMax(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; `LufsMeter.Measure(float[] interleaved, int channels, int sampleRate, MeasureMode mode) -> LoudnessResult`.
 
 - [ ] **Step 1: Write the failing test**
 
-`Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`:
+`Packages/com.hoppa.audiobalance/Tests/Editor/MomentaryMaxTests.cs`:
 
 ```csharp
 using Hoppa.AudioBalance.Editor;
@@ -1147,49 +1147,70 @@ using NUnit.Framework;
 
 namespace Hoppa.AudioBalance.Editor.Tests
 {
-    public class ShortTermMaxTests
+    public class MomentaryMaxTests
     {
         private const int Rate = 48000;
 
         [Test]
-        public void ShortTermMax_OnClipUnderThreeSeconds_EqualsUngatedWholeClipLoudness()
+        public void MomentaryMax_OnClipShorterThanOneWindow_MeasuresTheWholeClip()
         {
-            var signal = SignalFactory.Sine(-23.0, 1.0, 2, Rate);
+            // 200 ms is shorter than the 400 ms window, so ComputeBlockPowers collapses to a
+            // single block spanning the clip -- the behaviour short SFX depend on.
+            var signal = SignalFactory.Sine(-23.0, 0.2, 2, Rate);
 
-            var result = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
 
             Assert.IsFalse(result.IsSilent);
-            Assert.AreEqual(-23.0f, result.Lufs, 0.1f);
+            Assert.AreEqual(-23.0f, result.Lufs, 0.5f);
         }
 
         [Test]
-        public void ShortTermMax_ExceedsIntegrated_ForAOneShotWithALongQuietTail()
+        public void MomentaryMax_OnSteadyTone_AgreesWithIntegrated()
+        {
+            // On steady material the two modes must not diverge: every 400 ms window looks
+            // like every other, and the gating has nothing to exclude.
+            var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
+
+            var integrated = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+            var momentary = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
+
+            Assert.AreEqual(integrated.Lufs, momentary.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void MomentaryMax_ExceedsIntegrated_ForAOneShotWithALongQuietTail()
         {
             // 0.5 s at -18 dBFS then 4 s at -50 dBFS -- a percussive one-shot decaying out.
-            // Integrated gating averages across the whole thing; short-term max finds the hit.
+            // The 400 ms window lands entirely inside the attack (~-18), while integrated
+            // gating keeps the attack blocks AND the three that straddle the transition,
+            // pulling its answer below the peak (~-19.5).
+            //
+            // A 3 s window would FAIL this: it would be forced to average 0.5 s of attack
+            // with 2.5 s of near-silence (~-25.8), landing well BELOW integrated. That is
+            // why this mode measures 400 ms, not 3 s.
             var signal = SignalFactory.Concat(
                 SignalFactory.Sine(-18.0, 0.5, 2, Rate),
                 SignalFactory.Sine(-50.0, 4.0, 2, Rate));
 
             var integrated = LufsMeter.MeasureIntegrated(signal, 2, Rate);
-            var shortTerm = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+            var momentary = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
 
-            Assert.Greater(shortTerm.Lufs, integrated.Lufs,
-                "Short-term max must track the loudest moment, not the gated average.");
+            Assert.Greater(momentary.Lufs, integrated.Lufs,
+                "Momentary max must track the loudest moment, not the gated average.");
         }
 
         [Test]
-        public void ShortTermMax_OnSilence_IsSilent()
+        public void MomentaryMax_OnSilence_IsSilent()
         {
-            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Silence(4.0, 2, Rate), 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(SignalFactory.Silence(4.0, 2, Rate), 2, Rate);
 
             Assert.IsTrue(result.IsSilent);
         }
 
         [Test]
-        public void ShortTermMax_OnVeryQuietSignalBelowAbsoluteGate_IsSilent()
+        public void MomentaryMax_OnVeryQuietSignalBelowAbsoluteGate_IsSilent()
         {
-            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Sine(-90.0, 4.0, 2, Rate), 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(SignalFactory.Sine(-90.0, 4.0, 2, Rate), 2, Rate);
 
             Assert.IsTrue(result.IsSilent);
         }
@@ -1200,10 +1221,10 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
 
             var viaIntegrated = LufsMeter.Measure(signal, 2, Rate, MeasureMode.Integrated);
-            var viaShortTerm = LufsMeter.Measure(signal, 2, Rate, MeasureMode.ShortTermMax);
+            var viaMomentary = LufsMeter.Measure(signal, 2, Rate, MeasureMode.MomentaryMax);
 
             Assert.AreEqual(LufsMeter.MeasureIntegrated(signal, 2, Rate).Lufs, viaIntegrated.Lufs, 1e-4f);
-            Assert.AreEqual(LufsMeter.MeasureShortTermMax(signal, 2, Rate).Lufs, viaShortTerm.Lufs, 1e-4f);
+            Assert.AreEqual(LufsMeter.MeasureMomentaryMax(signal, 2, Rate).Lufs, viaMomentary.Lufs, 1e-4f);
         }
     }
 }
@@ -1212,7 +1233,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: compile errors — `MeasureMode` and `MeasureShortTermMax` do not exist.
+Expected: compile errors — `MeasureMode` and `MeasureMomentaryMax` do not exist.
 
 - [ ] **Step 3: Implement `MeasureMode`**
 
@@ -1228,20 +1249,21 @@ namespace Hoppa.AudioBalance.Editor
         Integrated = 0,
 
         /// <summary>
-        /// Loudest sliding 3 s window, ungated. Correct for short one-shots, whose decay
-        /// tail the integrated gating would otherwise discard, making them under-read.
+        /// Loudest 400 ms window, ungated -- the standard's "momentary" loudness. Correct
+        /// for short one-shots: it lands on the attack, where integrated loudness is pulled
+        /// down by the blocks straddling the decay into silence.
         /// </summary>
-        ShortTermMax = 1
+        MomentaryMax = 1
     }
 }
 ```
 
-- [ ] **Step 4: Add `MeasureShortTermMax` and `Measure` to `LufsMeter`**
+- [ ] **Step 4: Add `MeasureMomentaryMax` and `Measure` to `LufsMeter`**
 
 In `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs`, add the constant beside the existing ones:
 
 ```csharp
-        private const double ShortTermSeconds = 3.0;
+        private const double MomentarySeconds = 0.4;
 ```
 
 and add these two methods directly after `MeasureIntegrated`:
@@ -1250,19 +1272,23 @@ and add these two methods directly after `MeasureIntegrated`:
         public static LoudnessResult Measure(float[] interleaved, int channels, int sampleRate,
             MeasureMode mode)
         {
-            return mode == MeasureMode.ShortTermMax
-                ? MeasureShortTermMax(interleaved, channels, sampleRate)
+            return mode == MeasureMode.MomentaryMax
+                ? MeasureMomentaryMax(interleaved, channels, sampleRate)
                 : MeasureIntegrated(interleaved, channels, sampleRate);
         }
 
         /// <summary>
-        /// Loudest sliding 3 s window. For a clip shorter than the window, ComputeBlockPowers
-        /// collapses to a single block over the whole clip -- which is exactly the desired
-        /// behaviour for the short SFX this mode exists to serve.
+        /// Loudest 400 ms window, ungated. For a clip shorter than the window,
+        /// ComputeBlockPowers collapses to a single block over the whole clip -- exactly the
+        /// desired behaviour for the short SFX this mode exists to serve.
+        ///
+        /// The window is 400 ms, not 3 s, for a measured reason: on a one-shot with a long
+        /// quiet tail a 3 s window averages the attack with the silence and reads BELOW
+        /// integrated loudness, which is the opposite of this mode's purpose.
         /// </summary>
-        public static LoudnessResult MeasureShortTermMax(float[] interleaved, int channels, int sampleRate)
+        public static LoudnessResult MeasureMomentaryMax(float[] interleaved, int channels, int sampleRate)
         {
-            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, ShortTermSeconds, StepSeconds);
+            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, MomentarySeconds, StepSeconds);
             if (blocks.Count == 0)
             {
                 return LoudnessResult.Silent;
@@ -1299,8 +1325,13 @@ git commit -m "$(cat <<'EOF'
 feat(audio): short-term-max measure mode for one-shot SFX
 
 Integrated gating discards a one-shot's decay tail, making short SFX
-under-read against a music bed. ShortTermMax takes the loudest sliding
-3 s window ungated; for a sub-3 s clip that collapses to the whole clip.
+under-read against a music bed. MomentaryMax takes the loudest sliding
+400 ms window ungated (the standard's "momentary" loudness); for a clip
+shorter than the window that collapses to the whole clip.
+
+Measured, not assumed: a 3 s window reads BELOW integrated on a one-shot
+with a long tail (-25.8 vs -19.5), because it averages the attack with the
+silence. 400 ms lands on the attack, which is the whole point.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -1553,11 +1584,11 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             Assert.AreEqual("SFX", profile.Categories[1].Name);
             Assert.AreEqual(3f, profile.Categories[1].OffsetDb, 1e-4f);
-            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[1].Mode);
+            Assert.AreEqual(MeasureMode.MomentaryMax, profile.Categories[1].Mode);
 
             Assert.AreEqual("UI", profile.Categories[2].Name);
             Assert.AreEqual(-6f, profile.Categories[2].OffsetDb, 1e-4f);
-            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[2].Mode);
+            Assert.AreEqual(MeasureMode.MomentaryMax, profile.Categories[2].Mode);
         }
 
         [Test]
@@ -1672,7 +1703,7 @@ namespace Hoppa.AudioBalance.Editor
     {
         public string Name = "SFX";
         public float OffsetDb;
-        public MeasureMode Mode = MeasureMode.ShortTermMax;
+        public MeasureMode Mode = MeasureMode.MomentaryMax;
     }
 }
 ```
@@ -1734,8 +1765,8 @@ namespace Hoppa.AudioBalance.Editor
             Categories = new List<AudioCategory>
             {
                 new AudioCategory { Name = "Music", OffsetDb = 0f, Mode = MeasureMode.Integrated },
-                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.ShortTermMax },
-                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.ShortTermMax }
+                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.MomentaryMax },
+                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.MomentaryMax }
             };
         }
 
@@ -2860,7 +2891,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var clip = MakeToneClip("tone", -6.0, 1.0);
 
-            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.MomentaryMax, null);
 
             Assert.AreEqual(-6f, analysis.SamplePeakDb, 0.2f);
             Assert.GreaterOrEqual(analysis.TruePeakDb, analysis.SamplePeakDb - 1e-3f);
@@ -2896,9 +2927,9 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 SignalFactory.Sine(-50.0, 4.0, 2, Rate)), 0);
 
             var integrated = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, null);
-            var shortTerm = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+            var momentary = LoudnessAnalyzer.Analyze(clip, MeasureMode.MomentaryMax, null);
 
-            Assert.Greater(shortTerm.Lufs, integrated.Lufs);
+            Assert.Greater(momentary.Lufs, integrated.Lufs);
         }
 
         [Test]
@@ -2949,7 +2980,7 @@ namespace Hoppa.AudioBalance.Editor
             var identity = ResolveIdentity(clip);
 
             // The mode is part of the cache key: the same clip measured Integrated and
-            // ShortTermMax are two different answers.
+            // MomentaryMax are two different answers.
             var cacheKey = identity.Guid == null ? null : $"{identity.Guid}:{(int)mode}";
 
             if (cache != null && cacheKey != null &&
@@ -3095,7 +3126,7 @@ git commit -m "$(cat <<'EOF'
 feat(audio): analyzer orchestration (decode -> measure -> cache)
 
 The measure mode is folded into the cache key: the same clip measured
-Integrated and ShortTermMax are two different answers. Procedural clips
+Integrated and MomentaryMax are two different answers. Procedural clips
 with no asset path bypass the cache rather than colliding on an empty guid.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
@@ -4688,8 +4719,8 @@ apart to the ear. This tool measures what your ears hear and does the arithmetic
    | Category | Offset | Measure mode | Meaning |
    |---|---|---|---|
    | Music | 0 dB | Integrated | Sits at the anchor's level |
-   | SFX | +3 dB | Short-term max | Sits above the music bed |
-   | UI | −6 dB | Short-term max | Sits below it |
+   | SFX | +3 dB | Momentary max | Sits above the music bed |
+   | UI | −6 dB | Momentary max | Sits below it |
 
 4. **Analyze.** Measurements are cached, so later runs only re-measure changed clips.
 5. **Listen.** `▶` plays a clip with its gain applied; `A/B` plays it over the anchor
@@ -4710,7 +4741,7 @@ apart to the ear. This tool measures what your ears hear and does the arithmetic
 
 Integrated loudness gates out quiet passages, which is right for a music loop but
 makes a short one-shot under-read — its decay tail gets discarded and the sound
-lands too quiet against the bed. Short-term max takes the loudest 3-second window
+lands too quiet against the bed. Momentary max takes the loudest 400 ms window
 instead, so percussive SFX are measured on their impact.
 
 ## Two things worth knowing
@@ -4775,8 +4806,9 @@ EOF
 **Deviations from the spec, deliberate:**
 
 1. **Spec §7 says "1 kHz sine at −23 dBFS reads −23.0 LUFS" without stating the convention.** The plan pins it precisely: *stereo*, *peak* amplitude `10^(-23/20)`. A mono sine built the same way reads −26.0, and an RMS-referenced sine would read −20.7 — so the unstated convention was the difference between a passing and a failing test. Both cases are now tested.
-2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `ShortTermMax` category.
+2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `MomentaryMax` category.
 3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
+4. **`ShortTermMax` (3 s) became `MomentaryMax` (400 ms)** — amended mid-execution, 2026-07-19, lead-approved. The original rationale in spec §5.1 was simply wrong: integrated loudness' relative gate already excludes a decay tail, so a 3 s window did not rescue short SFX, it *hurt* them. Measured on the plan's own test signal (0.5 s at −18 dBFS + 4 s at −50 dBFS): integrated −19.5, 3 s window −25.8. The 3 s mode read 6 dB **below** the mode it was meant to beat. A 400 ms window lands inside the attack (≈ −18) and delivers the intended behaviour. Task 4's failing test is what surfaced this — the implementer correctly reported BLOCKED rather than adjusting a constant to make it pass.
 
 **Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
 
