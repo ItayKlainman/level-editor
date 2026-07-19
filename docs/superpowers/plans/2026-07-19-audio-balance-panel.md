@@ -1315,7 +1315,7 @@ and add these two methods directly after `MeasureIntegrated`:
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 28/28 PASS (23 prior + 5 here).
+Expected: 29/29 PASS (23 prior + 6 here).
 
 - [ ] **Step 6: Commit**
 
