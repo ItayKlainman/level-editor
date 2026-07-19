@@ -36,19 +36,21 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void ApproxTruePeakDb_IsAtLeastTheSamplePeak()
+        public void SamplePeakDb_FindsThePeakOnTheFinalFrame()
         {
-            var signal = SignalFactory.Sine(-6.0, 0.25, 2, 48000);
-
-            Assert.GreaterOrEqual(
-                PeakMeter.ApproxTruePeakDb(signal, 2),
-                PeakMeter.SamplePeakDb(signal) - 1e-3f);
+            // Guards the boundary an earlier interpolating implementation got wrong:
+            // the loudest sample sits on the very last frame and must still be found.
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(new[] { 0f, 0f, 1f }), 1e-3f);
         }
 
         [Test]
-        public void ApproxTruePeakDb_OfSilence_IsTheFloor()
+        public void SamplePeakDb_ScansEveryChannelOfAnInterleavedBuffer()
         {
-            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.ApproxTruePeakDb(new float[64], 2), 1e-3f);
+            // Quiet left, full-scale right. A meter that only scanned channel 0 would
+            // report -20 dB and miss a clipped right channel entirely.
+            var stereo = new[] { 0.1f, 0.5f, 0.1f, -1f };
+
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(stereo), 1e-3f);
         }
     }
 }
