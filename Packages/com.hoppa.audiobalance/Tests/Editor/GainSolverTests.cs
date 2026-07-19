@@ -120,18 +120,25 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var ok = MakeClip("ok");
             var silent = MakeClip("silent");
-            var broken = MakeClip("broken");
+
+            // ClipAnalysis.Silent(...) hardcodes Lufs = 0f, which is too quiet to ever win
+            // the max comparison against a real Ok clip -- deleting the exclusion in
+            // GainSolver would still leave this test passing. Building the Silent analysis
+            // through the public constructor with an artificially low Lufs (-60f) makes its
+            // would-be raw gain (+42) far exceed the Ok clip's (+4), so this test can only
+            // pass if GainSolver actually skips non-Ok clips before the max comparison.
+            var silentAnalysis = new ClipAnalysis(silent, ClipStatus.Silent, -60f, AudioGainMath.MinDb, "silent");
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(ok, -22f, -6f),
-                ClipAnalysis.Silent(silent),
-                ClipAnalysis.Unanalyzable(broken, "streaming")
+                ClipAnalysis.Ok(ok, -22f, -6f), // raw = -18 + 0 + 0 - (-22) = +4
+                silentAnalysis                  // raw would be -18 + 0 + 0 - (-60) = +42 if included
             }, -18f);
 
             var okResult = results.First(r => r.Clip == ok);
             Assert.AreEqual(0f, okResult.FinalGainDb, 1e-4f,
-                "The single analyzable clip should define the 0 dB ceiling.");
+                "The single analyzable clip should define the 0 dB ceiling, even though the " +
+                "excluded clip's (would-be) raw gain is far higher.");
         }
 
         [Test]
@@ -161,15 +168,20 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var inside = MakeClip("inside");
             var outside = MakeClip("outside");
+            var boundary = MakeClip("boundary");
 
             var results = Solve(new[]
             {
                 ClipAnalysis.Ok(inside, -29f, -12f),   // raw = +11
-                ClipAnalysis.Ok(outside, -35f, -20f)   // raw = +17
+                ClipAnalysis.Ok(outside, -35f, -20f),  // raw = +17
+                ClipAnalysis.Ok(boundary, -30f, -18f)  // raw = +12, exactly at the threshold
             }, -18f);
 
             Assert.IsFalse(results.First(r => r.Clip == inside).IsOutlier);
             Assert.IsTrue(results.First(r => r.Clip == outside).IsOutlier);
+            // GainSolver uses strict '>' against OutlierThresholdDb, so a raw gain of
+            // exactly 12 sits inside the band and must not be flagged.
+            Assert.IsFalse(results.First(r => r.Clip == boundary).IsOutlier);
         }
 
         [Test]
