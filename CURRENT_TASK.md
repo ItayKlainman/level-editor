@@ -41,7 +41,36 @@ match the published 48 kHz table to 1e-9) · `LufsMeter` integrated loudness + t
   remedy was impossible. Chose that over adding a `Reason` field (also kills a Task-12 bug where a
   missing `Reason` fell through to an *outlier* tooltip — a wrong diagnosis).
 
-### Remaining (Tasks 11–13) — GATED, do not dispatch cold
+### Shipped 2026-07-20 (Task 11) — window shell
+**`288d109`**, 565 → **582 EditMode green** (+12 `AudioBalanceSessionTests`, +5 `EditGestureTests`).
+`AudioBalanceRow` / `AudioBalanceSession` / `EditGesture` / `AudioBalanceWindow` under
+`Editor/Window/`. Implemented from the AMENDED plan, so all six audit corrections are in:
+category edits call `Analyze` (not `Resolve`), outliers suppressed when the anchor isn't `Ok`,
+computed `CategoryBlockHeight`, real progress+Cancel, ASCII captions, `ExitGUI()` after modals.
+
+- **PLAN DEFECT #7 (mechanical, fixed in place):** the plan's own test block called
+  `Assert.AreNotEqual(integrated, momentary, 0.5f, "...")`. **NUnit's `AreNotEqual` has no
+  tolerance overload** — `0.5f` binds to `message` → `CS1503`. The plan's Task 11 test file did
+  not compile as written. Rewritten as `Assert.Greater(momentary - integrated, 0.5f)`, intent
+  preserved. Worth noting the pattern held again: the defect was in the *test*, not the design.
+- **Test strengthened beyond the plan (deliberate).** `Analyze_WithNoAnchor_DoesNotFlagEvery
+  RowAsAnOutlier` as written only pinned the −23 sentinel, not the suppression: at −20/−22 both
+  rows sit within 12 dB of the sentinel anyway, so it passed against a build that swapped the
+  constant and suppressed nothing. Added a −60 clip (37 dB from the sentinel). **Mutation-verified:**
+  disabling the suppression fails it with `Expected: <empty> But was: < "far" >` — i.e. *only* the
+  added clip flags. Without it the test was vacuous.
+- **`EditGesture` is an addition beyond the plan's code block**, required by the brief's undo rule
+  (the plan still recorded undo inside `EndChangeCheck`, which fires per frame during a
+  `FloatField` label-drag). Pure state machine, 5 tests, testable outside `OnGUI`.
+- **Anchor-change behaviour is an addition:** picking a new anchor re-runs `RunAnalysis()` **only
+  when rows already exist**, so the LUFS readout and outlier flags stay live instead of going
+  stale next to a fresh clip. Guarded so it never kicks off an unprompted full-library decode.
+- **Smoke-verified via `script-execute`** (not just tests): window opens, `RepaintImmediately`
+  drives a real `OnGUI` pass in both the empty-state and a six-category profile, no exceptions,
+  block height 170 ≥ 162 needed. Editor left closed/clean.
+- **Still lead-only:** whether it *looks* right. See the Task 11 review notes handed back.
+
+### Remaining (Tasks 12–13) — GATED, do not dispatch cold
 `window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
 **Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
 test-fixture helper.** Tasks 11–13 as originally written contain known defects — do NOT implement
