@@ -2475,19 +2475,24 @@ EOF
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessCacheTests.cs`
 
 **Interfaces:**
-- Consumes: `ClipStatus`.
+- Consumes: `ClipStatus`, `MeasureMode`.
 - Produces:
   - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float PeakDb`
+  - `LoudnessCacheKey` — readonly struct with fields `string Guid`, `long Length`, `long Ticks`, `MeasureMode Mode`, and `bool IsValid` (false when `Guid` is null/empty — e.g. a procedural clip with no asset path). Public constructor for tests to build synthetic keys.
   - `LoudnessCache.Load(string path = null) -> LoudnessCache`
-  - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool` — **contract:** `ticks` must be `Math.Max(assetLastWriteTicks, metaLastWriteTicks)`, not the asset's alone (see rationale below).
-  - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)` — same `ticks` contract as `TryGet`; a null `value` is ignored rather than stored.
+  - `LoudnessCache.KeyFor(AudioClip clip, MeasureMode mode) -> LoudnessCacheKey` — **the single place that derives `Ticks`**, as `Math.Max(assetLastWriteTicks, metaLastWriteTicks)`. Production callers MUST use this (or `KeyForPaths`) instead of hand-assembling a key — see rationale below.
+  - `LoudnessCache.KeyForPaths(string guid, string assetPath, string metaPath, MeasureMode mode) -> LoudnessCacheKey` — the pure file-path form `KeyFor` delegates to; exists so the `.meta`-aware timestamp logic is directly testable against real temp files without an AssetDatabase-imported clip.
+  - `LoudnessCache.TryGet(LoudnessCacheKey key, out CachedLoudness value) -> bool` — returns a copy; mutating it cannot leak into the cache.
+  - `LoudnessCache.Put(LoudnessCacheKey key, CachedLoudness value)` — a null `value` or an invalid `key` is ignored rather than stored; the value is copied on the way in.
   - `LoudnessCache.Save()`
-  - `LoudnessCache.Clear()` — also deletes the on-disk file, not just the in-memory entries.
+  - `LoudnessCache.Clear()` — also deletes the on-disk file (and any orphan `.tmp`), not just the in-memory entries.
   - `LoudnessCache.DefaultPath` = `"Library/HoppaAudioBalance/loudness-cache.json"`
 
-> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, ticks)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, ticks, mode)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
 >
-> **`ticks` is the combined max of the source asset's AND its `.meta`'s last-write ticks — amended mid-execution, 2026-07-20, lead-approved.** What is actually measured is the decoded `AudioClip`, which is a product of the `.meta` importer settings (Force To Mono, Quality, Sample Rate Override, ...), not just the source bytes. The original plan only reasoned about the safe direction — a harmless touch causing a needless re-analysis — and missed the unsafe one: changing an importer setting leaves the `.wav` byte-identical (same length, same mtime) while changing the decoded clip, so the old key silently served a stale, wrong LUFS value straight into `GainSolver` and the baked runtime gain table. Task 10 (the analyzer, and only caller of `TryGet`/`Put`) is responsible for computing and passing the combined `ticks`; `LoudnessCache` itself does not read files and cannot enforce this — it is documented as a caller contract on both methods.
+> **Key derivation is structural, not a documented caller contract — amended mid-execution, 2026-07-20, lead-approved (round 2; supersedes the round-1 amendment below).** `Ticks` is the combined max of the source asset's AND its `.meta`'s last-write ticks, because what is actually measured is the decoded `AudioClip`, which is a product of `.meta` importer settings (Force To Mono, Quality, Sample Rate Override, ...), not just the source bytes. Round 1 fixed this as an XML-doc contract on the caller (Task 10) — but `LoudnessCache` already reads files throughout (`File.Exists`/`ReadAllText`/`WriteAllText`/`Delete`) and its asmdef is Editor-only, so `AssetDatabase` was always available here; there was no reason the derivation had to live outside this class, and a documented-but-unenforced contract left this plan free to also hand Task 10 a complete, wrong, copy-paste-ready derivation a few hundred lines later (see deviation #7 in Plan self-review) — which it did. Fix: `KeyFor`/`KeyForPaths` are the only places that compute `Ticks`; `TryGet`/`Put` take a `LoudnessCacheKey` and can no longer be handed loose, possibly-wrong `(guid, length, ticks)` primitives at all. The measure mode also moved onto the key struct as a real field (superseding deviation #2's mangled-guid-string approach — see deviation #7).
+
+> ⚠️ **The Steps 1/3/4 code blocks below are the ORIGINAL as-planned version and are SUPERSEDED.** They predate both round-1 and round-2 amendments above and use the old `(string guid, long length, long ticks)` API. Do not copy-paste them. The actually-shipped implementation uses `LoudnessCacheKey` / `LoudnessCache.KeyFor` / `KeyForPaths` as described in the interface block above — read the current source at `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessCache.cs` and `LoudnessCacheKey.cs` for the real API. Kept here only as a historical record of the task's starting point.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2827,9 +2832,9 @@ EOF
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessAnalyzerTests.cs`
 
 **Interfaces:**
-- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `LoudnessCache`, `ClipAnalysis`, `MeasureMode`.
+- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `LoudnessCache`, `LoudnessCache.KeyFor`, `LoudnessCacheKey`, `ClipAnalysis`, `MeasureMode`.
 - Produces:
-  - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis`
+  - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis` — internally calls `LoudnessCache.KeyFor(clip, mode)` for the cache key. Do **not** re-derive a guid/length/ticks identity by hand here — that duplication is exactly what produced the round-2 defect (see deviation #7 in Plan self-review). `LoudnessCache` owns key derivation entirely.
   - `LoudnessAnalyzer.FindClips(IEnumerable<string> projectRelativeFolders) -> List<AudioClip>`
 
 - [ ] **Step 1: Write the failing test**
@@ -2939,9 +2944,18 @@ Expected: compile errors — `LoudnessAnalyzer` does not exist.
 
 `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessAnalyzer.cs`:
 
+> **Round-2 amendment (2026-07-20, lead-approved):** this code block previously re-derived a
+> cache identity by hand (a private `ResolveIdentity`/`AssetIdentity` pair stat'ing only the
+> asset file, mirrored below in the corrected form). That was a plan-authoring-time defect: it
+> silently dropped the `.meta` timestamp that Task 9's `LoudnessCache` fix (see deviation #7 in
+> Plan self-review) exists specifically to fold in, and — because Task 10 hadn't been implemented
+> yet when the defect was caught — it was purely a documentation bug, but a live one: the *next*
+> implementer to work this section top-to-bottom would have retyped it verbatim. `LoudnessCache`
+> now owns identity derivation completely (`KeyFor`/`KeyForPaths`); `LoudnessAnalyzer` must not
+> duplicate it.
+
 ```csharp
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -2957,23 +2971,22 @@ namespace Hoppa.AudioBalance.Editor
                 return ClipAnalysis.Unanalyzable(null, "clip is null");
             }
 
-            var identity = ResolveIdentity(clip);
+            // LoudnessCache.KeyFor is the ONLY place that derives the cache identity (guid,
+            // length, ticks, mode) -- it folds in the .meta timestamp as well as the asset's.
+            // Do not re-stat the asset file here; that duplication is exactly what produced the
+            // round-2 plan defect this section once contained.
+            var key = LoudnessCache.KeyFor(clip, mode);
 
-            // The mode is part of the cache key: the same clip measured Integrated and
-            // MomentaryMax are two different answers.
-            var cacheKey = identity.Guid == null ? null : $"{identity.Guid}:{(int)mode}";
-
-            if (cache != null && cacheKey != null &&
-                cache.TryGet(cacheKey, identity.Length, identity.Ticks, out var cached))
+            if (cache != null && key.IsValid && cache.TryGet(key, out var cached))
             {
                 return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs, cached.PeakDb);
             }
 
             var analysis = Measure(clip, mode);
 
-            if (cache != null && cacheKey != null)
+            if (cache != null && key.IsValid)
             {
-                cache.Put(cacheKey, identity.Length, identity.Ticks, new CachedLoudness
+                cache.Put(key, new CachedLoudness
                 {
                     Status = (int)analysis.Status,
                     Lufs = analysis.Lufs,
@@ -3044,48 +3057,6 @@ namespace Hoppa.AudioBalance.Editor
                 loudness.Lufs,
                 PeakMeter.SamplePeakDb(samples));
         }
-
-        private readonly struct AssetIdentity
-        {
-            public readonly string Guid;
-            public readonly long Length;
-            public readonly long Ticks;
-
-            public AssetIdentity(string guid, long length, long ticks)
-            {
-                Guid = guid;
-                Length = length;
-                Ticks = ticks;
-            }
-        }
-
-        /// <summary>
-        /// Identity for cache keying. Procedural clips created in tests have no asset path,
-        /// so they get a null guid and simply bypass the cache.
-        /// </summary>
-        private static AssetIdentity ResolveIdentity(AudioClip clip)
-        {
-            var path = AssetDatabase.GetAssetPath(clip);
-            if (string.IsNullOrEmpty(path))
-            {
-                return new AssetIdentity(null, 0, 0);
-            }
-
-            var guid = AssetDatabase.AssetPathToGUID(path);
-            var absolute = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? string.Empty, path);
-
-            try
-            {
-                var info = new FileInfo(absolute);
-                return info.Exists
-                    ? new AssetIdentity(guid, info.Length, info.LastWriteTimeUtc.Ticks)
-                    : new AssetIdentity(guid, 0, 0);
-            }
-            catch (IOException)
-            {
-                return new AssetIdentity(guid, 0, 0);
-            }
-        }
     }
 }
 ```
@@ -3102,9 +3073,13 @@ git add Packages/com.hoppa.audiobalance
 git commit -m "$(cat <<'EOF'
 feat(audio): analyzer orchestration (decode -> measure -> cache)
 
-The measure mode is folded into the cache key: the same clip measured
-Integrated and MomentaryMax are two different answers. Procedural clips
-with no asset path bypass the cache rather than colliding on an empty guid.
+Cache identity comes entirely from LoudnessCache.KeyFor(clip, mode) -- the
+measure mode is a real field on the key struct (the same clip measured
+Integrated and MomentaryMax are two different answers), and Ticks already
+folds in the .meta timestamp, not just the asset's. LoudnessAnalyzer does
+not re-derive any part of the identity itself. Procedural clips with no
+asset path get an invalid key and bypass the cache rather than colliding on
+an empty guid.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -4783,11 +4758,12 @@ EOF
 **Deviations from the spec, deliberate:**
 
 1. **Spec §7 says "1 kHz sine at −23 dBFS reads −23.0 LUFS" without stating the convention.** The plan pins it precisely: *stereo*, *peak* amplitude `10^(-23/20)`. A mono sine built the same way reads −26.0, and an RMS-referenced sine would read −20.7 — so the unstated convention was the difference between a passing and a failing test. Both cases are now tested.
-2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `MomentaryMax` category.
+2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `MomentaryMax` category. **SUPERSEDED by deviation #7:** this was originally implemented by string-concatenating `$"{guid}:{(int)mode}"` into the `guid` parameter Task 10 passed to `LoudnessCache`. Round 2 replaced that with `Mode` as a real field on `LoudnessCacheKey` — the mangled-string approach fought against the cache doing its own `AssetDatabase` lookup (a `guid` that isn't actually a guid), which is exactly the seam deviation #7 needed to close.
 3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
 5. **`ApproxTruePeakDb` was struck entirely** — amended mid-execution, 2026-07-19, lead-approved. Spec §5.2 called for a 4× linear-interpolation true-peak meter. Linear interpolation produces a convex combination of its endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` always: it cannot exceed the sample peak, and so cannot detect an inter-sample peak — the only reason true-peak meters exist. Review also produced a counter-example (mono `[0, 0, 1.0]`) where it read 2.5 dB *below* the sample peak, because the loop never evaluated `t = 1` on the final frame. `SamplePeakDb` survives as the single honest peak diagnostic; `ClipAnalysis`/`CachedLoudness` carry one `PeakDb` field instead of two. Real true-peak would need polyphase FIR upsampling (BS.1770-4 Annex 2) — a follow-up if ever needed.
 4. **`ShortTermMax` (3 s) became `MomentaryMax` (400 ms)** — amended mid-execution, 2026-07-19, lead-approved. The original rationale in spec §5.1 was simply wrong: integrated loudness' relative gate already excludes a decay tail, so a 3 s window did not rescue short SFX, it *hurt* them. Measured on the plan's own test signal (0.5 s at −18 dBFS + 4 s at −50 dBFS): integrated −19.5, 3 s window −25.8. The 3 s mode read 6 dB **below** the mode it was meant to beat. A 400 ms window lands inside the attack (≈ −18) and delivers the intended behaviour. Task 4's failing test is what surfaced this — the implementer correctly reported BLOCKED rather than adjusting a constant to make it pass.
-6. **`LoudnessCache`'s key is `(guid, fileLength, ticks)` where `ticks = max(assetTicks, metaTicks)`, not the asset's `lastWriteTicks` alone** — amended mid-execution, 2026-07-20, lead-approved, caught by opus review of Task 9's implementation (not by a plan-authoring-time test, since `LoudnessCache` itself takes `ticks` as an opaque long — the defect is only observable once a caller passes the asset-only value, which is Task 10). The plan's original rationale (deviation note in Task 9) reasoned only about the safe direction: a content-preserving touch causing a needless re-analysis. It missed the unsafe direction: the cache actually keys the *decoded clip*, which importer settings (Force To Mono, Quality, Sample Rate Override) change without touching the source file's bytes, length, or mtime at all — so a meta-only edit would silently serve a stale, wrong LUFS reading into the gain solver. Fix: `ticks` is now documented (XML docs on `TryGet`/`Put`, and the Task 9 rationale note above) as a caller contract — the combined max of the asset's and its `.meta`'s last-write ticks. Task 10, the only caller, must honor it.
+6. **`LoudnessCache`'s key is `(guid, fileLength, ticks)` where `ticks = max(assetTicks, metaTicks)`, not the asset's `lastWriteTicks` alone** — amended mid-execution, 2026-07-20, lead-approved, caught by opus review of Task 9's implementation (not by a plan-authoring-time test, since `LoudnessCache` itself takes `ticks` as an opaque long — the defect is only observable once a caller passes the asset-only value, which is Task 10). The plan's original rationale (deviation note in Task 9) reasoned only about the safe direction: a content-preserving touch causing a needless re-analysis. It missed the unsafe direction: the cache actually keys the *decoded clip*, which importer settings (Force To Mono, Quality, Sample Rate Override) change without touching the source file's bytes, length, or mtime at all — so a meta-only edit would silently serve a stale, wrong LUFS reading into the gain solver. Fix: `ticks` is now documented (XML docs on `TryGet`/`Put`, and the Task 9 rationale note above) as a caller contract — the combined max of the asset's and its `.meta`'s last-write ticks. Task 10, the only caller, must honor it. **SUPERSEDED by deviation #7:** a documented-but-unenforced caller contract turned out not to hold even within this plan document — Task 10's own body (~200 lines below the fix) still contained a complete, copy-paste-ready `ResolveIdentity` implementation using the asset-only tick, verbatim the defect this note describes fixing. A round-2 review caught it. The contract is now structural, not documented.
+7. **Key derivation moved entirely inside `LoudnessCache`** (`KeyFor`/`KeyForPaths` + a real `LoudnessCacheKey` struct with a `Mode` field) — amended mid-execution, 2026-07-20, lead-approved (round 2, supersedes deviations #2 and #6 above). Round 1 (deviation #6) fixed the meta-timestamp defect as an XML-doc contract: callers must pass `ticks = max(assetTicks, metaTicks)`. That held for `LoudnessCache.cs` itself, but this plan document is what a Task 10 implementer actually reads top-to-bottom — and Task 10's own `Step 3` code block, written before the round-1 fix and never revisited, still contained a private `ResolveIdentity` deriving `ticks` from the asset file alone. A documented contract sitting a few hundred lines above a contradicting, complete, ready-to-paste implementation is worse than no contract: an implementer working their own section has no reason to scroll back into a different task's prose, and would have retyped the exact bug from a plan that claims three times over that it's fixed. Round-2 review caught this before Task 10 was ever implemented. Fix: `LoudnessCache.KeyFor(AudioClip, MeasureMode)` (and its pure/testable sibling `KeyForPaths`, for real-file tests that don't need an AssetDatabase-imported clip) is now the *only* place `Ticks` is computed; `TryGet`/`Put` take a `LoudnessCacheKey` struct and can no longer be handed loose `(guid, length, ticks)` primitives that a caller could assemble incorrectly. The measure mode moved onto the key struct as a real `MeasureMode Mode` field, replacing deviation #2's `$"{guid}:{(int)mode}"` string-mangling — Task 10's `LoudnessAnalyzer.Analyze` now calls `LoudnessCache.KeyFor(clip, mode)` directly and contains no identity-deriving code of its own. Both Task 9's and Task 10's plan sections were rewritten to match (the old Task 9 code blocks are flagged superseded rather than deleted, to preserve the historical record without being copy-paste hazards).
 
 **Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
 
