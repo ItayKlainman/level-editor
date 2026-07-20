@@ -1,12 +1,17 @@
 using NUnit.Framework;
-using Hoppa.LevelEditor.Core.Editor;
+using Hoppa.AudioBalance.Editor;
 
-namespace Hoppa.LevelEditor.Core.EditorTests
+namespace Hoppa.AudioBalance.Editor.Tests
 {
+    /// <summary>
+    /// ACKNOWLEDGED FORK, paired with the copied
+    /// <see cref="Hoppa.AudioBalance.Editor.MarkdownToHtml"/> -- see that file for why the
+    /// converter is duplicated rather than referenced. This suite mirrors
+    /// <c>com.hoppa.leveleditor.core/Tests/Editor/MarkdownToHtmlTests.cs</c> so the copy cannot
+    /// rot silently: if the two implementations drift, one of these fails.
+    /// </summary>
     public class MarkdownToHtmlTests
     {
-        // Convert only the body constructs by wrapping/unwrapping is overkill; assert
-        // the produced document contains the expected fragments.
         private static string Html(string md) => MarkdownToHtml.Convert(md, "T");
 
         [Test]
@@ -29,17 +34,12 @@ namespace Hoppa.LevelEditor.Core.EditorTests
             Assert.IsTrue(Html("use `Convert` now").Contains("<code>Convert</code>"));
         }
 
-        // Both shipped guides use single-asterisk emphasis 9 times each (*outlier*,
-        // *Set Category*, ...). Without an italic rule those render as literal asterisks
-        // in the designer-facing page.
         [Test]
         public void Italic_Renders()
         {
             Assert.IsTrue(Html("the *outlier* marker").Contains("<em>outlier</em>"));
         }
 
-        // The italic rule runs after the bold rule, so bold must not be shredded into
-        // nested/partial emphasis.
         [Test]
         public void Bold_IsNotEatenByItalic()
         {
@@ -48,8 +48,6 @@ namespace Hoppa.LevelEditor.Core.EditorTests
             Assert.IsFalse(html.Contains("<em>"));
         }
 
-        // A list marker is stripped at block level, so a bare '* ' must never reach the
-        // inline pass and become emphasis.
         [Test]
         public void ListMarker_IsNotItalic()
         {

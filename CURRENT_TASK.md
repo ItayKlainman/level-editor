@@ -6,6 +6,499 @@
 
 ---
 
+## 🟢 CODE-COMPLETE (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
+
+Branch `feat/audio-balance`, **37 commits ahead of `master`, NOTHING PUSHED** (+2 spec/plan commits
+already sitting on local `master`, also unpushed).
+**All 13 tasks complete and reviewed, plus 2 lead-requested additions. 688/688 EditMode green**
+(~170 in the new package; verified by the coordinator's own `tests-run`, not just agent reports).
+**Nothing has been hand-verified in a live editor by a human yet** — see the handover checklist
+at the end of the Task 13 section.
+
+### 🅿️ PARKED 2026-07-20 — lead's call, end of day ("park what you can")
+
+Surfaced by the tooltip pass. Neither is a bug; both are real UX gaps in the clip table:
+
+1. **The clip table has NO column headers.** Values render (LUFS, Gain, Status) with nothing
+   labelling them. Tooltips were therefore placed on the **value cells** instead — arguably better,
+   since they work on every row rather than only at the top of a scrolled table. A header row costs
+   ~20 px vertical plus a layout re-derivation.
+2. **`ClipAnalysis.PeakDb` is measured, cached, and NEVER DISPLAYED.** Grep over `Editor/Window/`
+   returns zero hits — it is dead data in the UI. Cheap to surface (already computed), and useful for
+   spotting squashed or near-clipping assets. Adds a column, so re-derive against `MinRowWidth` 800.
+
+#### Post-Task-13 addition #2 (lead-requested) — tooltips
+`ffb97ec`, 682 → **688**. Tooltips on every interactive control (profile, Add Folder, Analyze, Write
+Table, Table field, anchor + its readout, category name/offset/mode, Add Category, filter, sort,
+Asc/Desc, bulk Set Category, row checkbox/category/LUFS/Gain/trim) plus `[Tooltip]` on the serialized
+fields of `AudioBalanceProfile`/`AudioCategory`/`ClipSettings`/`AudioGainTable`.
+
+- **No geometry moved.** Unity's `GUIContent` overloads would have turned every `EditorGUI` field into
+  a *prefix-labelled* field inside the same rect, shrinking each control and re-flowing both toolbars.
+  Instead a `Tip(rect, content)` helper lays an **empty-text `GUI.Label`** over the same rect: zero
+  pixels, no control ID, consumes no events. Row 1 still ends at 560, row 2 at 672, clip rows at 794.
+- Three controls (`Analyze`, `Anchor`, `Add Category`) end their click branch in `GUIUtility.ExitGUI()`,
+  which unwinds out of `OnGUI` — so their tooltips are drawn **before** the control or they'd never run
+  on the frame the control is used. Commented in place.
+- **Deliberately no test asserts tooltip wording** (breaks on every copy edit, pins nothing). The
+  "every control supplies a tooltip" invariant was also rejected: verifying it means reimplementing
+  IMGUI dispatch, and the writable version would have passed against a window with zero tooltips —
+  exactly this initiative's recurring failure mode. `[Tooltip]`-presence + ASCII checks are the only
+  real invariants found, and were mutation-verified by deleting one attribute.
+
+#### Post-Task-13 addition (lead-requested) — "? Guide" button
+`? Guide` button on the window's **first** toolbar row + `Window ▸ Hoppa ▸ Audio Balance Guide`,
+rendering the Task 13 `Documentation~/audio-balance-guide.md` to a styled page. 657 → **682**.
+
+- **`MarkdownToHtml` is an ACKNOWLEDGED FORK** of the level-editor copy — labelled as such in an
+  XML doc comment on both files. `com.hoppa.audiobalance` still declares **no dependencies**, which
+  was the point; there is no shared package for the two to depend on and one was not invented.
+  Executable code is byte-identical between the copies; **change one, change the other.**
+- **Fixed a latent bug in the ORIGINAL while mirroring it:** the converter had no italic rule, so
+  single-asterisk emphasis rendered as literal asterisks — **9 occurrences in each guide**, so the
+  level editor's own shipped guide was already affected. Italic support added to **both** copies.
+  This is the one change made beyond the literal ask; cheap to revert if unwanted.
+- Toolbar row 1 now ends at **x = 560** against **714** available at `minSize` (720). The
+  `DrawTableBar` doc comment's arithmetic was re-derived and updated — appending the Table
+  controls to row 1 would now overflow (x = 726 → 906), not merely clip.
+
+- **Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
+- **Plan:** `docs/superpowers/plans/2026-07-19-audio-balance-panel.md` (13 TDD tasks; its
+  **"Plan self-review" section at the bottom records all 5 deviations** and why)
+- **Ledger (GITIGNORED — do not rely on it surviving `git clean -fdx`):** `.superpowers/sdd/progress.md`
+- Executed with `superpowers:subagent-driven-development`: fresh implementer per task, opus/sonnet
+  reviewer per task, fix-round + re-review when a review finds Critical/Important.
+
+### What it does
+Pick one clip as the **anchor** (normally level BG music). Every other clip is measured for
+*perceived* loudness (LUFS, ITU-R BS.1770-4 — not the Unity volume field) and assigned a gain
+placing it at a deliberate offset from the anchor, via category offsets (Music 0 / SFX +3 / UI −6)
+plus a per-clip trim. Gains bake into a runtime `AudioGainTable` asset. **Source .wav files are
+never modified.** v1 wires up **no game** — BB adoption is a separate, deliberate step.
+
+### Built (Tasks 1–8)
+`AudioGainMath`/`AudioGainTable`/`AudioGainTableExtensions` (Runtime) · `KWeighting` (coefficients
+match the published 48 kHz table to 1e-9) · `LufsMeter` integrated loudness + two-stage gating
+(**calibration test reads −22.9933 LUFS**) · `MomentaryMax` · `PeakMeter.SamplePeakDb` ·
+`AudioBalanceProfile`/`AudioCategory`/`ClipSettings` · `GainSolver` + headroom pass · `ClipSampleReader`.
+
+### Shipped 2026-07-20 (Tasks 9–10)
+- **Task 9 `LoudnessCache`** — `a229595`, verdict SHIP. Took **three review rounds**; see the
+  cache-key story below. `Library/HoppaAudioBalance/loudness-cache.json`, regenerable, gitignored.
+- **Task 10 `LoudnessAnalyzer`** — `7290daf`, verdict SHIP, no Criticals. `Analyze`/`FindClips`/
+  `PruneMissingClips`/`ShouldCache`. **`Unanalyzable` results are deliberately NOT cached**:
+  `ClipSampleReader.LoadPendingError` is *transient* and its message tells the user to re-run, but
+  re-running doesn't change the key — so a cached failure would be served forever and the instructed
+  remedy was impossible. Chose that over adding a `Reason` field (also kills a Task-12 bug where a
+  missing `Reason` fell through to an *outlier* tooltip — a wrong diagnosis).
+
+### Shipped 2026-07-20 (Task 11) — window shell
+**`288d109`**, 565 → **582 EditMode green** (+12 `AudioBalanceSessionTests`, +5 `EditGestureTests`).
+`AudioBalanceRow` / `AudioBalanceSession` / `EditGesture` / `AudioBalanceWindow` under
+`Editor/Window/`. Implemented from the AMENDED plan, so all six audit corrections are in:
+category edits call `Analyze` (not `Resolve`), outliers suppressed when the anchor isn't `Ok`,
+computed `CategoryBlockHeight`, real progress+Cancel, ASCII captions, `ExitGUI()` after modals.
+
+- **PLAN DEFECT #7 (mechanical, fixed in place):** the plan's own test block called
+  `Assert.AreNotEqual(integrated, momentary, 0.5f, "...")`. **NUnit's `AreNotEqual` has no
+  tolerance overload** — `0.5f` binds to `message` → `CS1503`. The plan's Task 11 test file did
+  not compile as written. Rewritten as `Assert.Greater(momentary - integrated, 0.5f)`, intent
+  preserved. Worth noting the pattern held again: the defect was in the *test*, not the design.
+- **Test strengthened beyond the plan (deliberate).** `Analyze_WithNoAnchor_DoesNotFlagEvery
+  RowAsAnOutlier` as written only pinned the −23 sentinel, not the suppression: at −20/−22 both
+  rows sit within 12 dB of the sentinel anyway, so it passed against a build that swapped the
+  constant and suppressed nothing. Added a −60 clip (37 dB from the sentinel). **Mutation-verified:**
+  disabling the suppression fails it with `Expected: <empty> But was: < "far" >` — i.e. *only* the
+  added clip flags. Without it the test was vacuous.
+- **`EditGesture` is an addition beyond the plan's code block**, required by the brief's undo rule
+  (the plan still recorded undo inside `EndChangeCheck`, which fires per frame during a
+  `FloatField` label-drag). Pure state machine, 5 tests, testable outside `OnGUI`.
+- **Anchor-change behaviour is an addition:** picking a new anchor re-runs `RunAnalysis()` **only
+  when rows already exist**, so the LUFS readout and outlier flags stay live instead of going
+  stale next to a fresh clip. Guarded so it never kicks off an unprompted full-library decode.
+- **Smoke-verified via `script-execute`** (not just tests): window opens, `RepaintImmediately`
+  drives a real `OnGUI` pass in both the empty-state and a six-category profile, no exceptions,
+  block height 170 ≥ 162 needed. Editor left closed/clean.
+- **Still lead-only:** whether it *looks* right. See the Task 11 review notes handed back.
+
+#### Review round 1 — BLOCKED, fixed in `fb54b89` (582 → **593 green**)
+- **C1 — the gesture machine was unreachable from the window, and the reviewer's prescribed fix
+  would not have worked either.** Review said "use `Event.current.rawType`, which is not rewritten
+  to `Used` on consumption." **Measured, in live IMGUI with real mouse events: `Use()` rewrites
+  BOTH `type` AND `rawType` to `Used`** (`after type:Used/raw:Used` on every frame). `rawType`
+  surviving consumption is a widely-repeated belief that is false in this position. Fixed with
+  `GUIUtility.hotControl != 0` instead — measured stable at `487` for the whole gesture, `0` after
+  release, untouched by `Use()`. **Second correction:** the review's stated mechanism (dragging the
+  category `OffsetDb` label) does not occur — `EditorGUI.FloatField(rect, value)` is the *label-less*
+  overload with an EMPTY drag hot zone and never streams (`changed:False` on every drag frame). The
+  defect was real but latent; it goes live with **Task 12's trim slider**, which the probe confirms
+  does stream per frame. New `EditGestureSeamTests` drives real events through a real window —
+  reproducing the old behaviour fails it `Expected: 1 But was: 3`.
+- **I2/I3/I4 fixed** — `FindSettings` (non-mutating) added to the profile so `AudioBalanceSession`
+  never enrols; enrolment is explicit in `RunAnalysis` inside Undo; anchor measured once not twice;
+  `RenameCategory` renames AND re-points clips as one unrepresentable-to-get-wrong operation;
+  `[SerializeField]` on `_profile`/`_clipScroll`.
+- **Three tests that could not fail** were rewritten (null-profile clear, anchor-status staleness,
+  cancel-keeps-rows). Note `Gain.Status` is a **vacuous assertion by construction** — `ClipStatus.Ok`
+  is `0`, so an unsolved `default(GainResult)` reports `Ok`; assert `Gain.Clip != null` instead.
+- All five fixes mutation-verified, not just observed green.
+
+#### Review round 2 — BLOCKED on a regression I introduced; fixed in `fa7da62` (593 → **602 green**)
+- **HIGH-1 was my own regression.** Round 1's `RenameCategory(oldName, newName)` resolved the target
+  by **first exact name match**. `Add Category` named every new row `"New"`, so two clicks + a rename
+  renamed the **wrong row** while that same keystroke's offset/mode landed on the right one — one edit
+  split across two categories. Now takes the `AudioCategory` **by reference**. `288d109` was correct
+  here; my "structural" fix traded a good object reference for a lookup. **Lesson: a fix that
+  introduces an indirection the caller didn't need is a regression risk, not a hardening.**
+- **MEDIUM-2** — rename onto an existing name is rejected (was a silent merge that re-pointed clips to
+  whichever category came first). **MEDIUM-3** — enforcement made real, not documented:
+  `AudioCategory.Name` is now a read-only property (`Categories[i].Name = "x"` is a **compile error**
+  outside the package), `SettingsFor` is `internal` + new `InternalsVisibleTo`, and
+  `OffsetDbFor`/`TrimDbFor`/`ModeFor` — the actual hazard — are **genuinely non-mutating**, removing
+  it at source rather than hiding it. Verified by reflection **from a separate assembly**.
+  Residual gap stated in the doc rather than overclaimed: C# has no friend-of-one-type access, so
+  in-assembly code can still reach the internal setter.
+- **LOW** — `Clear()` sets `IsDirty`; `IsDirty` gained its own suite incl. the load-bearing
+  **failed-`Save` keeps it set** case; seam click-test gained a ran-at-all precondition.
+- **Documented for Task 12 (accepted, not bugs):** commit is deferred one frame when a button holds
+  `hotControl` (can cause a second `RunAnalysis`); mid-gesture edits aren't `SetDirty`-ed, so a domain
+  reload mid-drag loses them.
+- All four round-2 behaviours mutation-verified, each failing its own test and no other.
+
+### Shipped 2026-07-20 (Task 12) — sortable/filterable clip table + bulk assign
+**602 → 623 EditMode green** (+15 `ClipListViewTests`, +2 `TrimSliderSeamTests`, +4 `PendingAnalyzeTests`).
+New: `ClipSortMode` / `ClipListView` / `PendingAnalyze` under `Editor/Window/`; `DrawClips` replaced
+with header (filter · sort · Asc/Desc · bulk **Set Category (n)**) + per-row
+select · name · category · LUFS · gain · **trim slider** · status icon.
+
+- **The trim slider is the first control in this window that genuinely STREAMS** (measured: 5 change
+  frames per drag vs the category `FloatField`'s empty drag zone). It is wired to the existing
+  `EditGesture` via `hotControl`, **not** the plan's `_trimDragClip` + `Event.type == MouseUp` shape —
+  the plan's Task 12 text still used the event-type mechanism that Task 11 disproved. `TrimSliderSeam
+  Tests` drives real IMGUI events and asserts `ChangeFrames > 1` as a **precondition**, so it cannot
+  pass vacuously the way the label-less-field harness could.
+- **Deviations from the plan (all deliberate, see commit body):** `EditGesture` for the trim (above);
+  `ClipListView.BuildSettingsLookup` (new, tested, uses `FindSettings`) instead of an untested private
+  `SyncSettings` calling the **mutating** `SettingsFor` from `OnGUI`; the per-row category change sets
+  `_analyzeRequested` and runs at the END of `OnGUI` rather than firing a modal progress bar from
+  inside an open `GUI.BeginScrollView`; category-name array hoisted out of the row loop.
+- **Weak test found by mutation and fixed:** the plan's `BuildVisible_SortsByCategory` fixture
+  (`"bed"`/`"blip"`) passed against a build that ignored the sort mode and always sorted by NAME.
+  Renamed to `"zzz_bed"`/`"aaa_blip"` so name order contradicts category order.
+- **Task 11 review nit folded in (lead's instruction):** `_categoryEditNeedsAnalyze` (a bool the
+  rejected-rename path assigned `false` to, wiping a pending mode change from an earlier gesture
+  frame) is now the `PendingAnalyze` type, which can only accumulate. The rename is applied **before**
+  the flag is folded, so a rejection contributes nothing instead of clearing everything. The IMGUI
+  interleaving itself is **not** covered by a test — see that file's class doc for why a harness would
+  have passed vacuously.
+- `[FormerlySerializedAs("Name")]` added to `AudioCategory._name`. Zero profile assets exist anywhere,
+  so nothing needs migrating today; it costs one line and makes a stashed profile a non-question.
+- All new behaviour **mutation-verified** in 5 rounds; every mutation failed its own test and, except
+  where noted, no other.
+
+### Shipped 2026-07-20 (Task 13) — preview player, Write Table, docs — FINAL TASK
+**623 → 655 EditMode green** (+9 `GainTableWriterTests`, +8 `PreviewClipFactoryTests`,
++6 `CategoryEditTests`, +9 `ClipListViewTests`, +1 `EditGestureTests`, −1 deleted vacuous test).
+New: `GainTableWriter` / `PreviewClipFactory` / `AudioPreviewPlayer` / `CategoryEdit` under
+`Editor/Window/`; `README.md` + `Documentation~/audio-balance-guide.md`; window gained a second
+toolbar row (Write Table + Table field) and per-row **Play** / **A/B** buttons.
+
+- **The preview player is NOT the design the plan originally described.** `AudioSource.Play()` is
+  silent outside Play Mode, so the planned hidden-scene-AudioSource could never have made a sound.
+  Per the lead's amended decision it reflects into `UnityEditor.AudioUtil.PlayPreviewClip` and makes
+  the gain audible by **pre-scaling into one reusable temp clip** (`HideAndDontSave`, destroyed
+  before each new preview and on domain reload / play-mode change / window close — never one per
+  click). **Reflection resolution VERIFIED live on this editor** via `script-execute`:
+  Unity 6000.3.8f1 exposes `PlayPreviewClip(AudioClip, Int32, Boolean)` and `StopAllPreviewClips`,
+  both found by the name-and-first-parameter search. Whether it is *audible* is still lead-only.
+- **The reflection boundary is an accepted, documented gap**, in the same house style as
+  `ClipSampleReader.StreamingError`. The testable half was extracted into `PreviewClipFactory`
+  (`Scale`/`Mix`) and given 8 tests. **The plan's 7 Mix/Scale tests all passed 0 dB for both gains**,
+  so every one of them would have survived a `Mix` that ignored its gain arguments entirely — the
+  exact failure that makes A/B useless. Added `Mix_AppliesEachSignalsOwnGainRatherThanIgnoringThem`,
+  which pins the two gains *separately*; mutation-verified (sharing one gain reads 0.6 vs 0.5).
+- **`GainTableWriter.BuildEntries` also skips rows whose gain was never solved** (`Gain.Clip == null`),
+  a strengthening beyond the plan. `Analysis` and `Gain` are filled by separate passes, and an
+  unsolved `default(GainResult)` is **0 dB** — a plausible-looking value meaning "full volume".
+  Per the standing rule, the discriminator is `Gain.Clip != null`, never `Gain.Status` (`Ok == 0`).
+- `AssetDatabase.SaveAssets()` lives in the window's button handler, **not** in `Write` — `Write` is
+  a pure asset mutation, so a test run cannot flush every dirty asset in the project.
+- **Layout verified against `minSize` (720 wide, 708 usable):** table bar ends at x=672; the
+  Play/A-B buttons end at x=794 inside the 800-wide `MinRowWidth` content rect, so they are reached
+  by the horizontal scrollbar Task 12 introduced. **Do not narrow `MinRowWidth`.**
+- **Docs are truthful about the two counterintuitive things** and must not regress: the anchor does
+  **not** move the Gain column (it cancels; it is the outlier reference + readout), and it is the
+  **quietest** clip relative to target that pins at 0 dB, not the loudest. Also stated plainly:
+  source files are never modified, clipping is structurally impossible, nothing reaches the game
+  until Write Table, compensate **once** on the master mixer, and the cache no-ops for clips in
+  non-embedded packages.
+- **Task 13's plan text did NOT carry the disproven `Event.type` gesture mechanism** (Task 12's did).
+  Nothing to ignore there; reported for the record.
+- Smoke-verified via `script-execute`: window renders at `minSize` in the empty state, with a table
+  assigned, and with none assigned (hint path); `Teardown` is safe with nothing ever played. Editor
+  left closed and clean.
+
+#### Task 12 review findings, folded in here (reviewer's instruction — same files)
+- **MEDIUM-1 `_settingsStamp` was blind to an identity change at constant count.** `rows*397 ^ clips`
+  is unchanged by [A,B]→[A,C], so the settings map kept stale B: row C drew with **no category
+  dropdown and no trim slider** while showing LUFS/Gain normally, and stale B stayed counted in the
+  bulk button while resolving zero targets. (The hash was not injective either.) **Fingerprinting
+  removed entirely** — `RebuildSettings()` is called from the three events that can invalidate it
+  (`RunAnalysis`, profile switch, undo). Strictly stronger than a better hash.
+- **MEDIUM-2 nothing subscribed to `Undo.undoRedoPerformed`.** Now subscribed in `OnEnable` /
+  unsubscribed in `OnDisable`; the handler rebuilds the settings map and calls `Resolve` (**not**
+  `Analyze` — an undo must not trigger a full-library decode and cannot have changed a measurement).
+  This also closes the detached-`ClipSettings` hazard the reviewer flagged as likely-but-unverified.
+- **LOW** — gestures now reset on profile switch (new `EditGesture.Reset()`, tested); the orphaned
+  category is no longer a dead-end control (`ClipListView.CategoryPopupOptions` appends an explicit
+  `(unknown: X)` entry instead of clamping to index 0, which displayed a category the clip was not
+  in and could not be corrected by selecting it); the bulk button now reads
+  `Set Category (12, 10 hidden)` when the filter hides part of the selection; the overstated
+  "a miss should not be reachable at all" doc on `BuildSettingsLookup` now names the real path
+  (undo of enrolment) and why read-only is the right response; `PendingAnalyze.Reset()` renamed
+  **`ResetForProfileSwitch()`** so misuse reads wrong at the call site.
+- **The category-fold sequencing is now testable and tested.** Extracted to `CategoryEdit.Apply`
+  — pure sequencing, no IMGUI — with 6 tests. The load-bearing one is
+  `Apply_WithARejectedRenameAndAModeChange_StillAsksForAReMeasure`. Mutation-verified: moving the
+  `needsAnalyze` computation *after* `category.Mode = newMode` (a very easy real-world edit) fails
+  it. The reviewer was right that this beat my "a harness would pass vacuously" reasoning.
+- **TESTS** — deleted `BuildVisible_DoesNotMutateTheProfile` (**could not fail**: `BuildVisible` has
+  no profile parameter, so the regression it claimed to guard would be a *compile error in the test*,
+  not a red test — the 7th tautological test in this initiative). `ClipListViewTests.Lookup` switched
+  from the **mutating** `SettingsFor` to `FindSettings`, so the 8 `BuildVisible` tests now exercise
+  the same non-mutating shape production uses. Added the 4 requested gap tests.
+
+#### Task 13 review — BLOCKED on the item I flagged for scrutiny; fixed in `65dc135` (655 → **657 green**)
+- **HIGH — `OnUndoRedo` called `Resolve` where the undo CAN change a measurement.** My doc claimed
+  an undo "cannot have changed any measurement"; **three comments in my own commit contradicted it**
+  (`AudioBalanceSession:121-127`, the forward path at `AudioBalanceWindow:762-767`, and
+  `ClipListView:219-222`). Four undo entries this window pushes restore a measurement input —
+  `"Edit Audio Category"` (a category's `MeasureMode`), `"Change Audio Category"` and
+  `"Assign Audio Category"` (a clip's category → a different mode), and `"Scan Audio Folders"`
+  (un-enrolment → `Integrated`). **Severity is systemic, not local:** the headroom pass subtracts
+  `max(raw)` across the whole set, so bulk-assigning 20 one-shots and pressing Ctrl+Z moved the
+  0 dB ceiling for **every clip in the library** — no marker, no warning, `Write Table` still
+  enabled. Now drives `_session.Analyze` **directly** (not `RunAnalysis`, which does
+  `Undo.RecordObject` + enrolment — unsafe re-entrant work inside an `undoRedoPerformed` callback),
+  guarded on `Rows.Count`. My cost objection was wrong: `LoudnessCacheKey` carries the mode, so any
+  clip whose mode is unchanged is a cache hit. `Analyze` ends in `Resolve`, so it subsumes the old
+  behaviour, and it fixes the undone-enrolment staleness for free.
+- **MEDIUM — added `OnFocus() => RebuildSettings()`.** `RebuildSettings` was exhaustive for edits
+  originating in this window, but **external** mutation (the Inspector's `Clips` list, an asset
+  revert/reimport) recreates the `[Serializable] ClipSettings` elements without firing
+  `undoRedoPerformed`, leaving `_settings` holding detached references — a trim slider writes into
+  an orphan, the slider moves, the Gain column never responds, the edit never persists. The
+  `_settings` doc claim is scoped to "within this window" accordingly.
+- **LOW (comments only, no behaviour):** `PreviewClipFactory.Scale`'s clamp rationale was wrong —
+  `Scale` is only ever called with `FinalGainDb`, guaranteed ≤ 0 dB, so it cannot overdrive; the
+  load-bearing clamp is in `Mix`, where two ≤0 dB signals sum past unity. `DrawTableBar`'s
+  justification said the first row was "full after Analyze" (it ends at x=492) — the split is still
+  right, the arithmetic quoted for it was not; now states the real figure (the field would land at
+  x=658→838 against 708). `AudioPreviewPlayer.StopAll` no longer gates on `Resolve()`'s return
+  (which reports whether the PLAY method was found), so a Unity renaming only `PlayPreviewClip`
+  cannot make Stop unreachable.
+- **The new test got a real RED, not a compile error:** `Expected: greater than 0.5f / But was: 0.0f`
+  — `Resolve` leaves the LUFS byte-identical. Mutation-verified by reverting to `Resolve`, which
+  reproduces that exact failure and no other. Uses `AudioAssetFixture` + a 0.5 s tone / 3.5 s
+  silence one-shot, where Integrated and MomentaryMax diverge ~1.5 dB, and a null cache so both
+  passes really measure.
+
+#### Verification standard for this task
+The only RED available for new types is a compile error, which is weak — so **all 33 new tests were
+mutation-verified in 5 rounds**, each failing with its own message and, where mutations were grouped,
+each group chosen so failures were uniquely attributable. Two tests were strengthened *because* a
+mutation showed the plan's version could not fail (the Mix-gain one above; the unsolved-gain one).
+
+### 🔴 AUDIT OF TASKS 11–13 (2026-07-20) — 16 findings, 2 design-level
+
+A read-only audit was commissioned after the 5th plan defect. Both design-level findings were
+lead-decided; the rest are folded into a plan-amendment pass.
+
+1. **THE ANCHOR IS MATHEMATICALLY INERT.** `raw_i = anchorLufs + offset_i + trim_i − measured_i`,
+   then `final_i = raw_i − max_j(raw_j)`. `anchorLufs` is the *same constant in every* `raw_i`, so it
+   cancels **exactly**. `FinalGainDb` is provably independent of the anchor's measured loudness; its
+   only live effect is `IsOutlier`. **It was not wrong when designed — it became inert when
+   downward-only normalization was adopted** (the `AudioSource.volume ≤ 1.0` constraint), and the docs
+   never caught up. README/guide still promise clips are "positioned relative to it", so swapping the
+   anchor changes nothing in the Gain column and reads as a broken binding.
+   Also: the no-anchor fallback `: 0f` is **digital full scale**, so typical −20 LUFS content gives
+   `raw ≈ +20` and trips the 12 dB outlier threshold on *every row* — press Analyze before picking an
+   anchor and the whole table lights up red on healthy clips.
+   **LEAD DECISION: keep the anchor** as the outlier reference + sanity readout, fix every doc claim,
+   fix the fallback.
+2. **`AudioPreviewPlayer` cannot play.** It builds a hidden scene `AudioSource`, but
+   `AudioSource.Play()` produces no audio outside Play Mode. The plan correctly rejected the built-in
+   preview (no volume control) but picked the replacement that doesn't work at all — ~110 untested
+   lines + both ▶/A-B buttons + a guide section, all discovered dead at Step 9, the *last* checkpoint.
+   **LEAD DECISION: reflect into `UnityEditor.AudioUtil.PlayPreviewClip` + pre-scale via a
+   gain-applied temp clip; A/B stays.** Resolve the method defensively (signature varies by Unity
+   version) and degrade with a clear diagnostic.
+
+Also folded into the amendment: **category change re-solves but never RE-MEASURES** (a category
+carries its own `MeasureMode` — Music=Integrated vs SFX/UI=MomentaryMax — so Music→SFX silently keeps
+the old-mode LUFS and bakes a wrong gain, worst on short one-shots; the existing test *encodes the bug
+as expected behavior*); **"loudest clip lands at 0 dB" is BACKWARDS in 4 places** (it is the
+*quietest* that pins at 0; the loudest is attenuated most) and is inherited from shipped `GainSolver`'s
+own docstring so it is actively propagating; a **stale 4-arg `ClipAnalysis.Ok`** in Task 12 (deviation
+#5 reached Task 13's identical helper but not Task 12's — the exact defect class the audit was
+commissioned to find); `BuildVisible` documented as pure while `SettingsFor` **appends to the profile
+during `OnGUI`** (un-undoable writes, O(n²) per repaint); a decorative progress bar whose Cancel
+doesn't cancel; and **3 layout defects that make both headline Task-13 features invisible at default
+window size**.
+
+**Audited clean:** Task 10 in full, every 2022.3 API signature, the DSP assertions (traced by hand),
+`AudioBalanceSession`, `GainTableWriter`. The known 2022.3 emoji-in-IMGUI trap did **not** apply —
+those glyphs are BMP geometric shapes, not astral-plane emoji.
+
+### ✅ WAV TEST-FIXTURE HELPER CLOSED (2026-07-20, commit `4a3df42`)
+`AudioAssetFixture` (Tests/Editor) writes a minimal 16-bit PCM WAV into a uniquely-named temp
+folder under `Assets/`, imports it via `AssetDatabase.ImportAsset`, and deletes the whole folder
+in `[TearDown]` — asset-backed, nothing committed. Closed all **three** zero-coverage seams: the
+cache hit/store path in `LoudnessAnalyzer.Analyze` (incl. a genuine-hit proof — seed the cache
+with a deliberately wrong value, assert `Analyze` returns it instead of the real measurement),
+`FindClips`' entire positive path (dedupe across overlapping folders, `LoadAssetAtPath`, sort),
+and `KeyFor`'s AssetDatabase→absolute-path adapter. TDD: all three bug-fix tests observed RED
+first (`Analyze_OnACacheHit_ForASilentClip_PreservesTheReason` — expected `"silent"`, got `null`;
+`Analyze_WithACorruptCachedStatus_ReMeasuresInsteadOfCastingOutOfRange` — expected `Ok`, got the
+raw out-of-range value `99`; `FindClips_TiesBrokenByAssetPathForEqualNames` — first attempt passed
+"by accident" because folders were fed in ascending order and .NET's small-array insertion sort
+happens to preserve ties, so it was rewritten to feed folders in descending order before it
+produced a real RED). Also fixed while in those files: `Silent`'s `Reason` was dropped on a cache
+hit (`CachedLoudness` has no `Reason` field) — cache hits now reconstruct
+`ClipAnalysis.SilentReason`; the unchecked `(ClipStatus)cached.Status` cast now range-checks and
+falls through to a re-measure on a corrupt/forward-version `Status`; `FindClips`' name-only sort
+now tiebreaks on asset path. Documented (not fixed): `KeyFor`'s project-root path resolution
+silently no-ops for registry/git-URL packages. 557 → 565 EditMode tests, all green.
+
+### ⏭️ NEXT — all remaining work is the LEAD's
+
+**The initiative is code-complete. Nothing further is agent-actionable without a human in the editor.**
+
+**1. Hands-on editor pass (the initiative's handover checklist).** Create a profile + gain table, add
+a folder with at least two clips of clearly different loudness, set an anchor, press Analyze:
+- [ ] LUFS appears for every readable clip.
+- [ ] **Every gain is ≤ 0 dB and exactly one clip reads 0.0 dB** — and it is the clip *quietest*
+      relative to its category target. If the LOUDEST clip sits at 0, the solver's sign is inverted.
+- [ ] Two clips in the same category differ by their measured LUFS difference.
+- [ ] **Press Play on a row and confirm you actually HEAR it, with the gain applied.** This is the
+      one thing no test covers. A quiet clip and a loud one should sound closer together than the
+      raw files do. Silence here means the `AudioUtil` reflection failed → check the console for the
+      `[AudioBalance]` warning. (Resolution itself is already verified on 6000.3.8f1.)
+- [ ] **A/B** plays the clip over the anchor bed, and the bed keeps playing after a short clip ends.
+- [ ] **Write Table** populates the asset — check it in the Inspector.
+- [ ] The Table field and the Play / A-B buttons are all reachable **without resizing the window**
+      (scrolling the table sideways is expected and fine).
+- [ ] **Anchor behaviour, the thing most likely to be reported as a bug:** note the Gain column, swap
+      the anchor for a much louder/quieter clip, re-run Analyze — **the Gain column must NOT change.**
+      Only the `outlier` markers may move.
+- [ ] Clear the anchor entirely, re-run Analyze — confirm **no** rows are marked `outlier` (not every
+      row). 
+- [ ] Undo a trim and a category change; confirm the Gain column updates without pressing Analyze.
+- [ ] Console clean apart from intentional `[AudioBalance]` diagnostics.
+- [ ] Orphan a category (rename via the Inspector, not the window) and confirm the row's dropdown
+      shows `(unknown: X)` and can be corrected.
+
+**2. Decide on adoption.** **No game consumes the runtime `AudioGainTable` yet.** v1 deliberately
+wires up nothing — BB adoption is a separate, explicit step (add the package, assign a table, call
+`PlayOneShotBalanced`). Until then this ships value to nobody, which is fine and was the plan.
+
+**3. Push.** 21+ commits, nothing pushed. Package is `0.1.0`, untagged.
+
+### Loose ends visible from Task 13 (NOT fixed silently — lead's call)
+1. **Task 8's Streaming branch is still uncovered**, and is now known to be *closable* via
+   `AudioAssetFixture` + an `AudioImporter.loadType` flip. The XML doc still frames it as an
+   accepted gap; the lead chose not to reopen it. Re-word if it is ever revisited.
+2. **Suite-wide test hygiene (plan deviation #22):** no test file in this package calls
+   `DestroyImmediate` on the `ScriptableObject`s / `AudioClip`s it creates. Consistent, but it does
+   leak Unity objects across an EditMode run. Eleven files; a suite-wide decision, not a Task-13 one.
+3. **`LoudnessCacheTests` logs two real-looking `[AudioBalance]` warnings** ("Could not write the
+   loudness cache…", "Could not read the loudness cache…") during every suite run. They are
+   *deliberate* negative tests asserting graceful degradation, but only one of them wraps the log in
+   `LogAssert.ignoreFailingMessages`. Harmless; noted because they look alarming in a fresh console
+   and cost time to re-diagnose.
+4. **`AudioBalanceWindow` is ~1000 lines.** Still thin per-method and everything testable is out of
+   `OnGUI`, but it is the largest file in the package and the natural next split if it grows again.
+
+> **Known limitation to document, not fix:** `KeyFor` builds a path under the project root, so the
+> cache silently no-ops for clips in **non-embedded** packages (registry/git URL) — those get
+> re-decoded on every window open with no warning. Fine for game audio under `Assets/`.
+
+> **Task 8's Streaming gap is now known-closable.** It was accepted on the reasoning that covering it
+> meant committing a `.wav` binary — that reasoning is false by the fixture technique above (plus an
+> `AudioImporter.defaultSampleSettings.loadType` flip). Lead chose not to reopen it now. It is
+> therefore a deliberate choice, **not** an unavoidable limitation — re-word the XML doc if it's ever
+> revisited.
+
+### ✅ BOTH TASK-8 FOLLOW-UPS CLOSED (2026-07-19, commit `fd4e7ff`)
+- **(A) APPLIED.** `LoadAudioData()` is **async** — a `true` return means *queued*, not loaded, and
+  the code was calling `GetData` immediately. Now re-checks `clip.loadState` afterwards and fails with
+  `ClipSampleReader.LoadPendingError` if it is not `Loaded`. `GetData` is provably unreachable unless
+  `loadState == Loaded`. Single re-check, no polling — editor-time code, so a not-ready clip is a
+  reportable condition, not something to block on.
+- **(B) LEAD DECIDED: accept the gap, document it.** The Streaming rejection branch has no automated
+  coverage and will not get any: `AudioClip.Create` (the only way these tests build clips) always
+  yields a fully-resident non-streaming clip, and `Streaming` can only be set on an imported asset via
+  its `AudioImporter`. Covering it would need a committed `.wav` fixture with `.meta` pinned to
+  Streaming — deliberately rejected to keep binaries out of the package. Reasoning is recorded in the
+  XML doc on `ClipSampleReader.StreamingError` so no future maintainer assumes coverage exists.
+
+### ⚠️ FIVE plan errors caught by TESTS/AUDIT, not review (all lead-approved, plan amended + committed)
+
+> **The pattern:** this plan was written end-to-end *before any code existed*, so later sections encode
+> assumptions that earlier sections invalidated once real. The anchor (#5 below) is the purest case —
+> correct when written, silently made inert by a later approved decision.
+1. **T3** — a tolerance that was mathematically impossible to satisfy (block-straddling artifact
+   forces a −0.223 dB offset; the plan asserted 0.2).
+2. **T4 — the measure mode's rationale was BACKWARDS.** The claim was "integrated gating discards a
+   one-shot's decay tail so short SFX under-read." The relative gate *already* excludes the tail —
+   that is its job — so the specified 3 s window averaged the attack with silence and read **6 dB
+   below** the mode it was meant to beat (−25.8 vs −19.5). Now `MomentaryMax` at **400 ms**
+   (−17.99 vs −19.54). Renamed throughout; Tasks 6/10/11 reference the new name.
+3. **T5 — `ApproxTruePeakDb` struck entirely.** Linear interpolation yields a convex combination of
+   its endpoints, so `|a+(b−a)t| ≤ max(|a|,|b|)`: it can never exceed the sample peak, hence never
+   detect an inter-sample peak — the only purpose of a true-peak meter. It also read 2.5 dB *below*
+   sample peak on mono `[0,0,1.0]`. `ClipAnalysis`/`CachedLoudness` now carry **one `PeakDb`** field.
+4. **T9 — the cache key ignored import settings, and the amendment didn't propagate.** The key read the
+   **source `.wav`**, but what's measured is the **decoded `AudioClip`** — a product of the `.meta`
+   importer settings. Force To Mono leaves the `.wav` byte-identical, so the cache hit and served a stale
+   **stereo** LUFS (~3 dB off) straight into the baked gain table, silently. Fix round 1 amended three
+   places but **left a copy-paste-ready `ResolveIdentity` inside Task 10's body** computing it the old
+   way — an agent working Task 10 top-to-bottom would have retyped the fixed bug from a plan claiming in
+   three other places it was fixed. Its regression test was also **vacuous** (computed `Math.Max` in the
+   test file itself, so it asserted `5100 != 5200` and passed unchanged against the broken code). The new
+   "crash-safe" save had also regressed to `delete → move`, leaving a window where **neither** file exists.
+   **Lesson: a design defect cannot be fixed with documentation** — a contract in an XML doc is only as
+   strong as the next agent reading it, and here the same plan handed that agent contradictory code.
+   Round 3 made it **structural**: `KeyFor(clip, mode)` is the only place `Ticks` is computed and
+   `TryGet`/`Put` take a `LoudnessCacheKey` struct, so hand-rolling an identity is now a **compile
+   error**. Measure mode became a real struct field instead of being string-mangled into the guid.
+   Took 3 review rounds (budget is 2 — the 3rd was explicit lead direction after escalation).
+5. **T11/T13 — the anchor is mathematically inert** (full detail in the audit section above). Found by
+   *audit*, not by tests: every test passes and every number looks plausible, because the feature simply
+   doesn't do what its own documentation says.
+
+### Design constraint worth re-reading before touching `GainSolver`
+`AudioSource.volume` is hard-capped at 1.0, so a clip needing +6 dB **cannot get it**. Gains are
+therefore normalised **downward**: `final = raw − max(raw over analyzable clips)`, pinning the
+loudest clip at exactly 0 dB. Relative spacing is preserved exactly and clipping becomes structurally
+impossible. Accepted cost (lead signed off at design time): overall output is quieter, compensated
+once on the master mixer. Silent/unanalyzable clips are excluded from the max so one broken asset
+cannot attenuate the whole project.
+
+### Op notes for this initiative
+- Unity MCP is bound to **this** checkout (`dataPath` probe confirmed) — that is why the work is on
+  a **branch in place, NOT a worktree**: a worktree would be invisible to `tests-run`, which would
+  report green on code it never compiled.
+- Unity **6000.3.8f1**; package targets `"unity": "2022.3"`; **zero package dependencies** (JsonUtility,
+  not Newtonsoft).
+- **HAZARD:** a subagent ran MCP `enroll_engine_plugin`, which auto-resolved the Unity MCP plugin to
+  "latest" (0.84.3) and broke compatibility. It was reverted and verified (`manifest.json` still pins
+  `com.ivanmurzak.unity.mcp: 0.76.0`). **Tell subagents not to run `enroll_engine_plugin`.**
+- The lead's pre-existing `Assets/` dirt (designer `BusBuddiesImageToGrid.asset` edit + YAK
+  `_prev_prompts` deletions) is **not ours — leave it alone.**
+
+---
+
 ## ✅ SHIPPED (2026-07-15) — BB Hidden Pixels · Hidden Buses · Connected Buses
 
 Three hand-authored Bus Buddies mechanics, TDD'd task-by-task on branch

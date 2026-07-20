@@ -1,0 +1,455 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Persists measurements so reopening the window is instant and only changed clips are
+    /// re-analyzed. Lives under Library/ because it is regenerable and must not be committed.
+    ///
+    /// <para>
+    /// <b>Key derivation is structural, not a documented caller contract.</b> Entries are keyed
+    /// on a <see cref="LoudnessCacheKey"/> (guid, file length, ticks, measure mode).
+    /// <see cref="KeyFor"/> is the single place that computes <c>Ticks</c>: the combined max of
+    /// the source asset's AND its <c>.meta</c>'s last-write time, because what is actually
+    /// measured is the decoded <c>AudioClip</c>, which depends on <c>.meta</c> importer settings
+    /// (Force To Mono, Quality, Sample Rate Override, ...) as much as it does the source bytes.
+    /// Earlier revisions of this class took a bare <c>(guid, length, ticks)</c> tuple and left
+    /// the <c>.meta</c>-awareness as an XML-doc note on the caller -- a documented contract with
+    /// no enforcement, sitting next to a plan document that then handed the next implementer a
+    /// complete, wrong, copy-paste-ready derivation. This class reads files (<c>File.Exists</c>,
+    /// <c>ReadAllText</c>, <c>WriteAllText</c>, <c>Delete</c>) throughout already, and the Editor
+    /// asmdef is Editor-only, so <c>AssetDatabase</c> is fully available here -- there was no
+    /// reason the derivation had to live outside this class.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Pruning stale entries</b> (guids for deleted/renamed clips) is a two-party split: this
+    /// class owns the storage primitives (<see cref="Guids"/> to enumerate, <see cref="RemoveByGuid"/>
+    /// to remove), but has no <c>AssetDatabase</c> policy of its own for deciding what "stale" means
+    /// -- that decision belongs to the caller (<c>LoudnessAnalyzer.PruneMissingClips</c>, Task 10).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Threading:</b> backed by a plain <see cref="Dictionary{TKey,TValue}"/> with no
+    /// synchronization -- confined to the main thread. If a future caller wants to analyze clips
+    /// on a worker thread, that caller is responsible for marshalling back to the main thread
+    /// before touching this cache.
+    /// </para>
+    /// </summary>
+    public sealed class LoudnessCache
+    {
+        /// <summary>
+        /// Default on-disk location, used when <see cref="Load"/> is called with no path.
+        /// Under <c>Library/</c> because the cache is regenerable and must never be committed.
+        /// </summary>
+        public const string DefaultPath = "Library/HoppaAudioBalance/loudness-cache.json";
+
+        [Serializable]
+        private sealed class Entry
+        {
+            public string Guid;
+            public int Mode;
+            public long Length;
+            public long Ticks;
+            public CachedLoudness Value;
+        }
+
+        [Serializable]
+        private sealed class Store
+        {
+            public List<Entry> Entries = new List<Entry>();
+        }
+
+        private readonly string _path;
+        private readonly Dictionary<(string Guid, int Mode), Entry> _entries =
+            new Dictionary<(string Guid, int Mode), Entry>();
+
+        private LoudnessCache(string path)
+        {
+            _path = path;
+        }
+
+        /// <summary>
+        /// Whether anything has been stored or removed since the last <see cref="Save"/> (or
+        /// since <see cref="Load"/>). Lets a caller skip a disk write on a pass that measured
+        /// nothing new -- the common case once a project is warm, where every clip is a cache
+        /// hit and re-serialising the whole store would be pure cost.
+        /// </summary>
+        public bool IsDirty { get; private set; }
+
+        /// <summary>
+        /// Loads the cache from <paramref name="path"/>, or <see cref="DefaultPath"/> when
+        /// <paramref name="path"/> is null or empty. A missing file returns an empty cache. A
+        /// corrupt or unreadable file also degrades to an empty cache (logged as a warning)
+        /// rather than throwing -- the cache is regenerable, so losing it is not fatal, but a
+        /// silently-broken cache that keeps re-analyzing the whole project on every window open
+        /// is worth flagging.
+        /// </summary>
+        public static LoudnessCache Load(string path = null)
+        {
+            var cache = new LoudnessCache(string.IsNullOrEmpty(path) ? DefaultPath : path);
+
+            try
+            {
+                if (!File.Exists(cache._path))
+                {
+                    return cache;
+                }
+
+                var store = JsonUtility.FromJson<Store>(File.ReadAllText(cache._path));
+                if (store?.Entries == null)
+                {
+                    return cache;
+                }
+
+                foreach (var entry in store.Entries)
+                {
+                    if (entry != null && !string.IsNullOrEmpty(entry.Guid))
+                    {
+                        cache._entries[(entry.Guid, entry.Mode)] = entry;
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                // A corrupt or unreadable cache is not worth failing over -- it is
+                // regenerable by definition. Fall back to a full re-analysis, but say so:
+                // otherwise a permanently-broken cache silently re-analyzes the whole
+                // project on every open with no clue why.
+                Debug.LogWarning($"[AudioBalance] Could not read the loudness cache, starting fresh: {exception.Message}");
+                cache._entries.Clear();
+            }
+
+            return cache;
+        }
+
+        /// <summary>
+        /// Derives the key for <paramref name="clip"/> under <paramref name="mode"/>, reading
+        /// real timestamps from disk. This is the single place that computes <c>Ticks</c> as the
+        /// combined max of the source asset's and its <c>.meta</c>'s last-write time -- see the
+        /// class doc for why. A clip with no asset path (e.g. a procedural clip built in a test)
+        /// returns an invalid key (<see cref="LoudnessCacheKey.IsValid"/> false); so does a null
+        /// clip.
+        ///
+        /// <para>
+        /// <b>Known limitation, not fixed:</b> the asset path is resolved to an absolute path via
+        /// <c>Path.Combine(projectRoot, assetPath)</c>, which is correct for anything under
+        /// <c>Assets/</c> or an <b>embedded</b> package. For a <b>registry or git-URL</b> package,
+        /// <see cref="AssetDatabase.GetAssetPath"/> still returns a <c>Packages/com.x/...</c>-rooted
+        /// path, but that combined path does not exist on disk under the project root, so the
+        /// file stat fails, this returns an invalid key, and the clip is re-decoded on every
+        /// window open, forever, with no warning. Fine for the intended use (game audio lives
+        /// under <c>Assets/</c>), but currently silent rather than diagnosed.
+        /// </para>
+        /// </summary>
+        public static LoudnessCacheKey KeyFor(AudioClip clip, MeasureMode mode)
+        {
+            if (clip == null)
+            {
+                return default;
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(clip);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return default;
+            }
+
+            var guid = AssetDatabase.AssetPathToGUID(assetPath);
+            if (string.IsNullOrEmpty(guid))
+            {
+                return default;
+            }
+
+            var projectRoot = Path.GetDirectoryName(Application.dataPath) ?? string.Empty;
+            var absoluteAssetPath = Path.Combine(projectRoot, assetPath);
+            var absoluteMetaPath = absoluteAssetPath + ".meta";
+
+            return KeyForPaths(guid, absoluteAssetPath, absoluteMetaPath, mode);
+        }
+
+        /// <summary>
+        /// Pure, file-system-only key derivation, factored out of <see cref="KeyFor"/> so the
+        /// <c>.meta</c>-aware timestamp logic can be exercised directly against real temp files
+        /// in tests, without needing an AssetDatabase-imported clip. <see cref="KeyFor"/> is a
+        /// thin AssetDatabase-to-path adapter over this method -- there is exactly one place
+        /// that computes <see cref="LoudnessCacheKey.Ticks"/>, here.
+        /// A missing <paramref name="assetPath"/> returns an invalid key. A missing
+        /// <paramref name="metaPath"/> (unusual, but not impossible mid-import) falls back to the
+        /// asset's own timestamp rather than throwing.
+        /// </summary>
+        public static LoudnessCacheKey KeyForPaths(string guid, string assetPath, string metaPath, MeasureMode mode)
+        {
+            if (string.IsNullOrEmpty(guid) || string.IsNullOrEmpty(assetPath))
+            {
+                return default;
+            }
+
+            FileInfo assetInfo;
+            try
+            {
+                assetInfo = new FileInfo(assetPath);
+            }
+            catch (Exception)
+            {
+                return default;
+            }
+
+            if (!assetInfo.Exists)
+            {
+                return default;
+            }
+
+            var ticks = assetInfo.LastWriteTimeUtc.Ticks;
+
+            try
+            {
+                var metaInfo = new FileInfo(metaPath ?? string.Empty);
+                if (metaInfo.Exists)
+                {
+                    ticks = Math.Max(ticks, metaInfo.LastWriteTimeUtc.Ticks);
+                }
+            }
+            catch (Exception)
+            {
+                // No .meta readable -- fall back to the asset's own timestamp rather than
+                // failing the whole lookup over a diagnostic-only concern.
+            }
+
+            return new LoudnessCacheKey(guid, assetInfo.Length, ticks, mode);
+        }
+
+        /// <summary>
+        /// Looks up a cached measurement by <paramref name="key"/>. Returns false (and a null
+        /// <paramref name="value"/>) on any mismatch: an invalid key, an unknown
+        /// (guid, mode) pair, or a changed <see cref="LoudnessCacheKey.Length"/> /
+        /// <see cref="LoudnessCacheKey.Ticks"/>. The returned value is a copy -- mutating it
+        /// cannot leak back into the cache's stored entry.
+        /// </summary>
+        public bool TryGet(LoudnessCacheKey key, out CachedLoudness value)
+        {
+            value = null;
+
+            if (!key.IsValid)
+            {
+                return false;
+            }
+
+            if (!_entries.TryGetValue((key.Guid, (int)key.Mode), out var entry))
+            {
+                return false;
+            }
+
+            if (entry.Length != key.Length || entry.Ticks != key.Ticks)
+            {
+                return false;
+            }
+
+            if (entry.Value == null)
+            {
+                return false;
+            }
+
+            value = Copy(entry.Value);
+            return true;
+        }
+
+        /// <summary>
+        /// Stores (or overwrites) the measurement for <paramref name="key"/>. An invalid
+        /// <paramref name="key"/> or a null <paramref name="value"/> is ignored rather than
+        /// stored: <c>JsonUtility</c> would round-trip a stored null as a zero-filled, non-null
+        /// <see cref="CachedLoudness"/> after a save/load cycle -- i.e. a fake "measured
+        /// successfully at 0 LUFS" -- so accepting null here would let a failed measurement
+        /// resurrect as a false positive on reload. The value is copied on the way in, so a
+        /// caller mutating its own instance afterwards cannot leak into the cache.
+        /// </summary>
+        public void Put(LoudnessCacheKey key, CachedLoudness value)
+        {
+            if (!key.IsValid || value == null)
+            {
+                return;
+            }
+
+            _entries[(key.Guid, (int)key.Mode)] = new Entry
+            {
+                Guid = key.Guid,
+                Mode = (int)key.Mode,
+                Length = key.Length,
+                Ticks = key.Ticks,
+                Value = Copy(value)
+            };
+
+            IsDirty = true;
+        }
+
+        /// <summary>
+        /// Every distinct guid with at least one entry (a guid with entries under multiple
+        /// <see cref="MeasureMode"/>s is reported once), in no particular order. Exists so a
+        /// caller can decide -- via whatever asset-existence check makes sense to it, e.g.
+        /// <c>AssetDatabase.GUIDToAssetPath</c> -- which guids are stale and prune them with
+        /// <see cref="RemoveByGuid"/>. This class deliberately owns no such policy itself: it
+        /// has no opinion on what "still exists" means, only on storage.
+        /// </summary>
+        public IEnumerable<string> Guids
+        {
+            get
+            {
+                var seen = new HashSet<string>();
+                foreach (var key in _entries.Keys)
+                {
+                    if (seen.Add(key.Guid))
+                    {
+                        yield return key.Guid;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes every entry (across all <see cref="MeasureMode"/>s) for <paramref name="guid"/>.
+        /// Returns the number of entries removed, which is >1 whenever the same clip was measured
+        /// under more than one mode. A null/empty <paramref name="guid"/> or one with no entries
+        /// removes nothing and returns 0. Does not call <see cref="Save"/> -- the caller decides
+        /// when to persist, so a batch of removals can share one write.
+        /// </summary>
+        public int RemoveByGuid(string guid)
+        {
+            if (string.IsNullOrEmpty(guid))
+            {
+                return 0;
+            }
+
+            var toRemove = new List<(string Guid, int Mode)>();
+            foreach (var key in _entries.Keys)
+            {
+                if (key.Guid == guid)
+                {
+                    toRemove.Add(key);
+                }
+            }
+
+            foreach (var key in toRemove)
+            {
+                _entries.Remove(key);
+            }
+
+            if (toRemove.Count > 0)
+            {
+                IsDirty = true;
+            }
+
+            return toRemove.Count;
+        }
+
+        /// <summary>
+        /// Drops every entry, both in memory and on disk (deletes the cache file, and any
+        /// leftover <c>.tmp</c> file from an interrupted <see cref="Save"/>, if present).
+        /// Deleting the file too matters: without it, a "Clear cache" action followed by a
+        /// domain reload (without an intervening <see cref="Save"/>) would silently reload the
+        /// old file and resurrect everything the user was trying to discard.
+        /// </summary>
+        public void Clear()
+        {
+            _entries.Clear();
+
+            // Keep the IsDirty invariant local to every mutator. Today this is belt-and-braces
+            // -- Clear also deletes the file, so a skipped Save happens to be harmless -- but
+            // that is two paths agreeing by accident. The moment Clear becomes in-memory-only,
+            // a caller that gates Save on IsDirty would silently discard the clear.
+            IsDirty = true;
+
+            try
+            {
+                if (File.Exists(_path))
+                {
+                    File.Delete(_path);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"[AudioBalance] Could not delete the loudness cache file: {exception.Message}");
+            }
+
+            TryDeleteOrphanTemp();
+        }
+
+        /// <summary>
+        /// Writes every current entry to disk, creating the parent directory on first run if it
+        /// does not exist yet (true for the default <c>Library/</c> path on a fresh clone). The
+        /// write is crash-safe: content lands in a sibling <c>.tmp</c> file first, and the swap
+        /// into place uses <see cref="File.Replace(string,string,string)"/> (atomic on NTFS) when
+        /// a previous file exists, or a plain <see cref="File.Move(string,string)"/> on first
+        /// write. Unlike a naive delete-then-move, there is never a window where neither file
+        /// exists. If the swap itself fails (e.g. a transient lock from AV / the search indexer),
+        /// the exception is caught, logged, and the orphan <c>.tmp</c> is cleaned up rather than
+        /// left behind.
+        /// </summary>
+        public void Save()
+        {
+            var tempPath = _path + ".tmp";
+
+            try
+            {
+                var directory = Path.GetDirectoryName(_path);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var store = new Store();
+                store.Entries.AddRange(_entries.Values);
+
+                File.WriteAllText(tempPath, JsonUtility.ToJson(store));
+
+                if (File.Exists(_path))
+                {
+                    File.Replace(tempPath, _path, null);
+                }
+                else
+                {
+                    File.Move(tempPath, _path);
+                }
+
+                // Only on the success path: a failed write must leave the cache dirty so the
+                // next Save retries rather than dropping the measurements silently.
+                IsDirty = false;
+            }
+            catch (Exception exception)
+            {
+                TryDeleteOrphanTemp();
+                Debug.LogWarning($"[AudioBalance] Could not write the loudness cache: {exception.Message}");
+            }
+        }
+
+        private void TryDeleteOrphanTemp()
+        {
+            try
+            {
+                var tempPath = _path + ".tmp";
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch (Exception)
+            {
+                // Best-effort cleanup only -- a leftover .tmp is harmless clutter, not a
+                // correctness bug, and is overwritten by the next successful Save() anyway.
+            }
+        }
+
+        private static CachedLoudness Copy(CachedLoudness source)
+        {
+            return new CachedLoudness
+            {
+                Status = source.Status,
+                Lufs = source.Lufs,
+                PeakDb = source.PeakDb
+            };
+        }
+    }
+}

@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.hoppa.audiobalance": {
+      "version": "file:com.hoppa.audiobalance",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hoppa.leveleditor.core": {
       "version": "file:com.hoppa.leveleditor.core",
       "depth": 0,

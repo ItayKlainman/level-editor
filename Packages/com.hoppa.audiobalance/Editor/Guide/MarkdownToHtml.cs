@@ -2,12 +2,27 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Hoppa.LevelEditor.Core.Editor
+namespace Hoppa.AudioBalance.Editor
 {
-    // NOTE: com.hoppa.audiobalance carries an acknowledged copy of this file
-    // (Editor/Guide/MarkdownToHtml.cs) because that package declares no dependencies.
-    // Change one, change the other -- they are meant to diff clean.
-    //
+    /// <summary>
+    /// ACKNOWLEDGED FORK. This is a deliberate copy of
+    /// <c>com.hoppa.leveleditor.core/Editor/Guide/MarkdownToHtml.cs</c>, kept
+    /// character-for-character identical to it apart from this comment and the namespace.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is duplicated rather than referenced because <c>com.hoppa.audiobalance</c> declares
+    /// NO dependencies on purpose -- an audio tool must stay usable standalone, and making it
+    /// require the level-editor package just to render a help page would be the wrong coupling
+    /// for the sake of ~150 lines. There is no shared/common package for the two to depend on,
+    /// and inventing one is a larger architectural change than a help button warrants.
+    /// </para>
+    /// <para>
+    /// The honest cost is drift. If you change one copy, change the other: the files are meant
+    /// to diff clean. As of this writing the original had been modified exactly zero times
+    /// since it was introduced, which is why copying it was judged cheap.
+    /// </para>
+    /// </remarks>
     // Tiny, dependency-free Markdown → HTML converter, scoped to the constructs the
     // guides use: ATX headings, bold, italic, inline code, fenced code blocks,
     // unordered/ordered lists, blockquotes, horizontal rules, pipe tables, links,

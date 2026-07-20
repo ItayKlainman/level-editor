@@ -1104,7 +1104,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 23/23 PASS (13 prior + 10 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 10 new ones from this task.
 
 - [ ] **Step 7: Commit**
 
@@ -1126,20 +1126,20 @@ EOF
 
 ---
 
-### Task 4: Short-term-max measure mode
+### Task 4: Momentary-max measure mode
 
 **Files:**
-- Modify: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs` (add `MeasureShortTermMax`)
+- Modify: `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs` (add `MeasureMomentaryMax`)
 - Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/MeasureMode.cs`
-- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/MomentaryMaxTests.cs`
 
 **Interfaces:**
 - Consumes: `LufsMeter.ComputeBlockPowers`, `LufsMeter.BlockLoudness`, `LufsMeter.ChannelWeights`, `LoudnessResult`.
-- Produces: `enum MeasureMode { Integrated, ShortTermMax }`; `LufsMeter.MeasureShortTermMax(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; `LufsMeter.Measure(float[] interleaved, int channels, int sampleRate, MeasureMode mode) -> LoudnessResult`.
+- Produces: `enum MeasureMode { Integrated, MomentaryMax }`; `LufsMeter.MeasureMomentaryMax(float[] interleaved, int channels, int sampleRate) -> LoudnessResult`; `LufsMeter.Measure(float[] interleaved, int channels, int sampleRate, MeasureMode mode) -> LoudnessResult`.
 
 - [ ] **Step 1: Write the failing test**
 
-`Packages/com.hoppa.audiobalance/Tests/Editor/ShortTermMaxTests.cs`:
+`Packages/com.hoppa.audiobalance/Tests/Editor/MomentaryMaxTests.cs`:
 
 ```csharp
 using Hoppa.AudioBalance.Editor;
@@ -1147,49 +1147,70 @@ using NUnit.Framework;
 
 namespace Hoppa.AudioBalance.Editor.Tests
 {
-    public class ShortTermMaxTests
+    public class MomentaryMaxTests
     {
         private const int Rate = 48000;
 
         [Test]
-        public void ShortTermMax_OnClipUnderThreeSeconds_EqualsUngatedWholeClipLoudness()
+        public void MomentaryMax_OnClipShorterThanOneWindow_MeasuresTheWholeClip()
         {
-            var signal = SignalFactory.Sine(-23.0, 1.0, 2, Rate);
+            // 200 ms is shorter than the 400 ms window, so ComputeBlockPowers collapses to a
+            // single block spanning the clip -- the behaviour short SFX depend on.
+            var signal = SignalFactory.Sine(-23.0, 0.2, 2, Rate);
 
-            var result = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
 
             Assert.IsFalse(result.IsSilent);
-            Assert.AreEqual(-23.0f, result.Lufs, 0.1f);
+            Assert.AreEqual(-23.0f, result.Lufs, 0.5f);
         }
 
         [Test]
-        public void ShortTermMax_ExceedsIntegrated_ForAOneShotWithALongQuietTail()
+        public void MomentaryMax_OnSteadyTone_AgreesWithIntegrated()
+        {
+            // On steady material the two modes must not diverge: every 400 ms window looks
+            // like every other, and the gating has nothing to exclude.
+            var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
+
+            var integrated = LufsMeter.MeasureIntegrated(signal, 2, Rate);
+            var momentary = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
+
+            Assert.AreEqual(integrated.Lufs, momentary.Lufs, 0.1f);
+        }
+
+        [Test]
+        public void MomentaryMax_ExceedsIntegrated_ForAOneShotWithALongQuietTail()
         {
             // 0.5 s at -18 dBFS then 4 s at -50 dBFS -- a percussive one-shot decaying out.
-            // Integrated gating averages across the whole thing; short-term max finds the hit.
+            // The 400 ms window lands entirely inside the attack (~-18), while integrated
+            // gating keeps the attack blocks AND the three that straddle the transition,
+            // pulling its answer below the peak (~-19.5).
+            //
+            // A 3 s window would FAIL this: it would be forced to average 0.5 s of attack
+            // with 2.5 s of near-silence (~-25.8), landing well BELOW integrated. That is
+            // why this mode measures 400 ms, not 3 s.
             var signal = SignalFactory.Concat(
                 SignalFactory.Sine(-18.0, 0.5, 2, Rate),
                 SignalFactory.Sine(-50.0, 4.0, 2, Rate));
 
             var integrated = LufsMeter.MeasureIntegrated(signal, 2, Rate);
-            var shortTerm = LufsMeter.MeasureShortTermMax(signal, 2, Rate);
+            var momentary = LufsMeter.MeasureMomentaryMax(signal, 2, Rate);
 
-            Assert.Greater(shortTerm.Lufs, integrated.Lufs,
-                "Short-term max must track the loudest moment, not the gated average.");
+            Assert.Greater(momentary.Lufs, integrated.Lufs,
+                "Momentary max must track the loudest moment, not the gated average.");
         }
 
         [Test]
-        public void ShortTermMax_OnSilence_IsSilent()
+        public void MomentaryMax_OnSilence_IsSilent()
         {
-            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Silence(4.0, 2, Rate), 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(SignalFactory.Silence(4.0, 2, Rate), 2, Rate);
 
             Assert.IsTrue(result.IsSilent);
         }
 
         [Test]
-        public void ShortTermMax_OnVeryQuietSignalBelowAbsoluteGate_IsSilent()
+        public void MomentaryMax_OnVeryQuietSignalBelowAbsoluteGate_IsSilent()
         {
-            var result = LufsMeter.MeasureShortTermMax(SignalFactory.Sine(-90.0, 4.0, 2, Rate), 2, Rate);
+            var result = LufsMeter.MeasureMomentaryMax(SignalFactory.Sine(-90.0, 4.0, 2, Rate), 2, Rate);
 
             Assert.IsTrue(result.IsSilent);
         }
@@ -1200,10 +1221,10 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var signal = SignalFactory.Sine(-23.0, 5.0, 2, Rate);
 
             var viaIntegrated = LufsMeter.Measure(signal, 2, Rate, MeasureMode.Integrated);
-            var viaShortTerm = LufsMeter.Measure(signal, 2, Rate, MeasureMode.ShortTermMax);
+            var viaMomentary = LufsMeter.Measure(signal, 2, Rate, MeasureMode.MomentaryMax);
 
             Assert.AreEqual(LufsMeter.MeasureIntegrated(signal, 2, Rate).Lufs, viaIntegrated.Lufs, 1e-4f);
-            Assert.AreEqual(LufsMeter.MeasureShortTermMax(signal, 2, Rate).Lufs, viaShortTerm.Lufs, 1e-4f);
+            Assert.AreEqual(LufsMeter.MeasureMomentaryMax(signal, 2, Rate).Lufs, viaMomentary.Lufs, 1e-4f);
         }
     }
 }
@@ -1212,7 +1233,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: compile errors — `MeasureMode` and `MeasureShortTermMax` do not exist.
+Expected: compile errors — `MeasureMode` and `MeasureMomentaryMax` do not exist.
 
 - [ ] **Step 3: Implement `MeasureMode`**
 
@@ -1228,20 +1249,21 @@ namespace Hoppa.AudioBalance.Editor
         Integrated = 0,
 
         /// <summary>
-        /// Loudest sliding 3 s window, ungated. Correct for short one-shots, whose decay
-        /// tail the integrated gating would otherwise discard, making them under-read.
+        /// Loudest 400 ms window, ungated -- the standard's "momentary" loudness. Correct
+        /// for short one-shots: it lands on the attack, where integrated loudness is pulled
+        /// down by the blocks straddling the decay into silence.
         /// </summary>
-        ShortTermMax = 1
+        MomentaryMax = 1
     }
 }
 ```
 
-- [ ] **Step 4: Add `MeasureShortTermMax` and `Measure` to `LufsMeter`**
+- [ ] **Step 4: Add `MeasureMomentaryMax` and `Measure` to `LufsMeter`**
 
 In `Packages/com.hoppa.audiobalance/Editor/Dsp/LufsMeter.cs`, add the constant beside the existing ones:
 
 ```csharp
-        private const double ShortTermSeconds = 3.0;
+        private const double MomentarySeconds = 0.4;
 ```
 
 and add these two methods directly after `MeasureIntegrated`:
@@ -1250,19 +1272,23 @@ and add these two methods directly after `MeasureIntegrated`:
         public static LoudnessResult Measure(float[] interleaved, int channels, int sampleRate,
             MeasureMode mode)
         {
-            return mode == MeasureMode.ShortTermMax
-                ? MeasureShortTermMax(interleaved, channels, sampleRate)
+            return mode == MeasureMode.MomentaryMax
+                ? MeasureMomentaryMax(interleaved, channels, sampleRate)
                 : MeasureIntegrated(interleaved, channels, sampleRate);
         }
 
         /// <summary>
-        /// Loudest sliding 3 s window. For a clip shorter than the window, ComputeBlockPowers
-        /// collapses to a single block over the whole clip -- which is exactly the desired
-        /// behaviour for the short SFX this mode exists to serve.
+        /// Loudest 400 ms window, ungated. For a clip shorter than the window,
+        /// ComputeBlockPowers collapses to a single block over the whole clip -- exactly the
+        /// desired behaviour for the short SFX this mode exists to serve.
+        ///
+        /// The window is 400 ms, not 3 s, for a measured reason: on a one-shot with a long
+        /// quiet tail a 3 s window averages the attack with the silence and reads BELOW
+        /// integrated loudness, which is the opposite of this mode's purpose.
         /// </summary>
-        public static LoudnessResult MeasureShortTermMax(float[] interleaved, int channels, int sampleRate)
+        public static LoudnessResult MeasureMomentaryMax(float[] interleaved, int channels, int sampleRate)
         {
-            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, ShortTermSeconds, StepSeconds);
+            var blocks = ComputeBlockPowers(interleaved, channels, sampleRate, MomentarySeconds, StepSeconds);
             if (blocks.Count == 0)
             {
                 return LoudnessResult.Silent;
@@ -1289,7 +1315,7 @@ and add these two methods directly after `MeasureIntegrated`:
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 28/28 PASS (23 prior + 5 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 6 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -1299,8 +1325,13 @@ git commit -m "$(cat <<'EOF'
 feat(audio): short-term-max measure mode for one-shot SFX
 
 Integrated gating discards a one-shot's decay tail, making short SFX
-under-read against a music bed. ShortTermMax takes the loudest sliding
-3 s window ungated; for a sub-3 s clip that collapses to the whole clip.
+under-read against a music bed. MomentaryMax takes the loudest sliding
+400 ms window ungated (the standard's "momentary" loudness); for a clip
+shorter than the window that collapses to the whole clip.
+
+Measured, not assumed: a 3 s window reads BELOW integrated on a one-shot
+with a long tail (-25.8 vs -19.5), because it averages the attack with the
+silence. 400 ms lands on the attack, which is the whole point.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -1309,7 +1340,7 @@ EOF
 
 ---
 
-### Task 5: True-peak meter
+### Task 5: Peak meter
 
 **Files:**
 - Create: `Packages/com.hoppa.audiobalance/Editor/Dsp/PeakMeter.cs`
@@ -1317,9 +1348,11 @@ EOF
 
 **Interfaces:**
 - Consumes: `AudioGainMath.DbFromLinear`.
-- Produces: `PeakMeter.SamplePeakDb(float[] interleaved) -> float`, `PeakMeter.ApproxTruePeakDb(float[] interleaved, int channels) -> float`.
+- Produces: `PeakMeter.SamplePeakDb(float[] interleaved) -> float`.
 
-> Diagnostic only. Because the headroom pass in Task 7 guarantees every gain is ≤ 0 dB, applied gain cannot create clipping — these numbers exist to spot assets that were already clipped or are near full scale before we touch them. The 4× linear-interpolation oversample is deliberately approximate; the method name says so.
+> Diagnostic only. Because the headroom pass in Task 7 guarantees every gain is ≤ 0 dB, applied gain cannot create clipping — this number exists to spot assets that were already clipped or are near full scale before we touch them.
+>
+> **No true-peak meter.** An earlier revision specified an `ApproxTruePeakDb` that oversampled 4× by linear interpolation. That was struck after review: linear interpolation produces a convex combination of its two endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` for every `t ∈ [0,1]` — it can *never* exceed the sample peak, and therefore can never detect an inter-sample peak, which is the only thing a true-peak meter is for. It also read *below* the sample peak whenever the loudest sample fell on a buffer's final frame. Real true-peak detection needs polyphase FIR upsampling (BS.1770-4 Annex 2); that is a follow-up if it is ever needed, not a diagnostic readout.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1364,19 +1397,21 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void ApproxTruePeakDb_IsAtLeastTheSamplePeak()
+        public void SamplePeakDb_FindsThePeakOnTheFinalFrame()
         {
-            var signal = SignalFactory.Sine(-6.0, 0.25, 2, 48000);
-
-            Assert.GreaterOrEqual(
-                PeakMeter.ApproxTruePeakDb(signal, 2),
-                PeakMeter.SamplePeakDb(signal) - 1e-3f);
+            // Guards the boundary an earlier interpolating implementation got wrong:
+            // the loudest sample sits on the very last frame and must still be found.
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(new[] { 0f, 0f, 1f }), 1e-3f);
         }
 
         [Test]
-        public void ApproxTruePeakDb_OfSilence_IsTheFloor()
+        public void SamplePeakDb_ScansEveryChannelOfAnInterleavedBuffer()
         {
-            Assert.AreEqual(AudioGainMath.MinDb, PeakMeter.ApproxTruePeakDb(new float[64], 2), 1e-3f);
+            // Quiet left, full-scale right. A meter that only scanned channel 0 would
+            // report -20 dB and miss a clipped right channel entirely.
+            var stereo = new[] { 0.1f, 0.5f, 0.1f, -1f };
+
+            Assert.AreEqual(0f, PeakMeter.SamplePeakDb(stereo), 1e-3f);
         }
     }
 }
@@ -1403,8 +1438,6 @@ namespace Hoppa.AudioBalance.Editor
     /// </summary>
     public static class PeakMeter
     {
-        private const int OversampleFactor = 4;
-
         public static float SamplePeakDb(float[] interleaved)
         {
             if (interleaved == null || interleaved.Length == 0)
@@ -1425,66 +1458,34 @@ namespace Hoppa.AudioBalance.Editor
             return AudioGainMath.DbFromLinear(peak);
         }
 
-        /// <summary>
-        /// Peak after 4x linear-interpolation oversampling. Approximate by design -- a true
-        /// BS.1770 true-peak meter uses a polyphase FIR, which is more machinery than a
-        /// diagnostic readout justifies.
-        /// </summary>
-        public static float ApproxTruePeakDb(float[] interleaved, int channels)
-        {
-            if (interleaved == null || interleaved.Length == 0 || channels <= 0)
-            {
-                return AudioGainMath.MinDb;
-            }
-
-            var frames = interleaved.Length / channels;
-            if (frames < 2)
-            {
-                return SamplePeakDb(interleaved);
-            }
-
-            var peak = 0f;
-
-            for (var ch = 0; ch < channels; ch++)
-            {
-                for (var frame = 0; frame < frames - 1; frame++)
-                {
-                    var a = interleaved[frame * channels + ch];
-                    var b = interleaved[(frame + 1) * channels + ch];
-
-                    for (var step = 0; step < OversampleFactor; step++)
-                    {
-                        var t = step / (float)OversampleFactor;
-                        var magnitude = Math.Abs(a + (b - a) * t);
-                        if (magnitude > peak)
-                        {
-                            peak = magnitude;
-                        }
-                    }
-                }
-            }
-
-            return AudioGainMath.DbFromLinear(peak);
-        }
     }
 }
 ```
 
+`SamplePeakDb` scans the interleaved buffer flat, so it covers every channel and every
+frame including the last. It needs no `channels` parameter — the maximum absolute sample
+is the same regardless of how the buffer is grouped into frames.
+
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 34/34 PASS (28 prior + 6 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 6 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add Packages/com.hoppa.audiobalance
 git commit -m "$(cat <<'EOF'
-feat(audio): sample-peak and approximate true-peak diagnostics
+feat(audio): sample-peak diagnostic
 
-Named ApproxTruePeakDb because it oversamples 4x by linear interpolation
-rather than the standard's polyphase FIR -- honest about being a readout,
-not a compliance meter.
+Flags assets that arrived already clipped or hard against full scale.
+Applied gain can never cause clipping itself, because the headroom pass
+keeps every gain at or below 0 dB.
+
+No true-peak meter: linear interpolation yields a convex combination of
+its endpoints, so it can never exceed the sample peak and therefore can
+never find an inter-sample peak. Real true-peak needs polyphase FIR
+upsampling -- a follow-up if ever needed, not a diagnostic readout.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -1553,11 +1554,11 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             Assert.AreEqual("SFX", profile.Categories[1].Name);
             Assert.AreEqual(3f, profile.Categories[1].OffsetDb, 1e-4f);
-            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[1].Mode);
+            Assert.AreEqual(MeasureMode.MomentaryMax, profile.Categories[1].Mode);
 
             Assert.AreEqual("UI", profile.Categories[2].Name);
             Assert.AreEqual(-6f, profile.Categories[2].OffsetDb, 1e-4f);
-            Assert.AreEqual(MeasureMode.ShortTermMax, profile.Categories[2].Mode);
+            Assert.AreEqual(MeasureMode.MomentaryMax, profile.Categories[2].Mode);
         }
 
         [Test]
@@ -1672,7 +1673,7 @@ namespace Hoppa.AudioBalance.Editor
     {
         public string Name = "SFX";
         public float OffsetDb;
-        public MeasureMode Mode = MeasureMode.ShortTermMax;
+        public MeasureMode Mode = MeasureMode.MomentaryMax;
     }
 }
 ```
@@ -1734,8 +1735,8 @@ namespace Hoppa.AudioBalance.Editor
             Categories = new List<AudioCategory>
             {
                 new AudioCategory { Name = "Music", OffsetDb = 0f, Mode = MeasureMode.Integrated },
-                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.ShortTermMax },
-                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.ShortTermMax }
+                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.MomentaryMax },
+                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.MomentaryMax }
             };
         }
 
@@ -1822,7 +1823,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 43/43 PASS (34 prior + 9 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 9 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -1855,12 +1856,12 @@ EOF
 - Consumes: nothing beyond `UnityEngine.AudioClip`.
 - Produces:
   - `enum ClipStatus { Ok, Silent, Unanalyzable }`
-  - `ClipAnalysis` — readonly struct, constructor `ClipAnalysis(AudioClip clip, ClipStatus status, float lufs, float samplePeakDb, float truePeakDb)`, plus statics `ClipAnalysis.Ok(AudioClip, float lufs, float samplePeakDb, float truePeakDb)`, `ClipAnalysis.Silent(AudioClip)`, `ClipAnalysis.Unanalyzable(AudioClip, string reason)`; fields `Clip`, `Status`, `Lufs`, `SamplePeakDb`, `TruePeakDb`, `Reason`
+  - `ClipAnalysis` — readonly struct, constructor `ClipAnalysis(AudioClip clip, ClipStatus status, float lufs, float peakDb, string reason = null)`, plus statics `ClipAnalysis.Ok(AudioClip, float lufs, float peakDb)`, `ClipAnalysis.Silent(AudioClip)`, `ClipAnalysis.Unanalyzable(AudioClip, string reason)`; fields `Clip`, `Status`, `Lufs`, `PeakDb`, `Reason`
   - `GainResult` — readonly struct with fields `Clip`, `Status`, `RawGainDb`, `FinalGainDb`, `IsOutlier`
   - `GainSolver.Solve(IReadOnlyList<ClipAnalysis> analyses, float anchorLufs, Func<AudioClip,float> categoryOffsetDb, Func<AudioClip,float> trimDb) -> IReadOnlyList<GainResult>`
   - `GainSolver.OutlierThresholdDb = 12f`
 
-> This is where §6 of the spec lives. `AudioSource.volume` caps at 1.0, so a clip needing +6 dB simply cannot get it — the request silently does nothing and the table lies about the balance. Subtracting the maximum raw gain from every raw gain pins the loudest clip at exactly 0 dB, preserves relative spacing exactly, and makes clipping structurally impossible.
+> This is where §6 of the spec lives. `AudioSource.volume` caps at 1.0, so a clip needing +6 dB simply cannot get it — the request silently does nothing and the table lies about the balance. Subtracting the maximum raw gain from every raw gain pins the clip that needed the *most* gain — the quietest one relative to its target — at exactly 0 dB, attenuates every other clip, preserves relative spacing exactly, and makes clipping structurally impossible. The clip that is *loudest* relative to its target is the one attenuated most. (Corrected by deviation #9 — the original wording here said "pins the loudest clip at 0 dB", which is backwards.)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1899,7 +1900,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void Anchor_InAZeroOffsetCategoryWithNoTrim_ResolvesToZeroRawGain()
         {
             var anchor = MakeClip("anchor");
-            var results = Solve(new[] { ClipAnalysis.Ok(anchor, -18f, -1f, -0.9f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(anchor, -18f, -1f) }, -18f);
 
             Assert.AreEqual(0f, results[0].RawGainDb, 1e-4f);
         }
@@ -1910,7 +1911,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var clip = MakeClip("sfx");
             var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
 
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f) }, -18f, offsets);
 
             Assert.AreEqual(3f, results[0].RawGainDb, 1e-4f);
         }
@@ -1922,7 +1923,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var offsets = new Dictionary<AudioClip, float> { { clip, 3f } };
             var trims = new Dictionary<AudioClip, float> { { clip, -1.5f } };
 
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f, -0.9f) }, -18f, offsets, trims);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -18f, -1f) }, -18f, offsets, trims);
 
             Assert.AreEqual(1.5f, results[0].RawGainDb, 1e-4f);
         }
@@ -1931,7 +1932,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void QuieterClipThanAnchor_NeedsPositiveRawGain()
         {
             var clip = MakeClip("quiet");
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -30f, -12f, -11.8f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -30f, -12f) }, -18f);
 
             Assert.AreEqual(12f, results[0].RawGainDb, 1e-4f);
         }
@@ -1943,8 +1944,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var quiet = MakeClip("quiet");
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(loud, -12f, -1f, -0.9f),
-                ClipAnalysis.Ok(quiet, -30f, -14f, -13.8f)
+                ClipAnalysis.Ok(loud, -12f, -1f),
+                ClipAnalysis.Ok(quiet, -30f, -14f)
             }, -18f);
 
             Assert.AreEqual(0f, results.Max(r => r.FinalGainDb), 1e-4f);
@@ -1955,9 +1956,9 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(MakeClip("a"), -30f, -14f, -13.8f),
-                ClipAnalysis.Ok(MakeClip("b"), -26f, -10f, -9.8f),
-                ClipAnalysis.Ok(MakeClip("c"), -40f, -20f, -19.8f)
+                ClipAnalysis.Ok(MakeClip("a"), -30f, -14f),
+                ClipAnalysis.Ok(MakeClip("b"), -26f, -10f),
+                ClipAnalysis.Ok(MakeClip("c"), -40f, -20f)
             }, -18f);
 
             foreach (var result in results)
@@ -1974,8 +1975,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var b = MakeClip("b");
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(a, -30f, -14f, -13.8f),
-                ClipAnalysis.Ok(b, -22f, -6f, -5.8f)
+                ClipAnalysis.Ok(a, -30f, -14f),
+                ClipAnalysis.Ok(b, -22f, -6f)
             }, -18f);
 
             var rawSpacing = results[0].RawGainDb - results[1].RawGainDb;
@@ -1993,7 +1994,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(ok, -22f, -6f, -5.8f),
+                ClipAnalysis.Ok(ok, -22f, -6f),
                 ClipAnalysis.Silent(silent),
                 ClipAnalysis.Unanalyzable(broken, "streaming")
             }, -18f);
@@ -2011,7 +2012,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(MakeClip("ok"), -22f, -6f, -5.8f),
+                ClipAnalysis.Ok(MakeClip("ok"), -22f, -6f),
                 ClipAnalysis.Silent(silent),
                 ClipAnalysis.Unanalyzable(broken, "streaming")
             }, -18f);
@@ -2033,8 +2034,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             var results = Solve(new[]
             {
-                ClipAnalysis.Ok(inside, -29f, -12f, -11.8f),   // raw = +11
-                ClipAnalysis.Ok(outside, -35f, -20f, -19.8f)   // raw = +17
+                ClipAnalysis.Ok(inside, -29f, -12f),   // raw = +11
+                ClipAnalysis.Ok(outside, -35f, -20f)   // raw = +17
             }, -18f);
 
             Assert.IsFalse(results.First(r => r.Clip == inside).IsOutlier);
@@ -2045,7 +2046,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         public void OutlierFlag_TriggersOnLargeNegativeRawGainToo()
         {
             var clip = MakeClip("blaring");
-            var results = Solve(new[] { ClipAnalysis.Ok(clip, -2f, -0.1f, 0f) }, -18f);
+            var results = Solve(new[] { ClipAnalysis.Ok(clip, -2f, -0.1f) }, -18f);
 
             Assert.AreEqual(-16f, results[0].RawGainDb, 1e-4f);
             Assert.IsTrue(results[0].IsOutlier);
@@ -2115,36 +2116,32 @@ namespace Hoppa.AudioBalance.Editor
         public readonly AudioClip Clip;
         public readonly ClipStatus Status;
         public readonly float Lufs;
-        public readonly float SamplePeakDb;
-        public readonly float TruePeakDb;
+        public readonly float PeakDb;
         public readonly string Reason;
 
         public ClipAnalysis(AudioClip clip, ClipStatus status, float lufs,
-            float samplePeakDb, float truePeakDb, string reason = null)
+            float peakDb, string reason = null)
         {
             Clip = clip;
             Status = status;
             Lufs = lufs;
-            SamplePeakDb = samplePeakDb;
-            TruePeakDb = truePeakDb;
+            PeakDb = peakDb;
             Reason = reason;
         }
 
-        public static ClipAnalysis Ok(AudioClip clip, float lufs, float samplePeakDb, float truePeakDb)
+        public static ClipAnalysis Ok(AudioClip clip, float lufs, float peakDb)
         {
-            return new ClipAnalysis(clip, ClipStatus.Ok, lufs, samplePeakDb, truePeakDb);
+            return new ClipAnalysis(clip, ClipStatus.Ok, lufs, peakDb);
         }
 
         public static ClipAnalysis Silent(AudioClip clip)
         {
-            return new ClipAnalysis(clip, ClipStatus.Silent, 0f,
-                AudioGainMath.MinDb, AudioGainMath.MinDb, "silent");
+            return new ClipAnalysis(clip, ClipStatus.Silent, 0f, AudioGainMath.MinDb, "silent");
         }
 
         public static ClipAnalysis Unanalyzable(AudioClip clip, string reason)
         {
-            return new ClipAnalysis(clip, ClipStatus.Unanalyzable, 0f,
-                AudioGainMath.MinDb, AudioGainMath.MinDb, reason);
+            return new ClipAnalysis(clip, ClipStatus.Unanalyzable, 0f, AudioGainMath.MinDb, reason);
         }
     }
 }
@@ -2203,10 +2200,18 @@ namespace Hoppa.AudioBalance.Editor
     ///
     /// The second line is the headroom pass. AudioSource.volume is hard-capped at 1.0, so a
     /// clip needing +6 dB simply cannot receive it -- the request silently does nothing and
-    /// the table no longer describes what you hear. Subtracting the maximum pins the loudest
-    /// clip at exactly 0 dB, preserves relative spacing exactly, and makes clipping
+    /// the table no longer describes what you hear. Subtracting the maximum pins the clip
+    /// that needed the MOST gain -- the quietest one relative to its target -- at exactly
+    /// 0 dB; every other clip is attenuated, and the clip loudest relative to its target is
+    /// attenuated most. Relative spacing is preserved exactly and clipping becomes
     /// structurally impossible rather than merely warned about. The cost is that overall
     /// output is quieter, which is compensated once on the master mixer.
+    ///
+    /// Note that <c>anchorLufs</c> appears in every raw gain and therefore
+    /// cancels exactly in the subtraction: FinalGainDb is provably independent of the
+    /// anchor's measured loudness. Relative placement between clips comes from the category
+    /// offsets alone. The anchor's only live effect here is on IsOutlier, which is computed
+    /// from the raw (pre-headroom) gain.
     /// </summary>
     public static class GainSolver
     {
@@ -2277,7 +2282,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 56/56 PASS (43 prior + 13 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 13 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -2297,6 +2302,8 @@ EOF
 )"
 ```
 
+> **Note (deviation #9):** this commit message is reproduced as it was actually committed. Its "pins the loudest clip at 0 dB" phrasing is backwards — the clip pinned at 0 dB is the *quietest* relative to its target. Left verbatim because it is a historical record of a shipped commit; the class docstring it described has since been corrected in the source file, and the rationale prose above has been corrected too.
+
 ---
 
 ### Task 8: Clip sample reader
@@ -2307,9 +2314,13 @@ EOF
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `ClipSampleReader.TryRead(AudioClip clip, out float[] interleaved, out string error) -> bool`; `ClipSampleReader.StreamingError` constant.
+- Produces: `ClipSampleReader.TryRead(AudioClip clip, out float[] interleaved, out string error) -> bool`; `ClipSampleReader.StreamingError` and `ClipSampleReader.LoadPendingError` constants.
 
 > Streaming clips return silence from `GetData`. Rather than mutating the project's import settings behind the user's back, those are reported with an actionable message.
+>
+> **`LoadAudioData()` is asynchronous.** A `true` return means the load was *queued*, not that decoding finished — so `loadState` is re-checked afterwards and `GetData` never runs unless it reads `Loaded`. A single re-check with an honest error, not polling: this is editor-time code, and a clip that is not ready is a reportable condition rather than something to block on.
+>
+> **Known, accepted test gap:** the Streaming rejection branch has no automated coverage. `AudioClip.Create` — the only way these tests build clips — always produces a fully-resident non-streaming clip; `Streaming` can only be set on an imported asset via its `AudioImporter`. Covering it would need a committed `.wav` fixture with its `.meta` pinned to Streaming. The lead chose to accept the gap and document it (2026-07-19) rather than put a binary asset in the package; the reasoning is recorded in the XML doc on `StreamingError` so a maintainer does not assume coverage exists.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2406,10 +2417,21 @@ namespace Hoppa.AudioBalance.Editor
                 return false;
             }
 
-            if (clip.loadState != AudioDataLoadState.Loaded && !clip.LoadAudioData())
+            // LoadAudioData() returning true only means the load was QUEUED, not that decoding
+            // finished. GetData must never run before loadState is actually Loaded.
+            if (clip.loadState != AudioDataLoadState.Loaded)
             {
-                error = "failed to load audio data";
-                return false;
+                if (!clip.LoadAudioData())
+                {
+                    error = "failed to load audio data";
+                    return false;
+                }
+
+                if (clip.loadState != AudioDataLoadState.Loaded)
+                {
+                    error = LoadPendingError;
+                    return false;
+                }
             }
 
             var samples = clip.samples * clip.channels;
@@ -2436,7 +2458,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 59/59 PASS (56 prior + 3 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 3 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
@@ -2463,17 +2485,24 @@ EOF
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessCacheTests.cs`
 
 **Interfaces:**
-- Consumes: `ClipStatus`.
+- Consumes: `ClipStatus`, `MeasureMode`.
 - Produces:
-  - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float SamplePeakDb`, `float TruePeakDb`
+  - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float PeakDb`
+  - `LoudnessCacheKey` — readonly struct with fields `string Guid`, `long Length`, `long Ticks`, `MeasureMode Mode`, and `bool IsValid` (false when `Guid` is null/empty — e.g. a procedural clip with no asset path). Public constructor for tests to build synthetic keys.
   - `LoudnessCache.Load(string path = null) -> LoudnessCache`
-  - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool`
-  - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)`
+  - `LoudnessCache.KeyFor(AudioClip clip, MeasureMode mode) -> LoudnessCacheKey` — **the single place that derives `Ticks`**, as `Math.Max(assetLastWriteTicks, metaLastWriteTicks)`. Production callers MUST use this (or `KeyForPaths`) instead of hand-assembling a key — see rationale below.
+  - `LoudnessCache.KeyForPaths(string guid, string assetPath, string metaPath, MeasureMode mode) -> LoudnessCacheKey` — the pure file-path form `KeyFor` delegates to; exists so the `.meta`-aware timestamp logic is directly testable against real temp files without an AssetDatabase-imported clip.
+  - `LoudnessCache.TryGet(LoudnessCacheKey key, out CachedLoudness value) -> bool` — returns a copy; mutating it cannot leak into the cache.
+  - `LoudnessCache.Put(LoudnessCacheKey key, CachedLoudness value)` — a null `value` or an invalid `key` is ignored rather than stored; the value is copied on the way in.
   - `LoudnessCache.Save()`
-  - `LoudnessCache.Clear()`
+  - `LoudnessCache.Clear()` — also deletes the on-disk file (and any orphan `.tmp`), not just the in-memory entries.
   - `LoudnessCache.DefaultPath` = `"Library/HoppaAudioBalance/loudness-cache.json"`
 
-> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, lastWriteTicks)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, ticks, mode)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+>
+> **Key derivation is structural, not a documented caller contract — amended mid-execution, 2026-07-20, lead-approved (round 2; supersedes the round-1 amendment below).** `Ticks` is the combined max of the source asset's AND its `.meta`'s last-write ticks, because what is actually measured is the decoded `AudioClip`, which is a product of `.meta` importer settings (Force To Mono, Quality, Sample Rate Override, ...), not just the source bytes. Round 1 fixed this as an XML-doc contract on the caller (Task 10) — but `LoudnessCache` already reads files throughout (`File.Exists`/`ReadAllText`/`WriteAllText`/`Delete`) and its asmdef is Editor-only, so `AssetDatabase` was always available here; there was no reason the derivation had to live outside this class, and a documented-but-unenforced contract left this plan free to also hand Task 10 a complete, wrong, copy-paste-ready derivation a few hundred lines later (see deviation #7 in Plan self-review) — which it did. Fix: `KeyFor`/`KeyForPaths` are the only places that compute `Ticks`; `TryGet`/`Put` take a `LoudnessCacheKey` and can no longer be handed loose, possibly-wrong `(guid, length, ticks)` primitives at all. The measure mode also moved onto the key struct as a real field (superseding deviation #2's mangled-guid-string approach — see deviation #7).
+
+> ⚠️ **The Steps 1/3/4 code blocks below are the ORIGINAL as-planned version and are SUPERSEDED.** They predate both round-1 and round-2 amendments above and use the old `(string guid, long length, long ticks)` API. Do not copy-paste them. The actually-shipped implementation uses `LoudnessCacheKey` / `LoudnessCache.KeyFor` / `KeyForPaths` as described in the interface block above — read the current source at `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessCache.cs` and `LoudnessCacheKey.cs` for the real API. Kept here only as a historical record of the task's starting point.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2515,8 +2544,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 Status = (int)ClipStatus.Ok,
                 Lufs = -21.5f,
-                SamplePeakDb = -3f,
-                TruePeakDb = -2.8f
+                PeakDb = -3f
             };
         }
 
@@ -2638,8 +2666,7 @@ namespace Hoppa.AudioBalance.Editor
     {
         public int Status;
         public float Lufs;
-        public float SamplePeakDb;
-        public float TruePeakDb;
+        public float PeakDb;
     }
 }
 ```
@@ -2788,7 +2815,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 68/68 PASS (59 prior + 9 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 9 new ones from this task.
 
 - [ ] **Step 6: Commit**
 
@@ -2815,9 +2842,9 @@ EOF
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/LoudnessAnalyzerTests.cs`
 
 **Interfaces:**
-- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `PeakMeter.ApproxTruePeakDb`, `LoudnessCache`, `ClipAnalysis`, `MeasureMode`.
+- Consumes: `ClipSampleReader.TryRead`, `LufsMeter.Measure`, `PeakMeter.SamplePeakDb`, `LoudnessCache`, `LoudnessCache.KeyFor`, `LoudnessCacheKey`, `ClipAnalysis`, `MeasureMode`.
 - Produces:
-  - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis`
+  - `LoudnessAnalyzer.Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache) -> ClipAnalysis` — internally calls `LoudnessCache.KeyFor(clip, mode)` for the cache key. Do **not** re-derive a guid/length/ticks identity by hand here — that duplication is exactly what produced the round-2 defect (see deviation #7 in Plan self-review). `LoudnessCache` owns key derivation entirely.
   - `LoudnessAnalyzer.FindClips(IEnumerable<string> projectRelativeFolders) -> List<AudioClip>`
 
 - [ ] **Step 1: Write the failing test**
@@ -2860,10 +2887,9 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var clip = MakeToneClip("tone", -6.0, 1.0);
 
-            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+            var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.MomentaryMax, null);
 
-            Assert.AreEqual(-6f, analysis.SamplePeakDb, 0.2f);
-            Assert.GreaterOrEqual(analysis.TruePeakDb, analysis.SamplePeakDb - 1e-3f);
+            Assert.AreEqual(-6f, analysis.PeakDb, 0.2f);
         }
 
         [Test]
@@ -2896,9 +2922,9 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 SignalFactory.Sine(-50.0, 4.0, 2, Rate)), 0);
 
             var integrated = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, null);
-            var shortTerm = LoudnessAnalyzer.Analyze(clip, MeasureMode.ShortTermMax, null);
+            var momentary = LoudnessAnalyzer.Analyze(clip, MeasureMode.MomentaryMax, null);
 
-            Assert.Greater(shortTerm.Lufs, integrated.Lufs);
+            Assert.Greater(momentary.Lufs, integrated.Lufs);
         }
 
         [Test]
@@ -2928,9 +2954,18 @@ Expected: compile errors — `LoudnessAnalyzer` does not exist.
 
 `Packages/com.hoppa.audiobalance/Editor/Analysis/LoudnessAnalyzer.cs`:
 
+> **Round-2 amendment (2026-07-20, lead-approved):** this code block previously re-derived a
+> cache identity by hand (a private `ResolveIdentity`/`AssetIdentity` pair stat'ing only the
+> asset file, mirrored below in the corrected form). That was a plan-authoring-time defect: it
+> silently dropped the `.meta` timestamp that Task 9's `LoudnessCache` fix (see deviation #7 in
+> Plan self-review) exists specifically to fold in, and — because Task 10 hadn't been implemented
+> yet when the defect was caught — it was purely a documentation bug, but a live one: the *next*
+> implementer to work this section top-to-bottom would have retyped it verbatim. `LoudnessCache`
+> now owns identity derivation completely (`KeyFor`/`KeyForPaths`); `LoudnessAnalyzer` must not
+> duplicate it.
+
 ```csharp
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -2946,29 +2981,26 @@ namespace Hoppa.AudioBalance.Editor
                 return ClipAnalysis.Unanalyzable(null, "clip is null");
             }
 
-            var identity = ResolveIdentity(clip);
+            // LoudnessCache.KeyFor is the ONLY place that derives the cache identity (guid,
+            // length, ticks, mode) -- it folds in the .meta timestamp as well as the asset's.
+            // Do not re-stat the asset file here; that duplication is exactly what produced the
+            // round-2 plan defect this section once contained.
+            var key = LoudnessCache.KeyFor(clip, mode);
 
-            // The mode is part of the cache key: the same clip measured Integrated and
-            // ShortTermMax are two different answers.
-            var cacheKey = identity.Guid == null ? null : $"{identity.Guid}:{(int)mode}";
-
-            if (cache != null && cacheKey != null &&
-                cache.TryGet(cacheKey, identity.Length, identity.Ticks, out var cached))
+            if (cache != null && key.IsValid && cache.TryGet(key, out var cached))
             {
-                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs,
-                    cached.SamplePeakDb, cached.TruePeakDb);
+                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs, cached.PeakDb);
             }
 
             var analysis = Measure(clip, mode);
 
-            if (cache != null && cacheKey != null)
+            if (cache != null && key.IsValid)
             {
-                cache.Put(cacheKey, identity.Length, identity.Ticks, new CachedLoudness
+                cache.Put(key, new CachedLoudness
                 {
                     Status = (int)analysis.Status,
                     Lufs = analysis.Lufs,
-                    SamplePeakDb = analysis.SamplePeakDb,
-                    TruePeakDb = analysis.TruePeakDb
+                    PeakDb = analysis.PeakDb
                 });
             }
 
@@ -3033,50 +3065,7 @@ namespace Hoppa.AudioBalance.Editor
             return ClipAnalysis.Ok(
                 clip,
                 loudness.Lufs,
-                PeakMeter.SamplePeakDb(samples),
-                PeakMeter.ApproxTruePeakDb(samples, clip.channels));
-        }
-
-        private readonly struct AssetIdentity
-        {
-            public readonly string Guid;
-            public readonly long Length;
-            public readonly long Ticks;
-
-            public AssetIdentity(string guid, long length, long ticks)
-            {
-                Guid = guid;
-                Length = length;
-                Ticks = ticks;
-            }
-        }
-
-        /// <summary>
-        /// Identity for cache keying. Procedural clips created in tests have no asset path,
-        /// so they get a null guid and simply bypass the cache.
-        /// </summary>
-        private static AssetIdentity ResolveIdentity(AudioClip clip)
-        {
-            var path = AssetDatabase.GetAssetPath(clip);
-            if (string.IsNullOrEmpty(path))
-            {
-                return new AssetIdentity(null, 0, 0);
-            }
-
-            var guid = AssetDatabase.AssetPathToGUID(path);
-            var absolute = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? string.Empty, path);
-
-            try
-            {
-                var info = new FileInfo(absolute);
-                return info.Exists
-                    ? new AssetIdentity(guid, info.Length, info.LastWriteTimeUtc.Ticks)
-                    : new AssetIdentity(guid, 0, 0);
-            }
-            catch (IOException)
-            {
-                return new AssetIdentity(guid, 0, 0);
-            }
+                PeakMeter.SamplePeakDb(samples));
         }
     }
 }
@@ -3085,7 +3074,7 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 75/75 PASS (68 prior + 7 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 7 new ones from this task.
 
 - [ ] **Step 5: Commit**
 
@@ -3094,9 +3083,13 @@ git add Packages/com.hoppa.audiobalance
 git commit -m "$(cat <<'EOF'
 feat(audio): analyzer orchestration (decode -> measure -> cache)
 
-The measure mode is folded into the cache key: the same clip measured
-Integrated and ShortTermMax are two different answers. Procedural clips
-with no asset path bypass the cache rather than colliding on an empty guid.
+Cache identity comes entirely from LoudnessCache.KeyFor(clip, mode) -- the
+measure mode is a real field on the key struct (the same clip measured
+Integrated and MomentaryMax are two different answers), and Ticks already
+folds in the .meta timestamp, not just the asset's. LoudnessAnalyzer does
+not re-derive any part of the identity itself. Procedural clips with no
+asset path get an invalid key and bypass the cache rather than colliding on
+an empty guid.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -3117,10 +3110,14 @@ EOF
 - Consumes: `AudioBalanceProfile`, `LoudnessAnalyzer`, `LoudnessCache`, `GainSolver`, `ClipAnalysis`, `GainResult`.
 - Produces:
   - `AudioBalanceRow` — class with fields `AudioClip Clip`, `ClipAnalysis Analysis`, `GainResult Gain`
-  - `AudioBalanceSession` — `Rows` (`IReadOnlyList<AudioBalanceRow>`), `AnchorLufs` (float), `AnchorStatus` (`ClipStatus`), `Analyze(AudioBalanceProfile profile, LoudnessCache cache)`, `Resolve(AudioBalanceProfile profile)`
+  - `AudioBalanceSession` — `Rows` (`IReadOnlyList<AudioBalanceRow>`), `AnchorLufs` (float), `AnchorStatus` (`ClipStatus`), `bool Analyze(AudioBalanceProfile profile, LoudnessCache cache, Func<AudioClip, int, int, bool> onProgress = null)`, `Resolve(AudioBalanceProfile profile)`
   - `AudioBalanceWindow.Open()` (menu `Window ▸ Hoppa ▸ Audio Balance`)
 
 > Analysis lives in `AudioBalanceSession`, not in the window, precisely so it can be tested without opening an `EditorWindow`. The window is a thin renderer over it.
+
+> **`Analyze` takes a progress callback (deviation #14).** `onProgress(clip, index, total)` is invoked *before* each clip is measured and returns `true` to cancel. `Analyze` returns `false` if it was cancelled, `true` otherwise. This is an API change against the original plan, which had `Analyze` return `void` — it is required because the original window drew a progress bar in a loop that did no work and then called a single blocking `Analyze`, so the bar swept to 100% instantly and Cancel could not stop anything. The callback is the only way the window can report real progress or honour a cancel.
+
+> **When to call `Analyze` vs `Resolve` (deviation #10).** `Resolve` re-runs `GainSolver` over the *existing* measurements. That is correct **only** for the trim slider. A category carries its own `MeasureMode` (shipped defaults: Music = `Integrated`, SFX/UI = `MomentaryMax`), so changing a clip's category, editing a category's mode, or bulk-assigning changes *how the clip must be measured* — `Resolve` cannot change `Analysis.Lufs` and would silently keep a measurement taken under the old mode. Every category or mode edit must call `Analyze(profile, cache)`. That is nearly free: `Mode` is a field on `LoudnessCacheKey`, so every clip whose effective mode did not change is a straight cache hit and is never re-decoded.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3189,15 +3186,26 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void Analyze_SolvesGainsSoTheLoudestClipSitsAtZeroDb()
+        public void Analyze_PinsTheQuietestClipAtZeroDbAndAttenuatesTheLouderOne()
         {
-            var anchor = Tone("anchor", -23.0);
+            // Both clips are in "Music" (offset 0), so the only thing separating them is
+            // their measured loudness. -12 dBFS is 11 dB louder than -23, so once the
+            // headroom pass runs the quiet clip must pin at 0 and the loud one must sit
+            // ~11 dB below it. Asserting only Max(...) == 0 would be vacuous: GainSolver
+            // subtracts the max from every raw gain, so that holds for ANY input.
+            var quiet = Tone("anchor", -23.0);
             var loud = Tone("loud", -12.0);
             var session = new AudioBalanceSession();
 
-            session.Analyze(Profile(anchor, loud), null);
+            session.Analyze(Profile(quiet, loud), null);
 
-            Assert.AreEqual(0f, session.Rows.Max(r => r.Gain.FinalGainDb), 1e-3f);
+            var quietGain = session.Rows.First(r => r.Clip.name == "anchor").Gain.FinalGainDb;
+            var loudGain = session.Rows.First(r => r.Clip.name == "loud").Gain.FinalGainDb;
+
+            Assert.AreEqual(0f, quietGain, 0.3f,
+                "The clip needing the most gain is the one pinned at 0 dB.");
+            Assert.AreEqual(-11f, loudGain, 0.5f,
+                "The louder clip is attenuated by exactly the loudness difference.");
         }
 
         [Test]
@@ -3240,7 +3248,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void Resolve_RecomputesGainsWithoutReMeasuring()
+        public void Resolve_AppliesATrimChangeWithoutReMeasuring()
         {
             var anchor = Tone("anchor", -23.0);
             var other = Tone("other", -23.0);
@@ -3248,20 +3256,150 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var session = new AudioBalanceSession();
             session.Analyze(profile, null);
 
+            var measuredBefore = session.Rows.First(r => r.Clip.name == "other").Analysis.Lufs;
             var before = session.Rows.First(r => r.Clip.name == "other").Gain.FinalGainDb;
 
-            // Move "other" into a category 6 dB quieter and re-solve only.
-            profile.SettingsFor(other).Category = "UI";
+            // A trim is the ONE edit Resolve is correct for: it moves the target only,
+            // and cannot change how the clip must be measured.
+            profile.SettingsFor(other).TrimDb = -6f;
             session.Resolve(profile);
 
             var after = session.Rows.First(r => r.Clip.name == "other").Gain.FinalGainDb;
+            var measuredAfter = session.Rows.First(r => r.Clip.name == "other").Analysis.Lufs;
 
-            Assert.Less(after, before - 5f,
-                "Changing a category must shift the solved gain without a re-measure.");
+            Assert.Less(after, before - 5f, "A -6 dB trim must lower the solved gain.");
+            Assert.AreEqual(measuredBefore, measuredAfter, 1e-4f,
+                "Resolve must not disturb the measurement.");
+        }
+
+        [Test]
+        public void ChangingACategoryWithADifferentMeasureMode_ReMeasuresTheClip()
+        {
+            // "Music" is Integrated; "SFX" is MomentaryMax. A clip whose level is not
+            // constant reads differently under the two modes, so moving it between these
+            // categories MUST re-measure -- Resolve alone would keep the Integrated
+            // number and bake a gain derived from the wrong measurement.
+            var anchor = Tone("anchor", -23.0);
+            var burst = Burst("burst");
+            var profile = Profile(anchor);
+            profile.SettingsFor(burst).Category = "Music";
+
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            var integrated = session.Rows.First(r => r.Clip.name == "burst").Analysis.Lufs;
+
+            profile.SettingsFor(burst).Category = "SFX";
+            session.Analyze(profile, null);
+
+            var momentary = session.Rows.First(r => r.Clip.name == "burst").Analysis.Lufs;
+
+            Assert.AreNotEqual(integrated, momentary, 0.5f,
+                "Switching to a category with a different MeasureMode must re-measure. " +
+                "If these are equal, the category edit path is calling Resolve, not Analyze.");
+            Assert.Greater(momentary, integrated,
+                "MomentaryMax tracks the loud burst; Integrated is dragged down by the tail.");
+        }
+
+        [Test]
+        public void Resolve_LeavesTheMeasurementUntouchedEvenWhenTheModeWouldHaveChanged()
+        {
+            // Guards the inverse: Resolve is honest about what it does NOT do. This is the
+            // reason the window must not call Resolve on a category edit.
+            var anchor = Tone("anchor", -23.0);
+            var burst = Burst("burst");
+            var profile = Profile(anchor);
+            profile.SettingsFor(burst).Category = "Music";
+
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            var before = session.Rows.First(r => r.Clip.name == "burst").Analysis.Lufs;
+
+            profile.SettingsFor(burst).Category = "SFX";
+            session.Resolve(profile);
+
+            Assert.AreEqual(before, session.Rows.First(r => r.Clip.name == "burst").Analysis.Lufs,
+                1e-4f, "Resolve re-solves; it never re-measures.");
+        }
+
+        [Test]
+        public void Analyze_WithNoAnchor_DoesNotFlagEveryRowAsAnOutlier()
+        {
+            // With no anchor there is no reference, so no outlier judgement is meaningful.
+            // The naive fallback (anchorLufs = 0, i.e. digital full scale) would give
+            // typical -20 LUFS content raw ~= +20 dB and trip the 12 dB threshold on
+            // every healthy row -- a wall of markers on a fresh profile.
+            var a = Tone("a", -20.0);
+            var b = Tone("b", -22.0);
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            profile.SettingsFor(a).Category = "Music";
+            profile.SettingsFor(b).Category = "Music";
+
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            Assert.AreEqual(ClipStatus.Unanalyzable, session.AnchorStatus);
+            CollectionAssert.IsEmpty(
+                session.Rows.Where(r => r.Gain.IsOutlier).Select(r => r.Clip.name).ToArray(),
+                "No anchor means no outlier reference, so nothing may be flagged.");
+        }
+
+        [Test]
+        public void Analyze_WithAnAnchor_StillFlagsAGenuineOutlier()
+        {
+            // The suppression above must not disable the check when an anchor IS present.
+            var anchor = Tone("anchor", -20.0);
+            var broken = Tone("broken", -60.0);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(Profile(anchor, broken), null);
+
+            Assert.IsTrue(session.Rows.First(r => r.Clip.name == "broken").Gain.IsOutlier,
+                "40 dB below the anchor is well past the 12 dB outlier threshold.");
+        }
+
+        [Test]
+        public void Analyze_ReportsProgressAndHonoursCancel()
+        {
+            var anchor = Tone("anchor", -23.0);
+            var profile = Profile(anchor, Tone("b", -20.0), Tone("c", -20.0));
+            var session = new AudioBalanceSession();
+
+            var seen = 0;
+            var completed = session.Analyze(profile, null, (clip, index, total) =>
+            {
+                seen++;
+                return true; // cancel at the first clip
+            });
+
+            Assert.IsFalse(completed, "Analyze must report that it was cancelled.");
+            Assert.AreEqual(1, seen, "Cancelling at the first clip must stop the work.");
         }
     }
 }
 ```
+
+> `Burst` is a second signal helper used by the mode-sensitivity tests — a short loud
+> attack followed by a long quiet tail, which is exactly the shape that reads differently
+> under `Integrated` (gated, dragged down by the tail) and `MomentaryMax` (tracks the
+> attack). Add it beside `Tone`:
+>
+> ```csharp
+>         private static AudioClip Burst(string name)
+>         {
+>             // 0.5 s at -12 dBFS, then 3.5 s at -50 dBFS. This is the same shape the
+>             // Task 4 MomentaryMax tests use, so the expected split is already proven.
+>             var all = SignalFactory.Concat(
+>                 SignalFactory.Sine(-12.0, 0.5, 2, Rate),
+>                 SignalFactory.Sine(-50.0, 3.5, 2, Rate));
+>
+>             var clip = AudioClip.Create(name, all.Length / 2, 2, Rate, false);
+>             clip.SetData(all, 0);
+>             return clip;
+>         }
+> ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -3292,6 +3430,7 @@ namespace Hoppa.AudioBalance.Editor
 `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceSession.cs`:
 
 ```csharp
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -3303,6 +3442,15 @@ namespace Hoppa.AudioBalance.Editor
     /// </summary>
     public sealed class AudioBalanceSession
     {
+        /// <summary>
+        /// Used when no usable anchor exists. The value is arithmetically irrelevant to
+        /// FinalGainDb -- the anchor term cancels in GainSolver's headroom subtraction -- but
+        /// it does feed RawGainDb, and therefore the outlier check. We suppress the outlier
+        /// flag outright in that case (see Resolve), so this constant only keeps RawGainDb in
+        /// a sane range for the readout rather than parking it 20 dB off.
+        /// </summary>
+        private const float NoAnchorReferenceLufs = -23f;
+
         private readonly List<AudioBalanceRow> _rows = new List<AudioBalanceRow>();
 
         public IReadOnlyList<AudioBalanceRow> Rows => _rows;
@@ -3311,8 +3459,26 @@ namespace Hoppa.AudioBalance.Editor
 
         public ClipStatus AnchorStatus { get; private set; } = ClipStatus.Unanalyzable;
 
-        /// <summary>Measures the anchor and every profile clip, then solves gains.</summary>
-        public void Analyze(AudioBalanceProfile profile, LoudnessCache cache)
+        /// <summary>
+        /// Measures the anchor and every profile clip, then solves gains.
+        ///
+        /// <para>
+        /// This is the correct entry point for ANY edit that can change how a clip is
+        /// measured -- a category assignment, a bulk assign, or a category's MeasureMode.
+        /// It is cheap to call: <see cref="LoudnessCacheKey"/> carries the mode, so a clip
+        /// whose effective mode did not change is a cache hit and is never re-decoded.
+        /// </para>
+        ///
+        /// <para>
+        /// <paramref name="onProgress"/> is invoked before each clip is measured with
+        /// (clip, zero-based index, total) and returns true to cancel. Returns false if the
+        /// run was cancelled, true if it completed. On cancel, rows measured so far are kept
+        /// and still solved, so the table shows partial-but-consistent results rather than
+        /// blanking out.
+        /// </para>
+        /// </summary>
+        public bool Analyze(AudioBalanceProfile profile, LoudnessCache cache,
+            Func<AudioClip, int, int, bool> onProgress = null)
         {
             _rows.Clear();
             AnchorLufs = 0f;
@@ -3320,7 +3486,7 @@ namespace Hoppa.AudioBalance.Editor
 
             if (profile == null)
             {
-                return;
+                return true;
             }
 
             if (profile.Anchor != null)
@@ -3332,28 +3498,51 @@ namespace Hoppa.AudioBalance.Editor
                 AnchorLufs = anchorAnalysis.Lufs;
             }
 
+            // Snapshot first: profile.ModeFor -> SettingsFor can append to profile.Clips,
+            // and mutating the list we are iterating would throw.
+            var pending = new List<AudioClip>();
             foreach (var settings in profile.Clips)
             {
-                if (settings?.Clip == null)
+                if (settings?.Clip != null)
                 {
-                    continue;
+                    pending.Add(settings.Clip);
+                }
+            }
+
+            var completed = true;
+
+            for (var i = 0; i < pending.Count; i++)
+            {
+                var clip = pending[i];
+
+                if (onProgress != null && onProgress(clip, i, pending.Count))
+                {
+                    completed = false;
+                    break;
                 }
 
                 _rows.Add(new AudioBalanceRow
                 {
-                    Clip = settings.Clip,
-                    Analysis = LoudnessAnalyzer.Analyze(
-                        settings.Clip, profile.ModeFor(settings.Clip), cache)
+                    Clip = clip,
+                    Analysis = LoudnessAnalyzer.Analyze(clip, profile.ModeFor(clip), cache)
                 });
             }
 
             Resolve(profile);
+            return completed;
         }
 
         /// <summary>
-        /// Re-solves gains from the existing measurements. Called when a category offset or a
-        /// trim changes -- those affect the target, not the measurement, so re-decoding every
-        /// clip would be wasted work.
+        /// Re-solves gains from the existing measurements.
+        ///
+        /// <para>
+        /// Correct for the trim slider ONLY. A trim moves the target and cannot change how
+        /// the clip must be measured. A category edit is a different animal: a category
+        /// carries its own <see cref="MeasureMode"/>, so changing a clip's category (or a
+        /// category's mode) changes the measurement itself, which this method cannot do --
+        /// it would silently keep the old-mode number and bake a wrong gain. Route those
+        /// edits through <see cref="Analyze"/> instead.
+        /// </para>
         /// </summary>
         public void Resolve(AudioBalanceProfile profile)
         {
@@ -3368,15 +3557,29 @@ namespace Hoppa.AudioBalance.Editor
                 analyses.Add(row.Analysis);
             }
 
+            var anchorOk = AnchorStatus == ClipStatus.Ok;
+
             var solved = GainSolver.Solve(
                 analyses,
-                AnchorStatus == ClipStatus.Ok ? AnchorLufs : 0f,
+                anchorOk ? AnchorLufs : NoAnchorReferenceLufs,
                 profile.OffsetDbFor,
                 profile.TrimDbFor);
 
             for (var i = 0; i < _rows.Count && i < solved.Count; i++)
             {
-                _rows[i].Gain = solved[i];
+                var result = solved[i];
+
+                // With no usable anchor there is no reference, so "this clip is 12 dB from
+                // its target" is not a judgement we are entitled to make. Suppress rather
+                // than mislead: an unexplained wall of outlier markers on a fresh profile
+                // reads as a broken tool.
+                if (!anchorOk && result.IsOutlier)
+                {
+                    result = new GainResult(result.Clip, result.Status,
+                        result.RawGainDb, result.FinalGainDb, false);
+                }
+
+                _rows[i].Gain = result;
             }
         }
 
@@ -3405,13 +3608,32 @@ namespace Hoppa.AudioBalance.Editor
     /// Audio Balance panel. Laid out with absolute GUI.* rects rather than GUILayout: a
     /// GUILayout island whose buttons open modal dialogs corrupts the layout stack when the
     /// modal throws ExitGUIException, which is exactly the crash class LevelEditorWindow hit.
+    ///
+    /// <para>
+    /// That immunity is what makes it safe to call EditorUtility.OpenFolderPanel and
+    /// DisplayDialog from inside OnGUI here (see AddFolder) -- with no layout stack to
+    /// corrupt, an ExitGUIException unwinding through this OnGUI has nothing to leave
+    /// inconsistent. The convention still holds for anything added later: after a modal
+    /// that mutates state the GUI is about to keep reading, call GUIUtility.ExitGUI() to
+    /// abandon the rest of the frame rather than drawing against half-changed state. Any
+    /// future GUILayout block in this window would forfeit the immunity entirely.
+    /// </para>
     /// </summary>
     public sealed class AudioBalanceWindow : EditorWindow
     {
         private const float ToolbarHeight = 24f;
         private const float RowHeight = 20f;
         private const float Pad = 6f;
-        private const float CategoryBlockHeight = 130f;
+
+        /// <summary>
+        /// Height of the categories box, computed rather than fixed. The block is a header
+        /// row, one row per category, and the Add Category button; at RowHeight = 20 a fixed
+        /// 130f overflowed at just FIVE categories (4 + 20 + 20n + 18 needs 142f at n = 5),
+        /// spilling over the clip table with overlapping click rects. The window ships an
+        /// "Add Category" button and defaults to three, so that is two clicks away.
+        /// </summary>
+        private float CategoryBlockHeight =>
+            RowHeight * ((_profile?.Categories?.Count ?? 0) + 2) + 10f;
 
         private AudioBalanceProfile _profile;
         private readonly AudioBalanceSession _session = new AudioBalanceSession();
@@ -3445,9 +3667,11 @@ namespace Hoppa.AudioBalance.Editor
 
             if (_profile == null)
             {
+                // ASCII only in IMGUI captions: default-font glyph coverage is not
+                // guaranteed, and a blank caption is indistinguishable from a broken one.
                 GUI.Label(new Rect(Pad, y, position.width - Pad * 2f, 40f),
                     "Assign an Audio Balance Profile to begin.\n" +
-                    "Create one via Assets ▸ Create ▸ Hoppa ▸ Audio ▸ Audio Balance Profile.");
+                    "Create one via Assets > Create > Hoppa > Audio > Audio Balance Profile.");
                 return;
             }
 
@@ -3475,6 +3699,9 @@ namespace Hoppa.AudioBalance.Editor
             {
                 _profile = picked;
                 _session.Clear();
+
+                // Task 12 adds a _selected set here too -- see ClearSelection() in that task.
+                // Anything holding onto clips from the old profile MUST be dropped here.
             }
 
             x += 226f;
@@ -3523,7 +3750,7 @@ namespace Hoppa.AudioBalance.Editor
             GUI.Box(rect, GUIContent.none);
 
             var y = rect.y + 4f;
-            GUI.Label(new Rect(rect.x + 6f, y, 200f, RowHeight), "Categories (dB vs anchor)");
+            GUI.Label(new Rect(rect.x + 6f, y, 240f, RowHeight), "Categories (offset dB)");
             y += RowHeight;
 
             for (var i = 0; i < _profile.Categories.Count; i++)
@@ -3531,7 +3758,14 @@ namespace Hoppa.AudioBalance.Editor
                 var category = _profile.Categories[i];
                 var x = rect.x + 6f;
 
-                var name = EditorGUI.TextField(new Rect(x, y, 120f, RowHeight - 2f), category.Name);
+                // BeginChangeCheck rather than comparing values every frame: a raw
+                // comparison fires Undo.RecordObject on EVERY OnGUI pass where the value
+                // differs, so one drag of a field produces dozens of undo entries and
+                // re-runs the solver for each. Commit once, when the edit ends.
+                EditorGUI.BeginChangeCheck();
+
+                var name = EditorGUI.DelayedTextField(
+                    new Rect(x, y, 120f, RowHeight - 2f), category.Name);
                 x += 126f;
 
                 var offset = EditorGUI.FloatField(new Rect(x, y, 60f, RowHeight - 2f), category.OffsetDb);
@@ -3540,15 +3774,29 @@ namespace Hoppa.AudioBalance.Editor
                 var mode = (MeasureMode)EditorGUI.EnumPopup(
                     new Rect(x, y, 130f, RowHeight - 2f), category.Mode);
 
-                if (name != category.Name || !Mathf.Approximately(offset, category.OffsetDb) ||
-                    mode != category.Mode)
+                if (EditorGUI.EndChangeCheck())
                 {
+                    var modeChanged = mode != category.Mode;
+                    var nameChanged = name != category.Name;
+
                     Undo.RecordObject(_profile, "Edit Audio Category");
                     category.Name = name;
                     category.OffsetDb = offset;
                     category.Mode = mode;
                     EditorUtility.SetDirty(_profile);
-                    _session.Resolve(_profile);
+
+                    // A mode change changes the MEASUREMENT, which Resolve cannot do. A name
+                    // change re-points every clip that referenced the old name, which can
+                    // change their effective mode too. Both must re-analyze; the cache makes
+                    // it near-free for any clip whose mode did not actually move.
+                    if (modeChanged || nameChanged)
+                    {
+                        RunAnalysis();
+                    }
+                    else
+                    {
+                        _session.Resolve(_profile);
+                    }
                 }
 
                 y += RowHeight;
@@ -3642,23 +3890,20 @@ namespace Hoppa.AudioBalance.Editor
 
             try
             {
-                var total = Mathf.Max(1, _profile.Clips.Count);
-                for (var i = 0; i < _profile.Clips.Count; i++)
+                // The progress bar is driven BY the analysis, not alongside it. An earlier
+                // revision ran a display-only loop and then called Analyze once, so the bar
+                // swept to 100% instantly, the editor froze with no feedback, and Cancel
+                // exited only the display loop while the real work ran to completion.
+                var completed = _session.Analyze(_profile, _cache, (clip, index, total) =>
+                    EditorUtility.DisplayCancelableProgressBar(
+                        "Audio Balance",
+                        $"Analyzing {clip.name}  ({index + 1}/{total})",
+                        total == 0 ? 0f : index / (float)total));
+
+                if (!completed)
                 {
-                    var clip = _profile.Clips[i]?.Clip;
-                    if (clip == null)
-                    {
-                        continue;
-                    }
-
-                    if (EditorUtility.DisplayCancelableProgressBar(
-                            "Audio Balance", $"Analyzing {clip.name}", i / (float)total))
-                    {
-                        break;
-                    }
+                    ShowNotification(new GUIContent("Analysis cancelled - showing partial results"));
                 }
-
-                _session.Analyze(_profile, _cache);
             }
             finally
             {
@@ -3675,11 +3920,13 @@ namespace Hoppa.AudioBalance.Editor
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 82/82 PASS (75 prior + 7 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 12 new ones from this task.
 
 - [ ] **Step 7: Open the window and confirm it renders**
 
 Open `Window ▸ Hoppa ▸ Audio Balance` in the Unity Editor. Confirm: the profile field renders, the empty-state message appears with no profile assigned, and no console errors or layout exceptions occur.
+
+Then add categories with the **Add Category** button until there are six. Confirm the categories box grows to fit them and never overlaps the clip table below it — a fixed-height box overflowed at five.
 
 - [ ] **Step 8: Commit**
 
@@ -3712,17 +3959,20 @@ EOF
 - Consumes: `AudioBalanceRow`, `ClipStatus`, `AudioBalanceProfile`.
 - Produces:
   - `enum ClipSortMode { Name, Loudness, Gain, Category }`
-  - `ClipListView.BuildVisible(IReadOnlyList<AudioBalanceRow> rows, string filter, ClipSortMode sort, bool ascending, AudioBalanceProfile profile) -> List<AudioBalanceRow>`
+  - `ClipListView.BuildVisible(IReadOnlyList<AudioBalanceRow> rows, string filter, ClipSortMode sort, bool ascending, Func<AudioBalanceRow, string> categoryOf) -> List<AudioBalanceRow>`
   - `ClipListView.StatusIcon(AudioBalanceRow row) -> string`
   - `ClipListView.BulkAssignCategory(IEnumerable<AudioBalanceRow> rows, AudioBalanceProfile profile, string category)`
 
 > Filtering and sorting are pure functions over the row list, so they test directly. Only the drawing lives in the window.
+
+> **`BuildVisible` takes a category lookup, not the profile (deviation #11).** The original signature took `AudioBalanceProfile` and called `profile.SettingsFor(row.Clip)` to sort by category. `SettingsFor` **appends a new `ClipSettings` to the asset on a miss** — so a function documented as pure was writing to a `ScriptableObject` from inside `OnGUI`, with no `Undo.RecordObject` and no `EditorUtility.SetDirty`. Those writes are not undoable and not reliably persisted, but they *are* picked up by any `AssetDatabase.SaveAssets()` — which `GainTableWriter.Write` calls. It was also O(n²) per repaint (`SettingsFor` is a linear scan, once per row), roughly 250k comparisons at 500 clips in the sort alone and again in the row drawing. Settings are now resolved **once**, outside the render path, into a dictionary the window rebuilds only when the profile or row set actually changes; `BuildVisible` receives a read-only lookup and genuinely cannot mutate anything.
 
 - [ ] **Step 1: Write the failing test**
 
 `Packages/com.hoppa.audiobalance/Tests/Editor/ClipListViewTests.cs`:
 
 ```csharp
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hoppa.AudioBalance.Editor;
@@ -3741,8 +3991,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 Clip = clip,
                 Analysis = status == ClipStatus.Ok
-                    ? ClipAnalysis.Ok(clip, lufs, -3f, -2.8f)
-                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                    ? ClipAnalysis.Ok(clip, lufs, -3f)
+                    : new ClipAnalysis(clip, status, 0f, -80f, "reason"),
                 Gain = new GainResult(clip, status, gainDb, gainDb, outlier)
             };
         }
@@ -3759,12 +4009,24 @@ namespace Hoppa.AudioBalance.Editor.Tests
             return profile;
         }
 
+        /// <summary>
+        /// The read-only category lookup BuildVisible now takes. Resolving settings up front
+        /// is exactly what the window does -- BuildVisible must not be able to touch the
+        /// profile at all.
+        /// </summary>
+        private static Func<AudioBalanceRow, string> Lookup(AudioBalanceProfile profile)
+        {
+            return row => profile == null || row?.Clip == null
+                ? string.Empty
+                : profile.SettingsFor(row.Clip)?.Category ?? string.Empty;
+        }
+
         [Test]
         public void BuildVisible_WithNoFilter_ReturnsEveryRow()
         {
             var rows = new List<AudioBalanceRow> { Row("kick", -20f, -3f), Row("snare", -18f, -1f) };
 
-            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, Profile(rows.ToArray()));
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, Lookup(Profile(rows.ToArray())));
 
             Assert.AreEqual(2, visible.Count);
         }
@@ -3774,7 +4036,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
         {
             var rows = new List<AudioBalanceRow> { Row("Kick_Heavy", -20f, -3f), Row("snare", -18f, -1f) };
 
-            var visible = ClipListView.BuildVisible(rows, "kick", ClipSortMode.Name, true, Profile(rows.ToArray()));
+            var visible = ClipListView.BuildVisible(rows, "kick", ClipSortMode.Name, true, Lookup(Profile(rows.ToArray())));
 
             Assert.AreEqual(1, visible.Count);
             Assert.AreEqual("Kick_Heavy", visible[0].Clip.name);
@@ -3786,8 +4048,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var rows = new List<AudioBalanceRow> { Row("zebra", -20f, -3f), Row("apple", -18f, -1f) };
             var profile = Profile(rows.ToArray());
 
-            var ascending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, profile);
-            var descending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, false, profile);
+            var ascending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, true, Lookup(profile));
+            var descending = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Name, false, Lookup(profile));
 
             Assert.AreEqual("apple", ascending[0].Clip.name);
             Assert.AreEqual("zebra", descending[0].Clip.name);
@@ -3799,7 +4061,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var rows = new List<AudioBalanceRow> { Row("loud", -12f, -6f), Row("quiet", -30f, 0f) };
 
             var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Loudness, true,
-                Profile(rows.ToArray()));
+                Lookup(Profile(rows.ToArray())));
 
             Assert.AreEqual("quiet", visible[0].Clip.name, "Ascending loudness puts the quietest first.");
         }
@@ -3810,7 +4072,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var rows = new List<AudioBalanceRow> { Row("a", -20f, -1f), Row("b", -20f, -12f) };
 
             var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Gain, true,
-                Profile(rows.ToArray()));
+                Lookup(Profile(rows.ToArray())));
 
             Assert.AreEqual("b", visible[0].Clip.name);
         }
@@ -3825,7 +4087,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
             profile.SettingsFor(ui.Clip).Category = "UI";
 
             var visible = ClipListView.BuildVisible(new List<AudioBalanceRow> { ui, music },
-                string.Empty, ClipSortMode.Category, true, profile);
+                string.Empty, ClipSortMode.Category, true, Lookup(profile));
 
             Assert.AreEqual("Music", profile.SettingsFor(visible[0].Clip).Category);
         }
@@ -3836,10 +4098,49 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var rows = new List<AudioBalanceRow> { Row("first", -20f, -3f), Row("second", -20f, -3f) };
 
             var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Loudness, true,
-                Profile(rows.ToArray()));
+                Lookup(Profile(rows.ToArray())));
 
             Assert.AreEqual("first", visible[0].Clip.name);
             Assert.AreEqual("second", visible[1].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_SortIsStableForEqualKeysWhenDescendingToo()
+        {
+            // The regression this pins: an earlier revision sorted ascending and then called
+            // List.Reverse() to get descending. Reverse inverts tie GROUPS as well as the
+            // overall order, so two rows with equal keys came back in reverse discovery
+            // order -- stable ascending, unstable descending. Only the ascending case was
+            // ever tested, so it survived review.
+            var rows = new List<AudioBalanceRow> { Row("first", -20f, -3f), Row("second", -20f, -3f) };
+
+            var visible = ClipListView.BuildVisible(rows, string.Empty, ClipSortMode.Loudness, false,
+                Lookup(Profile(rows.ToArray())));
+
+            Assert.AreEqual("first", visible[0].Clip.name,
+                "Equal keys must keep discovery order in BOTH directions.");
+            Assert.AreEqual("second", visible[1].Clip.name);
+        }
+
+        [Test]
+        public void BuildVisible_DoesNotMutateTheProfile()
+        {
+            // BuildVisible is documented as pure. It used to call profile.SettingsFor(),
+            // which APPENDS a ClipSettings on a miss -- writing to the asset from inside
+            // OnGUI. Passing a lookup instead makes that structurally impossible; this test
+            // fails loudly if anyone reintroduces a profile parameter.
+            var known = Row("known", -20f, -3f);
+            var stranger = Row("stranger", -20f, -3f);
+            var profile = Profile(known);
+            var countBefore = profile.Clips.Count;
+
+            ClipListView.BuildVisible(
+                new List<AudioBalanceRow> { known, stranger },
+                string.Empty, ClipSortMode.Category, true,
+                row => "Music");
+
+            Assert.AreEqual(countBefore, profile.Clips.Count,
+                "Building the visible list must not add settings for unknown clips.");
         }
 
         [Test]
@@ -3921,6 +4222,15 @@ namespace Hoppa.AudioBalance.Editor
     /// <summary>
     /// Filtering, sorting and bulk edits for the clip table. Kept as pure functions over the
     /// row list so they test without any UI.
+    ///
+    /// <para>
+    /// <c>BuildVisible</c> takes a <c>categoryOf</c> lookup rather than the profile on
+    /// purpose. It runs on every OnGUI event, and <c>AudioBalanceProfile.SettingsFor</c>
+    /// appends a new <c>ClipSettings</c> on a miss -- so taking the profile made a
+    /// "pure" function write to a ScriptableObject during rendering, without Undo and
+    /// without SetDirty. The window resolves settings once, outside the render path, and
+    /// passes a read-only lookup here.
+    /// </para>
     /// </summary>
     public static class ClipListView
     {
@@ -3929,7 +4239,7 @@ namespace Hoppa.AudioBalance.Editor
             string filter,
             ClipSortMode sort,
             bool ascending,
-            AudioBalanceProfile profile)
+            Func<AudioBalanceRow, string> categoryOf)
         {
             var visible = new List<AudioBalanceRow>();
             if (rows == null)
@@ -3953,33 +4263,37 @@ namespace Hoppa.AudioBalance.Editor
                 visible.Add(row);
             }
 
-            // OrderBy is a stable sort, so rows with equal keys keep their discovery order.
-            IEnumerable<AudioBalanceRow> ordered;
+            // OrderBy/OrderByDescending are both stable, so rows with equal keys keep their
+            // discovery order in EITHER direction. Sorting ascending and then calling
+            // List.Reverse() would not: Reverse inverts tie groups too, silently destroying
+            // stability the moment the user clicks the sort-direction button.
             switch (sort)
             {
                 case ClipSortMode.Loudness:
-                    ordered = visible.OrderBy(r => r.Analysis.Status == ClipStatus.Ok
-                        ? r.Analysis.Lufs
-                        : float.MinValue);
-                    break;
+                    return Order(visible, ascending,
+                        r => r.Analysis.Status == ClipStatus.Ok ? r.Analysis.Lufs : float.MinValue);
                 case ClipSortMode.Gain:
-                    ordered = visible.OrderBy(r => r.Gain.FinalGainDb);
-                    break;
+                    return Order(visible, ascending, r => r.Gain.FinalGainDb);
                 case ClipSortMode.Category:
-                    ordered = visible.OrderBy(r => CategoryOf(r, profile), StringComparer.OrdinalIgnoreCase);
-                    break;
+                    return Order(visible, ascending,
+                        r => categoryOf?.Invoke(r) ?? string.Empty, StringComparer.OrdinalIgnoreCase);
                 default:
-                    ordered = visible.OrderBy(r => r.Clip.name, StringComparer.OrdinalIgnoreCase);
-                    break;
+                    return Order(visible, ascending,
+                        r => r.Clip.name, StringComparer.OrdinalIgnoreCase);
             }
+        }
 
-            var result = ordered.ToList();
-            if (!ascending)
-            {
-                result.Reverse();
-            }
-
-            return result;
+        /// <summary>
+        /// One key selector, both directions -- so ascending and descending can never drift
+        /// apart, and stability holds either way.
+        /// </summary>
+        private static List<AudioBalanceRow> Order<TKey>(
+            List<AudioBalanceRow> rows, bool ascending,
+            Func<AudioBalanceRow, TKey> key, IComparer<TKey> comparer = null)
+        {
+            return (ascending
+                ? rows.OrderBy(key, comparer)
+                : rows.OrderByDescending(key, comparer)).ToList();
         }
 
         /// <summary>Empty string for a healthy row -- the table should not be a wall of icons.</summary>
@@ -4027,14 +4341,11 @@ namespace Hoppa.AudioBalance.Editor
 
             EditorUtility.SetDirty(profile);
         }
-
-        private static string CategoryOf(AudioBalanceRow row, AudioBalanceProfile profile)
-        {
-            return profile?.SettingsFor(row.Clip)?.Category ?? string.Empty;
-        }
     }
 }
 ```
+
+> `BulkAssignCategory` keeps taking the profile — it is an explicit user action, not a render-path call, and it correctly wraps the writes in `Undo.RecordObject` / `EditorUtility.SetDirty`. `SettingsFor` creating a missing entry there is the intended behaviour.
 
 - [ ] **Step 5: Replace `DrawClips` in the window**
 
@@ -4045,13 +4356,120 @@ In `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`, add th
         private ClipSortMode _sort = ClipSortMode.Name;
         private bool _ascending = true;
         private readonly HashSet<AudioClip> _selected = new HashSet<AudioClip>();
+
+        /// <summary>
+        /// Clip settings resolved ONCE per row-set change, never during rendering.
+        /// AudioBalanceProfile.SettingsFor appends on a miss, so calling it per row per
+        /// OnGUI event both mutated the asset mid-render and made drawing O(n^2).
+        /// </summary>
+        private readonly Dictionary<AudioClip, ClipSettings> _settings =
+            new Dictionary<AudioClip, ClipSettings>();
+
+        private int _settingsStamp = -1;
+
+        /// <summary>
+        /// Widest a clip row actually draws, including the preview buttons Task 13 appends
+        /// (they end at x = 780 measured from the row origin). The scroll view's content rect
+        /// must be at least this wide or the horizontal scrollbar never appears and the
+        /// right-hand controls cannot be reached at the window's minimum size.
+        /// </summary>
+        private const float MinRowWidth = 800f;
+
+        /// <summary>
+        /// The clip whose trim slider is mid-drag, so the Undo entry and the SetDirty are
+        /// recorded once per gesture rather than once per frame.
+        /// </summary>
+        private AudioClip _trimDragClip;
+```
+
+Also update the profile-switch branch in `DrawToolbar` (added in Task 11) to drop stale selection:
+
+```csharp
+            if (picked != _profile)
+            {
+                _profile = picked;
+                _session.Clear();
+                ClearSelection();
+                _settingsStamp = -1;
+            }
 ```
 
 Then replace the whole `DrawClips` method with:
 
 ```csharp
+        /// <summary>
+        /// Rebuilds the clip-settings map when the row set changes. This is the one place
+        /// SettingsFor is allowed to run: outside the render path, wrapped in Undo/SetDirty,
+        /// so the entries it creates are undoable and properly persisted.
+        /// </summary>
+        private void SyncSettings()
+        {
+            var stamp = _profile == null ? -1 : _session.Rows.Count * 397 ^ _profile.Clips.Count;
+            if (stamp == _settingsStamp)
+            {
+                return;
+            }
+
+            _settingsStamp = stamp;
+            _settings.Clear();
+
+            if (_profile == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(_profile, "Resolve Audio Clip Settings");
+            var created = false;
+
+            foreach (var row in _session.Rows)
+            {
+                if (row?.Clip == null || _settings.ContainsKey(row.Clip))
+                {
+                    continue;
+                }
+
+                var before = _profile.Clips.Count;
+                _settings[row.Clip] = _profile.SettingsFor(row.Clip);
+                created |= _profile.Clips.Count != before;
+            }
+
+            if (created)
+            {
+                EditorUtility.SetDirty(_profile);
+            }
+        }
+
+        private string CategoryOf(AudioBalanceRow row)
+        {
+            return row?.Clip != null && _settings.TryGetValue(row.Clip, out var s) && s != null
+                ? s.Category
+                : string.Empty;
+        }
+
+        /// <summary>Drops selection state that no longer belongs to the visible profile.</summary>
+        private void ClearSelection()
+        {
+            _selected.Clear();
+        }
+
+        private void PruneSelection()
+        {
+            if (_selected.Count == 0)
+            {
+                return;
+            }
+
+            // Without this the bulk button reads "Set Category (12)" while the resolved
+            // target list is empty -- clicking appears to work and silently does nothing.
+            _selected.RemoveWhere(clip =>
+                clip == null || !_settings.ContainsKey(clip));
+        }
+
         private void DrawClips(Rect rect)
         {
+            SyncSettings();
+            PruneSelection();
+
             var header = new Rect(rect.x, rect.y, rect.width, RowHeight);
             DrawClipHeader(header);
 
@@ -4059,8 +4477,14 @@ Then replace the whole `DrawClips` method with:
                 rect.height - RowHeight - 2f);
             GUI.Box(body, GUIContent.none);
 
-            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, _profile);
-            var content = new Rect(0f, 0f, body.width - 20f, visible.Count * RowHeight + 4f);
+            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, CategoryOf);
+
+            // Content must be as wide as the widest row actually is, not as wide as the
+            // viewport. Hard-coding it to the viewport means the horizontal scrollbar never
+            // appears and anything past the right edge -- the preview buttons Task 13 adds --
+            // is silently unreachable at the window's default size.
+            var content = new Rect(0f, 0f,
+                Mathf.Max(body.width - 20f, MinRowWidth), visible.Count * RowHeight + 4f);
 
             _clipScroll = GUI.BeginScrollView(body, _clipScroll, content);
 
@@ -4091,12 +4515,14 @@ Then replace the whole `DrawClips` method with:
                 new Rect(x, rect.y, 100f, rect.height - 2f), _sort);
             x += 106f;
 
-            if (GUI.Button(new Rect(x, rect.y, 30f, rect.height - 2f), _ascending ? "▲" : "▼"))
+            // ASCII captions: default IMGUI font glyph coverage is not guaranteed, and a
+            // blank button is indistinguishable from a broken one.
+            if (GUI.Button(new Rect(x, rect.y, 44f, rect.height - 2f), _ascending ? "Asc" : "Desc"))
             {
                 _ascending = !_ascending;
             }
 
-            x += 36f;
+            x += 50f;
 
             GUI.enabled = _selected.Count > 0;
 
@@ -4132,7 +4558,13 @@ Then replace the whole `DrawClips` method with:
             GUI.Label(new Rect(x, rect.y, 170f, rect.height), row.Clip.name);
             x += 174f;
 
-            var settings = _profile.SettingsFor(row.Clip);
+            // Resolved in SyncSettings, never here -- SettingsFor appends on a miss and this
+            // runs on every OnGUI event.
+            if (!_settings.TryGetValue(row.Clip, out var settings) || settings == null)
+            {
+                return;
+            }
+
             var names = _profile.Categories.Select(c => c.Name).ToArray();
             var current = Mathf.Max(0, System.Array.IndexOf(names, settings.Category));
 
@@ -4142,7 +4574,11 @@ Then replace the whole `DrawClips` method with:
                 Undo.RecordObject(_profile, "Change Audio Category");
                 settings.Category = names[picked];
                 EditorUtility.SetDirty(_profile);
-                _session.Resolve(_profile);
+
+                // Categories carry their own MeasureMode, so this changes HOW the clip must
+                // be measured -- Resolve cannot do that and would keep the old-mode number.
+                // Re-analyze; the cache makes it a hit for every clip whose mode is unchanged.
+                RunAnalysis();
             }
 
             x += 96f;
@@ -4155,15 +4591,34 @@ Then replace the whole `DrawClips` method with:
                 row.Analysis.Status == ClipStatus.Ok ? $"{row.Gain.FinalGainDb:0.0} dB" : "—");
             x += 74f;
 
+            // Slider drags fire a change on every OnGUI frame the value differs. Comparing
+            // values directly would push one Undo entry per frame -- dozens for a single
+            // drag -- and re-run GainSolver over every row each time. Record the undo state
+            // once when the drag starts, then commit on mouse-up / drag-exit.
+            EditorGUI.BeginChangeCheck();
+
             var trim = EditorGUI.Slider(new Rect(x, rect.y, 150f, rect.height - 2f),
                 settings.TrimDb, -12f, 12f);
 
-            if (!Mathf.Approximately(trim, settings.TrimDb))
+            if (EditorGUI.EndChangeCheck())
             {
-                Undo.RecordObject(_profile, "Change Audio Trim");
+                if (_trimDragClip != row.Clip)
+                {
+                    Undo.RecordObject(_profile, "Change Audio Trim");
+                    _trimDragClip = row.Clip;
+                }
+
                 settings.TrimDb = trim;
-                EditorUtility.SetDirty(_profile);
                 _session.Resolve(_profile);
+            }
+
+            var e = Event.current;
+            if (_trimDragClip != null &&
+                (e.type == EventType.MouseUp || e.type == EventType.DragExited))
+            {
+                // Commit once, at the end of the gesture.
+                EditorUtility.SetDirty(_profile);
+                _trimDragClip = null;
             }
 
             x += 156f;
@@ -4181,13 +4636,25 @@ Then replace the whole `DrawClips` method with:
             var menu = new GenericMenu();
             var targets = _session.Rows.Where(r => _selected.Contains(r.Clip)).ToArray();
 
+            if (targets.Length == 0)
+            {
+                // Defensive: PruneSelection should already have made this unreachable. Being
+                // told nothing is selected beats a menu that silently does nothing.
+                menu.AddDisabledItem(new GUIContent("Nothing selected"));
+                menu.ShowAsContext();
+                return;
+            }
+
             foreach (var category in _profile.Categories)
             {
                 var name = category.Name;
                 menu.AddItem(new GUIContent(name), false, () =>
                 {
                     ClipListView.BulkAssignCategory(targets, _profile, name);
-                    _session.Resolve(_profile);
+
+                    // Bulk assign moves clips between categories, and categories carry their
+                    // own MeasureMode -- so this needs a re-measure, not just a re-solve.
+                    RunAnalysis();
                     Repaint();
                 });
             }
@@ -4201,7 +4668,7 @@ Add `using System.Linq;` to the file's using block.
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 93/93 PASS (82 prior + 11 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 13 new ones from this task.
 
 - [ ] **Step 7: Commit**
 
@@ -4224,21 +4691,25 @@ EOF
 ### Task 13: Preview player, Write Table, and docs
 
 **Files:**
+- Create: `Packages/com.hoppa.audiobalance/Editor/Window/PreviewClipFactory.cs`
 - Create: `Packages/com.hoppa.audiobalance/Editor/Window/AudioPreviewPlayer.cs`
 - Create: `Packages/com.hoppa.audiobalance/Editor/Window/GainTableWriter.cs`
 - Create: `Packages/com.hoppa.audiobalance/README.md`
 - Create: `Packages/com.hoppa.audiobalance/Documentation~/audio-balance-guide.md`
 - Modify: `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs` (preview buttons + Write Table)
 - Test: `Packages/com.hoppa.audiobalance/Tests/Editor/GainTableWriterTests.cs`
+- Test: `Packages/com.hoppa.audiobalance/Tests/Editor/PreviewClipFactoryTests.cs`
 
 **Interfaces:**
-- Consumes: `AudioBalanceRow`, `AudioGainTable`, `ClipStatus`, `AudioBalanceProfile`.
+- Consumes: `AudioBalanceRow`, `AudioGainTable`, `ClipStatus`, `AudioBalanceProfile`, `ClipSampleReader`, `AudioGainMath`.
 - Produces:
   - `GainTableWriter.BuildEntries(IReadOnlyList<AudioBalanceRow> rows) -> List<AudioGainTable.Entry>`
-  - `GainTableWriter.Write(AudioBalanceProfile profile, IReadOnlyList<AudioBalanceRow> rows) -> bool`
+  - `GainTableWriter.Write(AudioBalanceProfile profile, IReadOnlyList<AudioBalanceRow> rows) -> bool` — a pure asset mutation; it does **not** save
+  - `PreviewClipFactory.Scale(float[] samples, float gainDb) -> float[]`
+  - `PreviewClipFactory.Mix(float[] a, float aGainDb, float[] b, float bGainDb) -> float[]`
   - `AudioPreviewPlayer.PlayWithGain(AudioClip clip, float gainDb)`
   - `AudioPreviewPlayer.PlayAgainstAnchor(AudioClip clip, float gainDb, AudioClip anchor, float anchorGainDb)`
-  - `AudioPreviewPlayer.StopAll()`
+  - `AudioPreviewPlayer.StopAll()` / `AudioPreviewPlayer.Teardown()`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4263,8 +4734,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 Clip = clip,
                 Analysis = status == ClipStatus.Ok
-                    ? ClipAnalysis.Ok(clip, -20f, -3f, -2.8f)
-                    : new ClipAnalysis(clip, status, 0f, -80f, -80f, "reason"),
+                    ? ClipAnalysis.Ok(clip, -20f, -3f)
+                    : new ClipAnalysis(clip, status, 0f, -80f, "reason"),
                 Gain = new GainResult(clip, status, gainDb, gainDb, false)
             };
         }
@@ -4359,10 +4830,92 @@ namespace Hoppa.AudioBalance.Editor.Tests
 }
 ```
 
+Also `Packages/com.hoppa.audiobalance/Tests/Editor/PreviewClipFactoryTests.cs`:
+
+```csharp
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor.Tests
+{
+    /// <summary>
+    /// Covers the half of the preview path that can be tested. Playback itself reflects into
+    /// UnityEditor.AudioUtil and is documented as an accepted, untestable gap on
+    /// AudioPreviewPlayer -- but the gain arithmetic it depends on is pinned here.
+    /// </summary>
+    public class PreviewClipFactoryTests
+    {
+        [Test]
+        public void Scale_MinusSixDbHalvesTheAmplitude()
+        {
+            var scaled = PreviewClipFactory.Scale(new[] { 1f, -1f, 0.5f }, -6.0206f);
+
+            Assert.AreEqual(0.5f, scaled[0], 1e-3f);
+            Assert.AreEqual(-0.5f, scaled[1], 1e-3f);
+            Assert.AreEqual(0.25f, scaled[2], 1e-3f);
+        }
+
+        [Test]
+        public void Scale_ZeroDbIsIdentity()
+        {
+            var scaled = PreviewClipFactory.Scale(new[] { 0.3f, -0.7f }, 0f);
+
+            Assert.AreEqual(0.3f, scaled[0], 1e-6f);
+            Assert.AreEqual(-0.7f, scaled[1], 1e-6f);
+        }
+
+        [Test]
+        public void Scale_ClampsRatherThanWrappingWhenAPositiveTrimOverdrivesTheSignal()
+        {
+            // A +12 dB trim on a near-full-scale sample must clip, not wrap to a negative
+            // value, and not silently renormalise the whole preview.
+            var scaled = PreviewClipFactory.Scale(new[] { 0.9f, -0.9f }, 12f);
+
+            Assert.AreEqual(1f, scaled[0], 1e-6f);
+            Assert.AreEqual(-1f, scaled[1], 1e-6f);
+        }
+
+        [Test]
+        public void Scale_OnNullInput_ReturnsAnEmptyArray()
+        {
+            Assert.AreEqual(0, PreviewClipFactory.Scale(null, 0f).Length);
+        }
+
+        [Test]
+        public void Mix_SumsBothSignalsAtTheirRespectiveGains()
+        {
+            var mixed = PreviewClipFactory.Mix(new[] { 0.5f }, 0f, new[] { 0.25f }, 0f);
+
+            Assert.AreEqual(0.75f, mixed[0], 1e-4f);
+        }
+
+        [Test]
+        public void Mix_ResultIsAsLongAsTheLongerInput()
+        {
+            // A short SFX over a long bed must not truncate the bed -- judging it in context
+            // is the entire point of A/B.
+            var mixed = PreviewClipFactory.Mix(new[] { 0.5f }, 0f, new[] { 0.1f, 0.1f, 0.1f }, 0f);
+
+            Assert.AreEqual(3, mixed.Length);
+            Assert.AreEqual(0.6f, mixed[0], 1e-4f);
+            Assert.AreEqual(0.1f, mixed[1], 1e-4f);
+        }
+
+        [Test]
+        public void Mix_ClampsTheSum()
+        {
+            var mixed = PreviewClipFactory.Mix(new[] { 0.8f }, 0f, new[] { 0.8f }, 0f);
+
+            Assert.AreEqual(1f, mixed[0], 1e-6f);
+        }
+    }
+}
+```
+
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: compile errors — `GainTableWriter` does not exist.
+Expected: compile errors — `GainTableWriter` and `PreviewClipFactory` do not exist.
 
 - [ ] **Step 3: Implement `GainTableWriter`**
 
@@ -4419,8 +4972,11 @@ namespace Hoppa.AudioBalance.Editor
             Undo.RecordObject(profile.Table, "Write Audio Gain Table");
             profile.Table.SetEntries(BuildEntries(rows));
             EditorUtility.SetDirty(profile.Table);
-            AssetDatabase.SaveAssets();
 
+            // Deliberately NOT calling AssetDatabase.SaveAssets() here. This method is
+            // exercised by unit tests, and SaveAssets flushes EVERY dirty asset in the
+            // project -- so running the suite would commit unrelated in-flight edits to disk.
+            // Saving is the window button's job; Write stays a pure asset mutation.
             return true;
         }
     }
@@ -4431,133 +4987,382 @@ namespace Hoppa.AudioBalance.Editor
 
 `Packages/com.hoppa.audiobalance/Editor/Window/AudioPreviewPlayer.cs`:
 
+> **This section was rewritten (deviation #12).** The original design built a hidden scene
+> `AudioSource` pair and called `AudioSource.Play()`. **`AudioSource.Play()` produces no audio
+> outside Play Mode**, so that design could not work at all — the buttons would have been
+> silently dead. The original rationale for rejecting Unity's built-in clip preview (it offers
+> no volume control) was correct; the replacement simply did not play.
+>
+> The approach now is the standard one for editor audio tooling: reflect into the internal
+> `UnityEditor.AudioUtil.PlayPreviewClip`, and make the gain audible by **pre-scaling** —
+> building a temporary `AudioClip` whose samples already have the gain baked in, and previewing
+> that. A/B is the same trick with the anchor mixed in, which also keeps everything on one
+> preview channel rather than depending on `AudioUtil` supporting simultaneous previews.
+
+Two files. First, the pure sample math, which is the part that can actually be tested:
+
+`Packages/com.hoppa.audiobalance/Editor/Window/PreviewClipFactory.cs`:
+
 ```csharp
+using UnityEngine;
+
+namespace Hoppa.AudioBalance.Editor
+{
+    /// <summary>
+    /// Builds the gain-applied clips the preview plays. Kept separate from
+    /// <see cref="AudioPreviewPlayer"/> because this half is deterministic, has no editor
+    /// dependencies, and therefore unit-tests -- unlike the reflection-based playback.
+    /// </summary>
+    public static class PreviewClipFactory
+    {
+        /// <summary>
+        /// Scales every sample by a linear gain, clamping to [-1, 1].
+        ///
+        /// <para>
+        /// Clamping is a real decision, not defensive noise: solved gains are normalised
+        /// downward so they are almost always negative, but a per-clip trim of up to +12 dB
+        /// can push a peak past full scale. Clipping the preview is honest -- it is what the
+        /// runtime would do -- whereas normalising here would make the preview quieter than
+        /// the thing it is previewing.
+        /// </para>
+        /// </summary>
+        public static float[] Scale(float[] samples, float gainDb)
+        {
+            if (samples == null)
+            {
+                return new float[0];
+            }
+
+            var gain = AudioGainMath.LinearFromDb(gainDb);
+            var scaled = new float[samples.Length];
+
+            for (var i = 0; i < samples.Length; i++)
+            {
+                scaled[i] = Mathf.Clamp(samples[i] * gain, -1f, 1f);
+            }
+
+            return scaled;
+        }
+
+        /// <summary>
+        /// Sums two gain-applied signals, aligned at sample 0. The result is as long as the
+        /// longer input, so a short SFX over a long music bed keeps the bed audible after the
+        /// SFX ends -- which is the whole point of judging it in context.
+        /// </summary>
+        public static float[] Mix(float[] a, float aGainDb, float[] b, float bGainDb)
+        {
+            var left = Scale(a, aGainDb);
+            var right = Scale(b, bGainDb);
+            var mixed = new float[Mathf.Max(left.Length, right.Length)];
+
+            for (var i = 0; i < mixed.Length; i++)
+            {
+                var sum = 0f;
+                if (i < left.Length)
+                {
+                    sum += left[i];
+                }
+
+                if (i < right.Length)
+                {
+                    sum += right[i];
+                }
+
+                mixed[i] = Mathf.Clamp(sum, -1f, 1f);
+            }
+
+            return mixed;
+        }
+    }
+}
+```
+
+Then the player itself:
+
+`Packages/com.hoppa.audiobalance/Editor/Window/AudioPreviewPlayer.cs`:
+
+```csharp
+using System;
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
 namespace Hoppa.AudioBalance.Editor
 {
     /// <summary>
-    /// Auditions clips with their solved gain applied. Uses a hidden scene AudioSource pair
-    /// rather than the editor's built-in clip preview, because that preview offers no volume
-    /// control -- and hearing the gain is the entire point.
+    /// Auditions clips with their solved gain applied.
+    ///
+    /// <para>
+    /// Playback goes through the internal <c>UnityEditor.AudioUtil</c> because
+    /// <see cref="AudioSource.Play"/> is silent outside Play Mode -- a scene AudioSource
+    /// simply cannot preview anything from an EditorWindow. Gain is applied by pre-scaling
+    /// the samples into a temporary clip rather than by a volume parameter, because
+    /// AudioUtil exposes no volume control; hearing the gain is the entire point, and
+    /// Unity's own clip preview was rejected for exactly that reason.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Untested boundary.</b> The reflection into <c>AudioUtil</c> has no automated
+    /// coverage and cannot meaningfully get any: the type is internal, its method signatures
+    /// have changed across Unity versions, and asserting that audio was audibly produced is
+    /// not something an EditMode test can do. This is the same accepted-gap situation as
+    /// <see cref="ClipSampleReader.StreamingError"/>, and it is handled the same way -- named
+    /// here rather than left to be discovered. What *is* tested is
+    /// <see cref="PreviewClipFactory"/>, which owns all the sample arithmetic. The reflection
+    /// layer degrades to a single actionable warning if the method cannot be found, so a
+    /// Unity upgrade that moves it produces a clear diagnostic rather than silence.
+    /// </para>
     /// </summary>
     [InitializeOnLoad]
     public static class AudioPreviewPlayer
     {
-        private static GameObject _host;
-        private static AudioSource _clipSource;
-        private static AudioSource _anchorSource;
+        private static AudioClip _temp;
+        private static MethodInfo _play;
+        private static MethodInfo _stop;
+        private static bool _resolved;
+        private static bool _warned;
 
         static AudioPreviewPlayer()
         {
-            // The hidden host must not survive a domain reload as a leaked object.
             AssemblyReloadEvents.beforeAssemblyReload += Teardown;
             EditorApplication.playModeStateChanged += _ => Teardown();
         }
 
         public static void PlayWithGain(AudioClip clip, float gainDb)
         {
-            if (clip == null)
+            if (clip == null || !TryReadSamples(clip, out var samples))
             {
                 return;
             }
 
-            EnsureHost();
-            StopAll();
-
-            _clipSource.clip = clip;
-            _clipSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(gainDb));
-            _clipSource.Play();
+            Play(BuildTemp(clip, PreviewClipFactory.Scale(samples, gainDb),
+                clip.channels, clip.frequency));
         }
 
-        /// <summary>Plays the clip over the anchor bed, so it is judged in context.</summary>
+        /// <summary>Plays the clip mixed over the anchor bed, so it is judged in context.</summary>
         public static void PlayAgainstAnchor(AudioClip clip, float gainDb,
             AudioClip anchor, float anchorGainDb)
         {
-            if (clip == null)
+            if (clip == null || !TryReadSamples(clip, out var clipSamples))
             {
                 return;
             }
 
-            EnsureHost();
-            StopAll();
-
-            if (anchor != null)
+            if (anchor == null || !TryReadSamples(anchor, out var anchorSamples) ||
+                anchor.channels != clip.channels || anchor.frequency != clip.frequency)
             {
-                _anchorSource.clip = anchor;
-                _anchorSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(anchorGainDb));
-                _anchorSource.loop = true;
-                _anchorSource.Play();
+                // Mixing mismatched channel counts or sample rates by index would pitch- and
+                // pan-shift the result, which is worse than not offering the comparison.
+                PlayWithGain(clip, gainDb);
+                return;
             }
 
-            _clipSource.clip = clip;
-            _clipSource.volume = Mathf.Clamp01(AudioGainMath.LinearFromDb(gainDb));
-            _clipSource.Play();
+            Play(BuildTemp(clip,
+                PreviewClipFactory.Mix(clipSamples, gainDb, anchorSamples, anchorGainDb),
+                clip.channels, clip.frequency));
         }
 
         public static void StopAll()
         {
-            if (_clipSource != null)
-            {
-                _clipSource.Stop();
-            }
-
-            if (_anchorSource != null)
-            {
-                _anchorSource.Stop();
-            }
-        }
-
-        public static void Teardown()
-        {
-            StopAll();
-
-            if (_host != null)
-            {
-                Object.DestroyImmediate(_host);
-            }
-
-            _host = null;
-            _clipSource = null;
-            _anchorSource = null;
-        }
-
-        private static void EnsureHost()
-        {
-            if (_host != null)
+            if (!Resolve() || _stop == null)
             {
                 return;
             }
 
-            _host = new GameObject("~AudioBalancePreview")
+            try
             {
-                hideFlags = HideFlags.HideAndDontSave
-            };
+                _stop.Invoke(null, null);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[AudioBalance] Could not stop preview playback: {e.Message}");
+            }
+        }
 
-            _clipSource = _host.AddComponent<AudioSource>();
-            _clipSource.playOnAwake = false;
+        /// <summary>Destroys the temporary clip so previews do not leak one per click.</summary>
+        public static void Teardown()
+        {
+            StopAll();
+            DestroyTemp();
+        }
 
-            _anchorSource = _host.AddComponent<AudioSource>();
-            _anchorSource.playOnAwake = false;
+        private static void DestroyTemp()
+        {
+            if (_temp != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_temp);
+            }
+
+            _temp = null;
+        }
+
+        private static bool TryReadSamples(AudioClip clip, out float[] samples)
+        {
+            // Reuses the reader that already produces the actionable Streaming diagnostic,
+            // so preview and analysis fail the same way for the same reason.
+            if (ClipSampleReader.TryRead(clip, out samples, out var error))
+            {
+                return true;
+            }
+
+            Debug.LogWarning($"[AudioBalance] Cannot preview '{clip.name}': {error}");
+            samples = null;
+            return false;
+        }
+
+        /// <summary>
+        /// The temp clip is a single static slot, replaced (and its predecessor destroyed) on
+        /// every preview, and destroyed again on domain reload / play-mode change. One live
+        /// temporary at a time, never one per click.
+        /// </summary>
+        private static AudioClip BuildTemp(AudioClip source, float[] samples, int channels, int frequency)
+        {
+            StopAll();
+            DestroyTemp();
+
+            if (samples == null || samples.Length == 0 || channels <= 0)
+            {
+                return null;
+            }
+
+            _temp = AudioClip.Create($"~preview_{source.name}",
+                samples.Length / channels, channels, frequency, false);
+            _temp.hideFlags = HideFlags.HideAndDontSave;
+            _temp.SetData(samples, 0);
+
+            return _temp;
+        }
+
+        private static void Play(AudioClip clip)
+        {
+            if (clip == null || !Resolve())
+            {
+                return;
+            }
+
+            try
+            {
+                // Signatures differ across versions: 2020+ is (AudioClip, int, bool),
+                // some builds expose (AudioClip). Fill whatever the resolved overload wants.
+                var parameters = _play.GetParameters();
+                var args = new object[parameters.Length];
+                args[0] = clip;
+
+                for (var i = 1; i < parameters.Length; i++)
+                {
+                    args[i] = parameters[i].ParameterType == typeof(bool)
+                        ? (object)false
+                        : Activator.CreateInstance(parameters[i].ParameterType);
+                }
+
+                _play.Invoke(null, args);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[AudioBalance] Preview playback failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resolves AudioUtil once. Returns false (with one warning, not one per click) when
+        /// the method cannot be found, so a Unity version that renames it degrades to an
+        /// explicit diagnostic instead of a dead button.
+        /// </summary>
+        private static bool Resolve()
+        {
+            if (_resolved)
+            {
+                return _play != null;
+            }
+
+            _resolved = true;
+
+            var type = typeof(AudioImporter).Assembly.GetType("UnityEditor.AudioUtil");
+            if (type != null)
+            {
+                const BindingFlags Flags = BindingFlags.Static | BindingFlags.Public |
+                                           BindingFlags.NonPublic;
+
+                // PlayPreviewClip is current; PlayClip is the pre-2020 name.
+                _play = type.GetMethods(Flags).FirstOrDefault(m =>
+                    (m.Name == "PlayPreviewClip" || m.Name == "PlayClip") &&
+                    m.GetParameters().Length > 0 &&
+                    m.GetParameters()[0].ParameterType == typeof(AudioClip));
+
+                _stop = type.GetMethods(Flags).FirstOrDefault(m =>
+                    (m.Name == "StopAllPreviewClips" || m.Name == "StopAllClips") &&
+                    m.GetParameters().Length == 0);
+            }
+
+            if (_play == null && !_warned)
+            {
+                _warned = true;
+                Debug.LogWarning(
+                    "[AudioBalance] Could not find UnityEditor.AudioUtil.PlayPreviewClip on " +
+                    $"Unity {Application.unityVersion}. Clip preview is disabled; every other " +
+                    "part of the window (analysis, gains, Write Table) is unaffected. " +
+                    "This is an internal Unity API that moves between versions.");
+            }
+
+            return _play != null;
         }
     }
 }
 ```
 
+> **Editor in use vs the package's declared minimum.** `package.json` declares
+> `"unity": "2022.3"`, but this repo's editor is 6000.3.8f1. `PlayPreviewClip(AudioClip, int, bool)`
+> is present on both, which is why it is tried first — but the resolution is written to search
+> rather than to bind a fixed signature precisely because this API is internal and unstable.
+> Verify the preview audibly works in Step 9; if the warning above appears, that is the
+> diagnostic doing its job, and the fix is to widen the name list, not to silence it.
+
 - [ ] **Step 5: Wire preview buttons and Write Table into the window**
 
 In `Packages/com.hoppa.audiobalance/Editor/Window/AudioBalanceWindow.cs`:
 
-Add to `DrawToolbar`, after the Analyze button (`x += 96f;` first):
+> **The toolbar is now two rows (deviation #13).** Appending Write Table and the Table
+> `ObjectField` to the single existing row put the field at x = 658 running to x = 838, while
+> `minSize.x = 720` leaves only 708 px of content — so the field was cut off at the window's
+> default size. That is a **dead end, not a cosmetic issue**: Write Table is disabled until
+> `Table != null`, and the only control that can assign the table was the one clipped away. A
+> fresh user would see a permanently greyed button and no way to fix it short of guessing that
+> the window needs widening. The toolbar therefore wraps to a second row, and the second row
+> holds the two table controls.
+
+Change `OnGUI` so the toolbar gets two rows:
 
 ```csharp
+            DrawToolbar(new Rect(Pad, y, position.width - Pad * 2f, ToolbarHeight));
+            y += ToolbarHeight + 2f;
+
+            DrawTableBar(new Rect(Pad, y, position.width - Pad * 2f, ToolbarHeight));
+            y += ToolbarHeight + Pad;
+```
+
+Then add the new row as its own method (leaving `DrawToolbar` ending after Analyze):
+
+```csharp
+        /// <summary>
+        /// Second toolbar row. These two controls live here rather than appended to the first
+        /// row because at minSize (720 px wide, 708 usable) the first row is already full
+        /// after Analyze -- and clipping the Table field specifically is unrecoverable, since
+        /// Write Table stays disabled until a table is assigned.
+        /// </summary>
+        private void DrawTableBar(Rect rect)
+        {
+            var x = rect.x;
+
             GUI.enabled = _profile != null && _profile.Table != null && _session.Rows.Count > 0;
 
             if (GUI.Button(new Rect(x, rect.y, 110f, rect.height - 4f), "Write Table"))
             {
                 if (GainTableWriter.Write(_profile, _session.Rows))
                 {
+                    // GainTableWriter.Write is a pure mutation so it stays test-safe; the
+                    // explicit user action is what commits it to disk.
+                    AssetDatabase.SaveAssets();
                     ShowNotification(new GUIContent("Gain table written"));
                 }
             }
@@ -4568,36 +5373,57 @@ Add to `DrawToolbar`, after the Analyze button (`x += 96f;` first):
             GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Table");
             x += 44f;
 
-            if (_profile != null)
+            if (_profile == null)
             {
-                var table = (AudioGainTable)EditorGUI.ObjectField(
-                    new Rect(x, rect.y, 180f, rect.height - 4f),
-                    _profile.Table, typeof(AudioGainTable), false);
-
-                if (table != _profile.Table)
-                {
-                    Undo.RecordObject(_profile, "Set Gain Table");
-                    _profile.Table = table;
-                    EditorUtility.SetDirty(_profile);
-                }
+                return;
             }
+
+            var table = (AudioGainTable)EditorGUI.ObjectField(
+                new Rect(x, rect.y, 180f, rect.height - 4f),
+                _profile.Table, typeof(AudioGainTable), false);
+
+            if (table != _profile.Table)
+            {
+                Undo.RecordObject(_profile, "Set Gain Table");
+                _profile.Table = table;
+                EditorUtility.SetDirty(_profile);
+            }
+
+            x += 186f;
+
+            if (_profile.Table == null)
+            {
+                GUI.Label(new Rect(x, rect.y, 320f, rect.height),
+                    "Assign a gain table to enable Write Table.");
+            }
+        }
 ```
 
-Add to the end of `DrawClipRow`, after the status icon block (`x += 94f;` first):
+Add to the end of `DrawClipRow`, after the status icon block (`x += 94f;` first).
+
+> These buttons end at x = 780 measured from the row origin, past the 688 px of content the
+> window has at `minSize`. They are only reachable because Task 12's scroll-view content rect
+> is at least `MinRowWidth` (800) wide — if that were still hard-coded to the viewport width,
+> no horizontal scrollbar would appear and both of Task 13's headline features would be
+> silently unreachable at the default window size. Do not narrow `MinRowWidth`.
 
 ```csharp
+            // ASCII caption: a glyph the default IMGUI font lacks renders as a blank button,
+            // which is indistinguishable from a broken one.
             GUI.enabled = row.Analysis.Status == ClipStatus.Ok;
 
-            if (GUI.Button(new Rect(x, rect.y, 26f, rect.height - 2f),
-                    new GUIContent("▶", "Preview with the solved gain applied")))
+            if (GUI.Button(new Rect(x, rect.y, 40f, rect.height - 2f),
+                    new GUIContent("Play", "Preview with the solved gain applied")))
             {
                 AudioPreviewPlayer.PlayWithGain(row.Clip, row.Gain.FinalGainDb);
             }
 
-            x += 30f;
+            x += 44f;
+
+            GUI.enabled = row.Analysis.Status == ClipStatus.Ok && _profile.Anchor != null;
 
             if (GUI.Button(new Rect(x, rect.y, 36f, rect.height - 2f),
-                    new GUIContent("A/B", "Play over the anchor bed")))
+                    new GUIContent("A/B", "Play mixed over the anchor bed")))
             {
                 var anchorRow = _session.Rows.FirstOrDefault(r => r.Clip == _profile.Anchor);
                 AudioPreviewPlayer.PlayAgainstAnchor(
@@ -4611,7 +5437,9 @@ Add to the end of `DrawClipRow`, after the status icon block (`x += 94f;` first)
 Add to `OnDisable`, before the cache save:
 
 ```csharp
-            AudioPreviewPlayer.StopAll();
+            // Teardown, not StopAll: this also destroys the temporary gain-applied clip so
+            // closing the window never leaves one behind.
+            AudioPreviewPlayer.Teardown();
 ```
 
 Add `using Hoppa.AudioBalance;` to the file's using block so `AudioGainTable` resolves.
@@ -4625,10 +5453,15 @@ Add `using Hoppa.AudioBalance;` to the file's using block so `AudioGainTable` re
 
 Anchor-relative loudness balancing for Unity audio.
 
-Pick one clip as the **anchor** — normally the background music that runs during
-levels. Every other clip is measured with the same perceived-loudness metric
-(LUFS, ITU-R BS.1770-4) and assigned a gain that places it at a deliberate offset
-from that anchor. The result is baked into an `AudioGainTable` asset.
+Every clip is measured with the same perceived-loudness metric (LUFS, ITU-R BS.1770-4)
+and assigned a gain that places it at a deliberate offset from the other clips. Those
+offsets come from **categories** (Music / SFX / UI), plus an optional per-clip trim.
+The result is baked into an `AudioGainTable` asset.
+
+You also pick one clip as the **anchor** — normally the background music that runs
+during levels. The anchor is the reference for the *outlier* check and a sanity
+readout of where your material sits. It does **not** set relative placement, and
+**changing it will not move the Gain column** — see below.
 
 **Source audio files are never modified.**
 
@@ -4653,9 +5486,29 @@ An unknown clip resolves to unity gain, so a missing entry never silences a soun
 ## Why everything gets quieter
 
 `AudioSource.volume` is capped at 1.0, so a clip needing +6 dB cannot receive it.
-Gains are therefore normalised downward: the loudest clip lands at exactly 0 dB and
-everything else sits below it. Relative balance is preserved exactly, and clipping
-becomes impossible. Compensate the overall drop once, on your master mixer.
+Gains are therefore normalised downward: whichever clip needed the *most* gain — the
+one quietest relative to its target — lands at exactly 0 dB, and every other clip is
+attenuated below it. The clip that is *loudest* relative to its target is attenuated
+the most. Relative balance is preserved exactly, and clipping becomes impossible.
+Compensate the overall drop once, on your master mixer.
+
+## What the anchor does, and does not, do
+
+The anchor is the reference for the **outlier** marker and a sanity readout. It does
+**not** determine relative placement — category offsets do that.
+
+This follows from the arithmetic. Each clip's raw gain is
+`anchor + categoryOffset + trim − measured`, and the final gain subtracts the largest
+raw gain from every raw gain. The anchor term appears in both, so it cancels exactly:
+the Gain column is provably independent of the anchor's measured loudness.
+
+So if you swap the anchor for a louder or quieter track, **the Gain column will not
+move**. That is correct behaviour, not a broken binding. What *will* change is which
+clips get flagged as outliers, since that check measures distance from the anchor.
+To actually re-balance, change the category offsets or a per-clip trim.
+
+If no anchor is set, outlier marking is switched off entirely — with no reference,
+there is nothing to be an outlier from.
 
 ## Known limitation
 
@@ -4681,19 +5534,25 @@ apart to the ear. This tool measures what your ears hear and does the arithmetic
 
 1. **Point it at your audio.** Add one or more folders in the toolbar. They are
    stored project-relative, so they work on every teammate's checkout.
-2. **Choose the anchor.** Use the background music that plays during levels. Every
-   other sound is positioned relative to it, so pick something representative.
-3. **Assign categories.** Multi-select rows and use *Set Category*. Defaults:
+2. **Choose the anchor.** Use the background music that plays during levels. The anchor
+   is the reference for the *outlier* check and a sanity readout — it is **not** what
+   positions your other sounds, and changing it will not move the Gain column. See
+   *Two things worth knowing* below.
+3. **Assign categories.** This is what actually sets relative placement. Multi-select
+   rows and use *Set Category*. Defaults:
 
    | Category | Offset | Measure mode | Meaning |
    |---|---|---|---|
-   | Music | 0 dB | Integrated | Sits at the anchor's level |
-   | SFX | +3 dB | Short-term max | Sits above the music bed |
-   | UI | −6 dB | Short-term max | Sits below it |
+   | Music | 0 dB | Integrated | The reference level |
+   | SFX | +3 dB | Momentary max | Sits above the music bed |
+   | UI | −6 dB | Momentary max | Sits below it |
+
+   Changing a clip's category re-measures it, because each category carries its own
+   measure mode. That is fast — unchanged clips come straight from the cache.
 
 4. **Analyze.** Measurements are cached, so later runs only re-measure changed clips.
-5. **Listen.** `▶` plays a clip with its gain applied; `A/B` plays it over the anchor
-   bed. Trust your ears over the numbers.
+5. **Listen.** *Play* auditions a clip with its gain applied; *A/B* plays it mixed over
+   the anchor bed. Trust your ears over the numbers.
 6. **Trim what's still wrong.** The per-clip slider stacks on top of the category
    offset. Reach for it only after the category offset is right.
 7. **Write Table.**
@@ -4710,26 +5569,48 @@ apart to the ear. This tool measures what your ears hear and does the arithmetic
 
 Integrated loudness gates out quiet passages, which is right for a music loop but
 makes a short one-shot under-read — its decay tail gets discarded and the sound
-lands too quiet against the bed. Short-term max takes the loudest 3-second window
+lands too quiet against the bed. Momentary max takes the loudest 400 ms window
 instead, so percussive SFX are measured on their impact.
 
-## Two things worth knowing
+## Three things worth knowing
 
 - **Everything gets quieter, on purpose.** `AudioSource.volume` caps at 1.0, so
-  positive gain is unachievable. The loudest clip is pinned at 0 dB and the rest sit
-  below. Raise your master mixer once to compensate.
+  positive gain is unachievable. Whichever clip needed the *most* gain — the one
+  quietest against its target — is pinned at 0 dB, and everything else sits below it.
+  Raise your master mixer once to compensate.
+- **Changing the anchor will not move the Gain column.** This surprises people, so it
+  is worth being blunt about: the anchor cancels out of the gain arithmetic entirely.
+  Its live effects are the *outlier* marker and the LUFS readout beside it. If you want
+  to move sounds relative to each other, change a **category offset** or a **trim** —
+  those are the controls that do it. (With no anchor set, outlier marking is off
+  completely, since there is no reference to be an outlier from.)
 - **Re-run after replacing a sound.** The gain of every *other* clip can shift, because
-  the loudest clip defines the 0 dB ceiling for the whole set.
+  the clip needing the most gain defines the 0 dB ceiling for the whole set.
 ```
 
 - [ ] **Step 8: Run tests to verify they pass**
 
 Run `assets-refresh`, then `tests-run`.
-Expected: 101/101 PASS (93 prior + 8 here).
+Expected: every test in `Hoppa.AudioBalance.Editor.Tests` passes, including the 15 new ones from this task.
 
 - [ ] **Step 9: Verify the full loop in the Editor**
 
-Create a profile and a gain table, add a folder containing at least two audio clips of visibly different loudness, set an anchor, press **Analyze**. Confirm: LUFS values appear, gains are all ≤ 0 dB with the loudest at exactly 0, `▶` audibly plays with gain applied, `A/B` plays over the anchor, and **Write Table** populates the asset (check it in the Inspector). Confirm the console is clean.
+Create a profile and a gain table, add a folder containing at least two audio clips of clearly different loudness, set an anchor, press **Analyze**. Confirm each of these:
+
+- LUFS values appear for every readable clip.
+- **Every gain is ≤ 0 dB, and exactly one clip reads 0.0 dB.** That clip is the one *quietest* relative to its category target — not the loudest. If the loudest clip is the one sitting at 0, the solver's sign is inverted.
+- The gains of two clips in the same category differ by their measured LUFS difference.
+- **Press Play on a row and confirm you actually hear it, with the gain applied** — a quiet clip and a loud one should sound closer together than the raw files do. Silence here means the `AudioUtil` reflection failed; check the console for the `[AudioBalance]` warning.
+- **A/B** plays the clip mixed over the anchor bed, and the bed keeps playing after a short clip ends.
+- **Write Table** populates the asset — check it in the Inspector.
+- The table `ObjectField` and the **Play** / **A/B** buttons are all reachable **without resizing the window**, scrolling horizontally if needed.
+
+Then verify the anchor's documented behaviour, since this is the thing most likely to be reported as a bug:
+
+- Note the Gain column, then swap the anchor for a noticeably louder or quieter clip and re-run **Analyze**. **The Gain column must not change.** This is correct — the anchor cancels out of the gain arithmetic. What may change is which rows are marked `outlier`.
+- Clear the anchor entirely and re-run **Analyze**. Confirm **no** rows are marked `outlier` (with no reference, no outlier judgement is made) rather than every row being flagged.
+
+Finally, confirm the console is clean apart from any intentional `[AudioBalance]` diagnostic.
 
 - [ ] **Step 10: Commit**
 
@@ -4738,12 +5619,20 @@ git add Packages/com.hoppa.audiobalance
 git commit -m "$(cat <<'EOF'
 feat(audio): preview player, gain table writer, and docs
 
-Preview uses a hidden HideAndDontSave AudioSource pair rather than the
-editor's built-in clip preview, which offers no volume control -- hearing
-the gain is the point. Table entries are sorted by clip name so the
-asset's git diff stays clean between runs, and silent/unanalyzable clips
-are omitted so the runtime falls through to unity gain rather than baking
-in a guess.
+Preview reflects into UnityEditor.AudioUtil.PlayPreviewClip: AudioSource
+.Play() is silent outside Play Mode, so a scene AudioSource cannot preview
+anything from an EditorWindow. AudioUtil exposes no volume control, so the
+gain is made audible by pre-scaling the samples into one reusable temporary
+clip. The reflection resolves defensively and degrades to a single warning
+if the internal API moves; PreviewClipFactory holds the sample arithmetic
+so that half is unit-tested.
+
+GainTableWriter.Write stays a pure asset mutation -- SaveAssets moved to
+the button handler, because Write is exercised by tests and SaveAssets
+flushes every dirty asset in the project. Table entries are sorted by clip
+name so the asset's git diff stays clean between runs, and silent or
+unanalyzable clips are omitted so the runtime falls through to unity gain
+rather than baking in a guess.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
@@ -4775,9 +5664,53 @@ EOF
 **Deviations from the spec, deliberate:**
 
 1. **Spec §7 says "1 kHz sine at −23 dBFS reads −23.0 LUFS" without stating the convention.** The plan pins it precisely: *stereo*, *peak* amplitude `10^(-23/20)`. A mono sine built the same way reads −26.0, and an RMS-referenced sine would read −20.7 — so the unstated convention was the difference between a passing and a failing test. Both cases are now tested.
-2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `ShortTermMax` category.
+2. **The measure mode is part of the cache key** (Task 10). The spec's cache key is `(guid, size, mtime)`, which would return an `Integrated` measurement for a clip later moved into a `MomentaryMax` category. **SUPERSEDED by deviation #7:** this was originally implemented by string-concatenating `$"{guid}:{(int)mode}"` into the `guid` parameter Task 10 passed to `LoudnessCache`. Round 2 replaced that with `Mode` as a real field on `LoudnessCacheKey` — the mangled-string approach fought against the cache doing its own `AssetDatabase` lookup (a `guid` that isn't actually a guid), which is exactly the seam deviation #7 needed to close.
 3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
+5. **`ApproxTruePeakDb` was struck entirely** — amended mid-execution, 2026-07-19, lead-approved. Spec §5.2 called for a 4× linear-interpolation true-peak meter. Linear interpolation produces a convex combination of its endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` always: it cannot exceed the sample peak, and so cannot detect an inter-sample peak — the only reason true-peak meters exist. Review also produced a counter-example (mono `[0, 0, 1.0]`) where it read 2.5 dB *below* the sample peak, because the loop never evaluated `t = 1` on the final frame. `SamplePeakDb` survives as the single honest peak diagnostic; `ClipAnalysis`/`CachedLoudness` carry one `PeakDb` field instead of two. Real true-peak would need polyphase FIR upsampling (BS.1770-4 Annex 2) — a follow-up if ever needed.
+4. **`ShortTermMax` (3 s) became `MomentaryMax` (400 ms)** — amended mid-execution, 2026-07-19, lead-approved. The original rationale in spec §5.1 was simply wrong: integrated loudness' relative gate already excludes a decay tail, so a 3 s window did not rescue short SFX, it *hurt* them. Measured on the plan's own test signal (0.5 s at −18 dBFS + 4 s at −50 dBFS): integrated −19.5, 3 s window −25.8. The 3 s mode read 6 dB **below** the mode it was meant to beat. A 400 ms window lands inside the attack (≈ −18) and delivers the intended behaviour. Task 4's failing test is what surfaced this — the implementer correctly reported BLOCKED rather than adjusting a constant to make it pass.
+6. **`LoudnessCache`'s key is `(guid, fileLength, ticks)` where `ticks = max(assetTicks, metaTicks)`, not the asset's `lastWriteTicks` alone** — amended mid-execution, 2026-07-20, lead-approved, caught by opus review of Task 9's implementation (not by a plan-authoring-time test, since `LoudnessCache` itself takes `ticks` as an opaque long — the defect is only observable once a caller passes the asset-only value, which is Task 10). The plan's original rationale (deviation note in Task 9) reasoned only about the safe direction: a content-preserving touch causing a needless re-analysis. It missed the unsafe direction: the cache actually keys the *decoded clip*, which importer settings (Force To Mono, Quality, Sample Rate Override) change without touching the source file's bytes, length, or mtime at all — so a meta-only edit would silently serve a stale, wrong LUFS reading into the gain solver. Fix: `ticks` is now documented (XML docs on `TryGet`/`Put`, and the Task 9 rationale note above) as a caller contract — the combined max of the asset's and its `.meta`'s last-write ticks. Task 10, the only caller, must honor it. **SUPERSEDED by deviation #7:** a documented-but-unenforced caller contract turned out not to hold even within this plan document — Task 10's own body (~200 lines below the fix) still contained a complete, copy-paste-ready `ResolveIdentity` implementation using the asset-only tick, verbatim the defect this note describes fixing. A round-2 review caught it. The contract is now structural, not documented.
+7. **Key derivation moved entirely inside `LoudnessCache`** (`KeyFor`/`KeyForPaths` + a real `LoudnessCacheKey` struct with a `Mode` field) — amended mid-execution, 2026-07-20, lead-approved (round 2, supersedes deviations #2 and #6 above). Round 1 (deviation #6) fixed the meta-timestamp defect as an XML-doc contract: callers must pass `ticks = max(assetTicks, metaTicks)`. That held for `LoudnessCache.cs` itself, but this plan document is what a Task 10 implementer actually reads top-to-bottom — and Task 10's own `Step 3` code block, written before the round-1 fix and never revisited, still contained a private `ResolveIdentity` deriving `ticks` from the asset file alone. A documented contract sitting a few hundred lines above a contradicting, complete, ready-to-paste implementation is worse than no contract: an implementer working their own section has no reason to scroll back into a different task's prose, and would have retyped the exact bug from a plan that claims three times over that it's fixed. Round-2 review caught this before Task 10 was ever implemented. Fix: `LoudnessCache.KeyFor(AudioClip, MeasureMode)` (and its pure/testable sibling `KeyForPaths`, for real-file tests that don't need an AssetDatabase-imported clip) is now the *only* place `Ticks` is computed; `TryGet`/`Put` take a `LoudnessCacheKey` struct and can no longer be handed loose `(guid, length, ticks)` primitives that a caller could assemble incorrectly. The measure mode moved onto the key struct as a real `MeasureMode Mode` field, replacing deviation #2's `$"{guid}:{(int)mode}"` string-mangling — Task 10's `LoudnessAnalyzer.Analyze` now calls `LoudnessCache.KeyFor(clip, mode)` directly and contains no identity-deriving code of its own. Both Task 9's and Task 10's plan sections were rewritten to match (the old Task 9 code blocks are flagged superseded rather than deleted, to preserve the historical record without being copy-paste hazards).
 
-**Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
+8. **The anchor is mathematically inert for `FinalGainDb` — kept, with the docs corrected to say so** — amended 2026-07-20, lead-approved, from an audit of Tasks 10–13 before Task 11 was implemented. `GainSolver` computes `raw_i = anchorLufs + offset_i + trim_i − measured_i` and then `final_i = raw_i − max_j(raw_j)`. `anchorLufs` is the same constant in every `raw_i`, so it cancels exactly in the subtraction: **`FinalGainDb` is provably independent of the anchor's measured loudness.** Its only live effect is on `IsOutlier` (`|raw| > OutlierThresholdDb`). This was not wrong when designed — it became inert when downward-only normalization was adopted (deviation from spec §6, because `AudioSource.volume` caps at 1.0), and the docs never caught up. **Lead's call: keep the anchor as the outlier reference and sanity readout, and fix every claim that it sets relative placement.** Category offsets set relative placement; the anchor does not. The README and the designer guide now say this outright, including the explicit warning that changing the anchor will *not* move the Gain column — without it, the first designer to try it reports a broken binding. Task 13's Step 9 now verifies both directions (swap anchor → gains unchanged; clear anchor → no outliers). **Second half of the same defect:** `Resolve` fell back to `AnchorLufs = 0f` when no anchor was set. 0 LUFS is digital full scale, so typical −20 LUFS content yields `raw ≈ +20` and trips the 12 dB threshold on *every* row — a fresh user pressing Analyze would get a wall of outlier markers on entirely healthy clips. Fixed by **suppressing the outlier flag entirely when `AnchorStatus != Ok`**, which is the honest option: with no anchor there is no reference, so no outlier judgement is meaningful. (A sane sentinel of −23 dB is also used for the raw readout, but suppression is what makes the behaviour correct rather than merely less wrong.) Two tests pin both halves.
 
-**Test count:** 101 EditMode tests across 13 tasks, all with concrete assertions.
+9. **"The loudest clip lands at exactly 0 dB" is backwards, in eight places plus shipped code** — amended 2026-07-20. `max_j(raw_j)` is attained by the clip needing the **largest** gain, i.e. the one *quietest* relative to its target. That clip pins at 0 dB; the clip loudest relative to its target is attenuated **most**. The audit reported four locations; grepping `loudest` across the document found **eight**: Task 7's rationale prose, Task 7's `GainSolver` code block, Task 7's commit message, Task 11's test name, README, guide (×2), and Task 13's Step 9. All corrected except the Task 7 commit message, which is left verbatim as a historical record of a shipped commit with a note attached. **This wording originated in shipped code** — `GainSolver`'s class docstring — so the source file was corrected too (docstring only, no behavioural change; the suite stayed green at 557). Task 11's test `Analyze_SolvesGainsSoTheLoudestClipSitsAtZeroDb` was worse than misnamed: it asserted `Rows.Max(FinalGainDb) == 0`, which `GainSolver` guarantees for *any* input by construction, so it pinned nothing at all. Rewritten as `Analyze_PinsTheQuietestClipAtZeroDbAndAttenuatesTheLouderOne`, asserting both which clip lands at 0 and that the other is attenuated by exactly the measured loudness difference.
+
+10. **A category or mode edit must call `Analyze`, not `Resolve`** — amended 2026-07-20. `Resolve`'s docstring claimed category and trim edits "affect the target, not the measurement". That is false for categories: a category carries its own `MeasureMode` (shipped defaults Music = `Integrated`, SFX/UI = `MomentaryMax`). Flipping a category's mode, changing a clip's category, or bulk-assigning all called `Resolve`, which cannot change `Analysis.Lufs` — so the old-mode measurement was silently kept and a wrong gain baked. The error is largest on short one-shots, exactly where the mode matters most. `Analyze` is the correct call and is nearly free: `Mode` is a field on `LoudnessCacheKey`, so every clip whose mode did not change is a cache hit. `Resolve` now survives for the trim slider alone, and its docstring says so. The existing test `Resolve_RecomputesGainsWithoutReMeasuring` **encoded the bug as expected behaviour** — it asserted that a *category* change shifts the gain without a re-measure — and was rewritten to use a trim instead; three new tests pin that a category change with a differing mode does re-measure, that `Resolve` alone does not, and that the two are distinguishable.
+
+11. **`ClipListView.BuildVisible` was documented as pure but mutated the profile during `OnGUI`** — amended 2026-07-20. It took `AudioBalanceProfile` and called `SettingsFor`, which **appends a `ClipSettings` on a miss**. `BuildVisible` runs on every `OnGUI` event, so it wrote to the asset during rendering with no `Undo.RecordObject` and no `EditorUtility.SetDirty` — not undoable, not reliably persisted, but *would* be picked up by any `AssetDatabase.SaveAssets()`, which `GainTableWriter.Write` called (see #16). `DrawClipRow` did the same thing unconditionally, once per row per frame. It was also O(n²) per repaint — `SettingsFor` is a linear scan — roughly 250k comparisons at 500 clips in the sort and again in the row draw. Fixed structurally: the window resolves settings **once** into a dictionary outside the render path (wrapped in Undo/SetDirty, where creating entries is legitimate), and `BuildVisible` now takes a read-only `Func<AudioBalanceRow, string>` lookup so it *cannot* reach the profile. A test asserts no settings are created for unknown clips.
+
+12. **`AudioPreviewPlayer` rebuilt on `UnityEditor.AudioUtil` + pre-scaling** — amended 2026-07-20, lead-approved. The planned design built a hidden scene `AudioSource` pair and called `AudioSource.Play()`. **`AudioSource.Play()` produces no audio outside Play Mode**, so the feature could not have worked — both preview buttons would have been silently dead. The plan's stated reason for rejecting Unity's built-in clip preview (no volume control) was correct; its replacement simply did not play. **Lead's call: reflect into `UnityEditor.AudioUtil.PlayPreviewClip`** — the standard approach for editor audio tooling — **and make the gain audible by pre-scaling**, building a temporary gain-applied `AudioClip` and previewing that. A/B mixes the anchor into the same temporary clip, which also avoids depending on `AudioUtil` supporting simultaneous previews. `AudioUtil` is internal and its signatures have changed across Unity versions (the package declares `"unity": "2022.3"`; this repo's editor is 6000.3.8f1), so resolution searches by name and first-parameter type across `PlayPreviewClip`/`PlayClip`, fills the remaining arguments from the resolved overload's own parameter list, and **degrades to a single actionable warning** rather than throwing or failing silently. Lifetime: one static temp-clip slot, destroyed before each new preview and again on domain reload, play-mode change, and window close — never one per click. **Testing:** there was no test file for `AudioPreviewPlayer` at all, unlike the rest of the package. Reflection-dependent playback cannot be meaningfully unit-tested, so the sample arithmetic was extracted into `PreviewClipFactory` (`Scale`/`Mix`) and given 7 tests, and the untestable reflection boundary is documented on the class in the same form `ClipSampleReader.StreamingError` documents its Streaming gap — the precedent this codebase already established.
+
+13. **Layout defects that would not have survived contact with the editor** — amended 2026-07-20. (a) `CategoryBlockHeight` was a fixed `130f` while the block grows 20 px per category. The block needs `4 + 20 + 20n + 18` px, so it overflows the clip table — with overlapping click rects — at **five** categories, not six as first reported; the window ships an "Add Category" button and defaults to three, so that is two clicks away. Now computed from the category count. (b) Task 13 appended Write Table and the Table `ObjectField` to the single toolbar row, putting the field at x = 658 running to x = 838 against 708 px of usable width at `minSize`. That is a **dead end rather than a cosmetic clip**: Write Table is disabled until `Table != null`, and the control that assigns the table was the one cut off. The toolbar now wraps to a second row. (c) The `Play`/`A/B` buttons end at x = 780 against a content width of 688, and the scroll view's content rect was hard-coded to the viewport width, so **no horizontal scrollbar ever appeared** and both of Task 13's headline features were unreachable at the default size. Content width is now `max(viewport, MinRowWidth)`. *(The audit quoted x = 832 and x = 786 for (b) and (c); re-deriving from the plan's own rect arithmetic gives 658 and 780. The defects are real; the figures here are the corrected ones.)*
+
+14. **The progress bar was decorative and Cancel did nothing** — amended 2026-07-20. `RunAnalysis` looped over the clips calling `DisplayCancelableProgressBar` while doing **no work**, then called `_session.Analyze` once, afterwards, as a single blocking call. The bar swept to 100% instantly and the editor then froze with no feedback; `break` on cancel exited only the display loop while `Analyze` still ran to completion. Fixing it requires an **API change**, recorded here explicitly: `AudioBalanceSession.Analyze` now takes an optional `Func<AudioClip, int, int, bool> onProgress` invoked before each clip (returning `true` to cancel) and returns `bool` for completed-vs-cancelled. On cancel it keeps and solves the rows measured so far, so the table shows partial-but-consistent results instead of blanking. A test pins that cancelling at the first clip stops the work.
+
+15. **`result.Reverse()` destroyed sort stability when descending** — amended 2026-07-20. The comment claimed `OrderBy`'s stability preserved discovery order for equal keys. True ascending; false descending, because the post-hoc `Reverse()` inverts tie groups along with everything else. The test covered `ascending: true` only, which is why it survived review. Now `OrderBy`/`OrderByDescending` share one key selector via a small `Order` helper — stable in both directions, and the two directions cannot drift apart. A descending-stability test was added.
+
+16. **`AssetDatabase.SaveAssets()` moved out of `GainTableWriter.Write`** — amended 2026-07-20. `Write` is exercised by a unit test, so running the suite flushed **every dirty asset in the project** to disk; combined with #11's render-path mutations, that was a live route for unintended writes. `Write` is now a pure asset mutation (`SetEntries` + `SetDirty`) and the window's button handler calls `SaveAssets()` — an explicit user action, which is the only place a project-wide flush belongs.
+
+17. **One Undo entry per frame during drags** — amended 2026-07-20. Both the trim slider and the category fields compared values directly and called `Undo.RecordObject` on every `OnGUI` frame where the value differed, so a single trim drag produced dozens of undo entries and re-ran `GainSolver` over every row for each one; the category `TextField` did the same per keystroke frame. Now `EditorGUI.BeginChangeCheck`/`EndChangeCheck`, with the undo recorded once at the start of a drag gesture and `SetDirty` committed on `MouseUp`/`DragExited`. The category name field became a `DelayedTextField` so it commits on Enter/focus-loss rather than per keystroke.
+
+18. **`_selected` was never pruned** — amended 2026-07-20. Switching profiles called `_session.Clear()` but left `_selected` holding clips from the old profile, so the bulk button read `Set Category (12)` while the resolved target list was empty — clicking appeared to work and silently did nothing. The profile-switch branch now clears the selection and invalidates the settings map, `PruneSelection` drops any clip no longer in the resolved set each frame, and `ShowBulkCategoryMenu` shows a disabled "Nothing selected" item rather than an empty menu if it is ever reached with no targets.
+
+19. **Non-ASCII glyphs replaced in IMGUI captions only** — amended 2026-07-20. `▸` (empty-state label), `▲`/`▼` (sort direction) and `▶` (preview) are BMP geometric shapes, **not** astral-plane emoji, so the known project hazard (emoji rendering blank in Unity 2022.3 IMGUI) does not strictly apply — but default-font glyph coverage is not guaranteed and a blank button is indistinguishable from a broken one. Replaced with `>`, `Asc`/`Desc`, and `Play`. The `▸` characters in the README, the designer guide, and the plan's own prose are **deliberately left alone**: those are rendered by a markdown viewer, not by IMGUI.
+
+20. **Stale 4-argument `ClipAnalysis.Ok` call, and the type-consistency claim it falsified** — amended 2026-07-20. Task 12's test helper called `ClipAnalysis.Ok(clip, lufs, -3f, -2.8f)`; the shipped signature takes **three** arguments. Deviation #5 struck `ApproxTruePeakDb` and collapsed the two peak fields into one `PeakDb`, and that amendment reached Task 13's otherwise-identical helper (which is correct) but not Task 12's — the trailing `-2.8f` is vestigial. Fixed. This falsified the "Type consistency: verified" claim below, which has been re-derived rather than restated — see the note there.
+
+21. **`GUIUtility.ExitGUI()` convention noted** — amended 2026-07-20. The window justifies its absolute-rect layout by the `ExitGUIException` layout-stack crash, then calls `EditorUtility.OpenFolderPanel` and `DisplayDialog` from inside `OnGUI` — the very pattern the rationale warns about. On inspection the rationale is **narrowly correct**: absolute rects genuinely immunize the layout stack, so there is nothing for an unwinding `ExitGUIException` to corrupt here. This is a risk to watch, not a defect, and no code changed. The class docstring now records the convention explicitly — call `ExitGUI()` after a modal that mutates state the GUI is about to keep reading, and note that adding any `GUILayout` block to this window forfeits the immunity entirely.
+
+22. **Test hygiene: the reported divergence does not exist** — checked 2026-07-20, **no change made**, recorded because the audit asked for one. The finding was that Tasks 11–13's tests never `DestroyImmediate` their `ScriptableObject.CreateInstance` objects or `AudioClip.Create` clips, and should "match whatever the shipped test files do". Checking the shipped suite: **no** test file calls `DestroyImmediate` at all. The single `[TearDown]` in the package (`LoudnessCacheTests`) deletes a temp *file*, not Unity objects. So Tasks 11–13 are already consistent with the established convention, and adding cleanup to them alone would make them the outliers. Leaked `ScriptableObject`s in an EditMode run are a real if minor cost, but that is a **suite-wide** decision affecting eleven existing files and is out of scope for a plan amendment — flagged here for the lead rather than half-applied to three files.
+
+**Type consistency — re-derived, not restated (see deviation #20).** The previous blanket "verified" claim was false, so every cross-task type usage was re-checked against the shipped source rather than against the plan. What was checked and what was found:
+
+- `ClipAnalysis.Ok(AudioClip, float, float)` — shipped takes **3** args. All 14 call sites in Task 7 are correct; Task 13's is correct; **Task 12's was 4-arg and is now fixed**.
+- `new ClipAnalysis(...)` — shipped takes **5** parameters (`clip, status, lufs, peakDb, reason = null`). Tasks 12 and 13 both pass 5 and are correct. **However, Task 7's "Interfaces" block (line ~1859) documents the constructor as 4 parameters, omitting `reason` entirely** — a second, separate staleness in the same family as #20. Corrected.
+- `GainResult(AudioClip, ClipStatus, float, float, bool)` — 5 args; consistent at every appearance, including the new outlier-suppression path in Task 11.
+- `ClipStatus`, `MeasureMode` — enum member names consistent throughout.
+- `AudioGainTable.Entry { Clip, GainDb }` — consistent.
+- `AudioBalanceRow { Clip, Analysis, Gain }` — consistent.
+- `LoudnessCacheKey` — carries `Mode`, which is what makes deviation #10's "re-analyze is nearly free" claim true; verified against the shipped struct rather than assumed.
+- `ClipListView.BuildVisible` — signature changed by deviation #11; **all 9 call sites in the test block and the 1 in the window were updated**, and the now-unused private `CategoryOf` helper was removed from `ClipListView`.
+- `AudioBalanceSession.Analyze` — signature changed by deviation #14; existing call sites still compile because the new parameter is optional and the return value is ignorable.
+
+**Test count:** the original "101 EditMode tests across 13 tasks" was a plan-authoring estimate and is badly out of step with reality — Tasks 1–10 alone ship **557**. Treat it as an estimate, not a target. The amendments above change the per-task counts for the three unimplemented tasks: Task 11 **7 → 12**, Task 12 **11 → 13**, Task 13 **8 → 15** (8 `GainTableWriter` + 7 new `PreviewClipFactory`).
