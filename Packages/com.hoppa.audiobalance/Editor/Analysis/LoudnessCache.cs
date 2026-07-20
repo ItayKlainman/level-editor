@@ -74,6 +74,14 @@ namespace Hoppa.AudioBalance.Editor
         }
 
         /// <summary>
+        /// Whether anything has been stored or removed since the last <see cref="Save"/> (or
+        /// since <see cref="Load"/>). Lets a caller skip a disk write on a pass that measured
+        /// nothing new -- the common case once a project is warm, where every clip is a cache
+        /// hit and re-serialising the whole store would be pure cost.
+        /// </summary>
+        public bool IsDirty { get; private set; }
+
+        /// <summary>
         /// Loads the cache from <paramref name="path"/>, or <see cref="DefaultPath"/> when
         /// <paramref name="path"/> is null or empty. A missing file returns an empty cache. A
         /// corrupt or unreadable file also degrades to an empty cache (logged as a warning)
@@ -274,6 +282,8 @@ namespace Hoppa.AudioBalance.Editor
                 Ticks = key.Ticks,
                 Value = Copy(value)
             };
+
+            IsDirty = true;
         }
 
         /// <summary>
@@ -325,6 +335,11 @@ namespace Hoppa.AudioBalance.Editor
             foreach (var key in toRemove)
             {
                 _entries.Remove(key);
+            }
+
+            if (toRemove.Count > 0)
+            {
+                IsDirty = true;
             }
 
             return toRemove.Count;
@@ -392,6 +407,10 @@ namespace Hoppa.AudioBalance.Editor
                 {
                     File.Move(tempPath, _path);
                 }
+
+                // Only on the success path: a failed write must leave the cache dirty so the
+                // next Save retries rather than dropping the measurements silently.
+                IsDirty = false;
             }
             catch (Exception exception)
             {

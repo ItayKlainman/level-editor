@@ -40,10 +40,37 @@ namespace Hoppa.AudioBalance.Editor
         private float CategoryBlockHeight =>
             RowHeight * ((_profile?.Categories?.Count ?? 0) + 2) + 10f;
 
-        private AudioBalanceProfile _profile;
+        // [SerializeField] is required for these to survive a script recompile: EditorWindow
+        // serializes private fields only when they are marked. Without it the designer's
+        // profile selection and scroll position are silently dropped on every recompile.
+        // _session and _cache deliberately are NOT serialized -- neither is serializable, and
+        // both are cheap to rebuild in OnEnable.
+        [SerializeField] private AudioBalanceProfile _profile;
+        [SerializeField] private Vector2 _clipScroll;
+
         private readonly AudioBalanceSession _session = new AudioBalanceSession();
         private LoudnessCache _cache;
-        private Vector2 _clipScroll;
+
+        /// <summary>
+        /// Built lazily and reused. Constructing a GUIStyle inside OnGUI allocates on every
+        /// repaint; EditorStyles is also null during some early domain-reload frames, so it
+        /// cannot simply be a field initialiser.
+        /// </summary>
+        private static GUIStyle _hintStyle;
+
+        private static GUIStyle HintStyle
+        {
+            get
+            {
+                if (_hintStyle == null && EditorStyles.miniLabel != null)
+                {
+                    _hintStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = false };
+                    _hintStyle.normal.textColor = Color.gray;
+                }
+
+                return _hintStyle ?? GUIStyle.none;
+            }
+        }
 
         /// <summary>
         /// One gesture for the whole category block: only one control in a window can be
@@ -119,6 +146,10 @@ namespace Hoppa.AudioBalance.Editor
                 _profile = picked;
                 _session.Clear();
 
+                // Any edit gesture in flight belonged to the OLD profile; carrying its pending
+                // re-analysis flag across would apply it to the new one.
+                _categoryEditNeedsAnalyze = false;
+
                 // Task 12 adds a _selected set here too -- see ClearSelection() in that task.
                 // Anything holding onto clips from the old profile MUST be dropped here.
             }
@@ -162,15 +193,20 @@ namespace Hoppa.AudioBalance.Editor
                 _profile.Anchor = picked;
                 EditorUtility.SetDirty(_profile);
 
-                // Re-run only if an analysis has already happened. The anchor sets the
-                // outlier reference and the LUFS readout beside this field, so leaving both
-                // stale next to a freshly-picked clip is the "reads as a broken binding"
-                // failure the audit called out. Every clip is a cache hit, so this is near
-                // free -- and the Gain column will visibly NOT move, which is correct and
-                // documented: the anchor cancels out of FinalGainDb.
+                // Re-run only if an analysis has already happened. The anchor is the outlier
+                // REFERENCE, so a stale AnchorLufs/AnchorStatus is wrong in both directions:
+                // the outlier column stays computed against the old anchor, and the
+                // suppression gate (AnchorStatus == Ok) can be stuck on or off. Leaving the
+                // LUFS readout stale next to a freshly-picked clip is the "reads as a broken
+                // binding" failure the audit called out. The Gain column will visibly NOT
+                // move, which is correct and documented: the anchor cancels out of
+                // FinalGainDb.
                 //
-                // Guarded on Rows.Count so picking an anchor on a never-analyzed profile
-                // does not silently kick off a full-library decode the user did not ask for.
+                // Cost: this is a full RunAnalysis -- an AssetDatabase.FindAssets sweep,
+                // enrolment over every discovered clip, and a cache write. Clip measurement
+                // itself is a cache hit, but the pass is not free. Guarded on Rows.Count so
+                // picking an anchor on a never-analyzed profile does not silently kick off a
+                // full-library decode the user did not ask for.
                 if (_session.Rows.Count > 0)
                 {
                     RunAnalysis();
@@ -182,7 +218,15 @@ namespace Hoppa.AudioBalance.Editor
                 ? $"{_session.AnchorLufs:0.0} LUFS"
                 : "not analyzed";
 
-            GUI.Label(new Rect(rect.x + 282f, rect.y, 240f, rect.height), summary);
+            GUI.Label(new Rect(rect.x + 282f, rect.y, 120f, rect.height), summary);
+
+            // Designers WILL swap the anchor and expect the Gain column to move. It cannot:
+            // the anchor term cancels in the headroom subtraction. Saying so at the point of
+            // use is the difference between a documented design and a bug report. The README
+            // and guide say it too, but nobody reads those while clicking this field.
+            GUI.Label(new Rect(rect.x + 406f, rect.y, rect.width - 412f, rect.height),
+                "reference for outliers + readout only; category offsets set relative placement",
+                HintStyle);
         }
 
         private void DrawCategories(Rect rect)
@@ -223,13 +267,17 @@ namespace Hoppa.AudioBalance.Editor
 
                 if (EditorGUI.EndChangeCheck())
                 {
-                    // A mode change changes the MEASUREMENT, which Resolve cannot do. A name
-                    // change re-points every clip that referenced the old name, which can
-                    // change their effective mode too. Both must re-analyze; the cache makes
-                    // it near-free for any clip whose mode did not actually move.
-                    _categoryEditNeedsAnalyze |= mode != category.Mode || name != category.Name;
+                    // A mode change changes the MEASUREMENT, which Resolve cannot do. A rename
+                    // re-points every clip that referenced the old name, which can change their
+                    // effective mode too. Both must re-analyze; the cache makes it near-free
+                    // for any clip whose mode did not actually move.
+                    var renamedFrom = name != category.Name ? category.Name : null;
+                    _categoryEditNeedsAnalyze |= mode != category.Mode || renamedFrom != null;
 
-                    var step = _categoryGesture.Advance(Event.current.type, true);
+                    // hotControl, not the event type -- by this point the controls above have
+                    // consumed the event and Use() has rewritten BOTH type and rawType to
+                    // Used. See the EditGesture class doc.
+                    var step = _categoryGesture.Advance(true, GUIUtility.hotControl != 0);
 
                     if (step == EditStep.Record || step == EditStep.RecordAndCommit)
                     {
@@ -237,8 +285,14 @@ namespace Hoppa.AudioBalance.Editor
                     }
 
                     // Apply immediately regardless of step so the field stays live under a
-                    // drag; only the commit is deferred.
-                    category.Name = name;
+                    // drag; only the commit is deferred. RenameCategory sets the name AND
+                    // re-points every clip referencing it -- doing only the former would
+                    // silently reassign the whole group to Categories[0].
+                    if (renamedFrom != null)
+                    {
+                        _profile.RenameCategory(renamedFrom, name);
+                    }
+
                     category.OffsetDb = offset;
                     category.Mode = mode;
 
@@ -251,9 +305,9 @@ namespace Hoppa.AudioBalance.Editor
                 y += RowHeight;
             }
 
-            // One poll per frame closes a drag that ended without a value change on the
-            // terminating event (a MouseUp carries no new value).
-            if (_categoryGesture.Advance(Event.current.type, false) == EditStep.Commit)
+            // One poll per frame closes a gesture whose terminating frame carried no new value
+            // (a mouse release does not change the number, it just ends the drag).
+            if (_categoryGesture.Advance(false, GUIUtility.hotControl != 0) == EditStep.Commit)
             {
                 CommitCategoryEdit();
             }
@@ -367,10 +421,24 @@ namespace Hoppa.AudioBalance.Editor
         {
             var discovered = LoudnessAnalyzer.FindClips(_profile.Folders);
 
+            // Enrolment -- creating a ClipSettings for a clip the profile has not seen -- is a
+            // mutation, so it happens HERE, once, inside an Undo scope and before SetDirty.
+            // AudioBalanceSession never enrols; it reads through FindSettings only. That split
+            // is deliberate: SettingsFor appends on a miss, so leaving it in the measure path
+            // meant the profile asset was written from a method the tests call directly, with
+            // no Undo entry and no defined ordering against SetDirty.
             Undo.RecordObject(_profile, "Scan Audio Folders");
+
             foreach (var clip in discovered)
             {
                 _profile.SettingsFor(clip);
+            }
+
+            // The anchor gets a baked gain entry like any other clip (lead's call), so it must
+            // be enrolled explicitly rather than as a side effect of being measured.
+            if (_profile.Anchor != null)
+            {
+                _profile.SettingsFor(_profile.Anchor);
             }
 
             EditorUtility.SetDirty(_profile);
@@ -381,11 +449,30 @@ namespace Hoppa.AudioBalance.Editor
                 // revision ran a display-only loop and then called Analyze once, so the bar
                 // swept to 100% instantly, the editor froze with no feedback, and Cancel
                 // exited only the display loop while the real work ran to completion.
+                // Throttled: a fully-cached clip measures in microseconds, but each
+                // DisplayCancelableProgressBar call is a modal repaint costing far more than
+                // the cache hit it reports. At 500 mostly-cached clips an unthrottled bar is
+                // the dominant cost of the whole pass. Always draw the first clip so the bar
+                // appears immediately, then roughly every 50 ms.
+                var lastTick = 0d;
+                var cancelled = false;
+
                 var completed = _session.Analyze(_profile, _cache, (clip, index, total) =>
-                    EditorUtility.DisplayCancelableProgressBar(
+                {
+                    var now = EditorApplication.timeSinceStartup;
+                    if (index != 0 && now - lastTick < 0.05d && !cancelled)
+                    {
+                        return false;
+                    }
+
+                    lastTick = now;
+                    cancelled = EditorUtility.DisplayCancelableProgressBar(
                         "Audio Balance",
                         $"Analyzing {clip.name}  ({index + 1}/{total})",
-                        total == 0 ? 0f : index / (float)total));
+                        total == 0 ? 0f : index / (float)total);
+
+                    return cancelled;
+                });
 
                 if (!completed)
                 {
@@ -397,7 +484,15 @@ namespace Hoppa.AudioBalance.Editor
                 EditorUtility.ClearProgressBar();
             }
 
-            _cache?.Save();
+            // Only rewrite the Library/ JSON when a measurement was actually stored. Every
+            // category name/mode commit and every anchor pick routes through here, and a
+            // fully-cached pass stores nothing -- writing the file each time would be a disk
+            // write per category keystroke.
+            if (_cache != null && _cache.IsDirty)
+            {
+                _cache.Save();
+            }
+
             Repaint();
         }
     }

@@ -56,8 +56,68 @@ namespace Hoppa.AudioBalance.Editor
             return Categories[0];
         }
 
-        /// <summary>Returns the clip's settings, creating and storing them on first access.</summary>
-        public ClipSettings SettingsFor(AudioClip clip)
+        /// <summary>
+        /// Renames a category AND re-points every clip that referenced it, as one operation.
+        ///
+        /// <para>
+        /// These two halves must never be separated. <see cref="ClipSettings.Category"/> is a
+        /// name string, so renaming the category alone orphans every clip in it:
+        /// <see cref="FindCategory"/> then misses and falls back to <c>Categories[0]</c>,
+        /// silently moving the whole group to another category's offset AND
+        /// <see cref="MeasureMode"/>. A designer tidying "SFX" to "SFX (UI)" would move every
+        /// one-shot to Music/Integrated and shift its baked gain by several dB, with no
+        /// warning and an undo entry that looks like a harmless rename. Exposing this as one
+        /// method is what makes that mistake unrepresentable.
+        /// </para>
+        ///
+        /// <para>
+        /// No-ops on an empty new name (a half-typed field must not orphan anything) or when
+        /// no category has the old name. Matching is exact -- deliberately NOT
+        /// <see cref="FindCategory"/>, whose <c>Categories[0]</c> fallback would rename the
+        /// wrong category entirely.
+        /// </para>
+        /// </summary>
+        public void RenameCategory(string oldName, string newName)
+        {
+            if (string.IsNullOrEmpty(newName) || oldName == newName || Categories == null)
+            {
+                return;
+            }
+
+            AudioCategory target = null;
+            foreach (var category in Categories)
+            {
+                if (category != null && category.Name == oldName)
+                {
+                    target = category;
+                    break;
+                }
+            }
+
+            if (target == null)
+            {
+                return;
+            }
+
+            target.Name = newName;
+
+            foreach (var settings in Clips)
+            {
+                if (settings != null && settings.Category == oldName)
+                {
+                    settings.Category = newName;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The clip's existing settings, or null if it has never been enrolled. Unlike
+        /// <see cref="SettingsFor"/> this NEVER mutates the profile, which makes it the only
+        /// safe lookup for read paths -- rendering, measuring, solving. <c>SettingsFor</c>
+        /// appends on a miss, so calling it from those paths writes to the asset outside any
+        /// Undo scope (and, from <c>OnGUI</c>, once per repaint).
+        /// </summary>
+        public ClipSettings FindSettings(AudioClip clip)
         {
             if (clip == null)
             {
@@ -70,6 +130,28 @@ namespace Hoppa.AudioBalance.Editor
                 {
                     return settings;
                 }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns the clip's settings, creating and storing them on first access -- i.e. this
+        /// ENROLS the clip into the profile. Because that is a mutation, call it only from a
+        /// path that owns an <c>Undo.RecordObject</c> scope and follows with
+        /// <c>EditorUtility.SetDirty</c>; use <see cref="FindSettings"/> everywhere else.
+        /// </summary>
+        public ClipSettings SettingsFor(AudioClip clip)
+        {
+            if (clip == null)
+            {
+                return null;
+            }
+
+            var existing = FindSettings(clip);
+            if (existing != null)
+            {
+                return existing;
             }
 
             var created = new ClipSettings

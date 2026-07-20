@@ -59,17 +59,23 @@ namespace Hoppa.AudioBalance.Editor
                 return true;
             }
 
+            var anchorMeasured = false;
+            var anchorAnalysis = default(ClipAnalysis);
+
             if (profile.Anchor != null)
             {
-                var anchorAnalysis = LoudnessAnalyzer.Analyze(
-                    profile.Anchor, profile.ModeFor(profile.Anchor), cache);
+                anchorAnalysis = LoudnessAnalyzer.Analyze(
+                    profile.Anchor, ModeFor(profile, profile.Anchor), cache);
 
+                anchorMeasured = true;
                 AnchorStatus = anchorAnalysis.Status;
                 AnchorLufs = anchorAnalysis.Lufs;
             }
 
-            // Snapshot first: profile.ModeFor -> SettingsFor can append to profile.Clips,
-            // and mutating the list we are iterating would throw.
+            // Read-only snapshot. This method deliberately does NOT enrol anything: it uses
+            // FindSettings, never SettingsFor, so measuring can never append a ClipSettings to
+            // the asset outside an Undo scope. Enrolment -- including the anchor's -- is the
+            // window's job, done explicitly inside Undo in RunAnalysis.
             var pending = new List<AudioClip>();
             foreach (var settings in profile.Clips)
             {
@@ -91,10 +97,17 @@ namespace Hoppa.AudioBalance.Editor
                     break;
                 }
 
+                // The anchor is normally also an enrolled clip, so it appears here too. Reuse
+                // the measurement rather than decoding it a second time -- free when a cache is
+                // present, a full second decode of (typically) the longest clip when it is not.
+                var analysis = anchorMeasured && clip == profile.Anchor
+                    ? anchorAnalysis
+                    : LoudnessAnalyzer.Analyze(clip, ModeFor(profile, clip), cache);
+
                 _rows.Add(new AudioBalanceRow
                 {
                     Clip = clip,
-                    Analysis = LoudnessAnalyzer.Analyze(clip, profile.ModeFor(clip), cache)
+                    Analysis = analysis
                 });
             }
 
@@ -129,11 +142,13 @@ namespace Hoppa.AudioBalance.Editor
 
             var anchorOk = AnchorStatus == ClipStatus.Ok;
 
+            // Non-mutating lookups, NOT profile.OffsetDbFor/TrimDbFor: those route through
+            // SettingsFor, which enrols on a miss. Solving is a read.
             var solved = GainSolver.Solve(
                 analyses,
                 anchorOk ? AnchorLufs : NoAnchorReferenceLufs,
-                profile.OffsetDbFor,
-                profile.TrimDbFor);
+                clip => OffsetDbFor(profile, clip),
+                clip => TrimDbFor(profile, clip));
 
             for (var i = 0; i < _rows.Count && i < solved.Count; i++)
             {
@@ -151,6 +166,38 @@ namespace Hoppa.AudioBalance.Editor
 
                 _rows[i].Gain = result;
             }
+        }
+
+        /// <summary>
+        /// The clip's effective measure mode WITHOUT enrolling it. An un-enrolled clip has no
+        /// category, so it falls back to <see cref="MeasureMode.Integrated"/> -- the same
+        /// answer <c>AudioBalanceProfile.ModeFor</c> gives, minus the write.
+        /// </summary>
+        private static MeasureMode ModeFor(AudioBalanceProfile profile, AudioClip clip)
+        {
+            var settings = profile.FindSettings(clip);
+            if (settings == null)
+            {
+                return MeasureMode.Integrated;
+            }
+
+            return profile.FindCategory(settings.Category)?.Mode ?? MeasureMode.Integrated;
+        }
+
+        private static float OffsetDbFor(AudioBalanceProfile profile, AudioClip clip)
+        {
+            var settings = profile.FindSettings(clip);
+            if (settings == null)
+            {
+                return 0f;
+            }
+
+            return profile.FindCategory(settings.Category)?.OffsetDb ?? 0f;
+        }
+
+        private static float TrimDbFor(AudioBalanceProfile profile, AudioClip clip)
+        {
+            return profile.FindSettings(clip)?.TrimDb ?? 0f;
         }
 
         public void Clear()

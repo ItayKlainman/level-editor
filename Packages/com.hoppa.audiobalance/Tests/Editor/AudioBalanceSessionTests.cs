@@ -129,12 +129,45 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
+        public void Analyze_AfterTheAnchorIsCleared_ResetsTheAnchorStatusInsteadOfKeepingAStaleOk()
+        {
+            // The real bug class is STALENESS, not the initial value: AnchorStatus's field
+            // initialiser is already Unanalyzable, so a session that never assigns it passes
+            // the test above. This one analyzes with a valid anchor FIRST, so a stale Ok is
+            // what an implementation that fails to reset would carry forward. It matters
+            // because AnchorStatus gates outlier suppression -- a stale Ok flags rows against
+            // a reference that no longer exists.
+            var anchor = Tone("anchor", -20.0);
+            var broken = Tone("broken", -60.0);
+            var profile = Profile(anchor, broken);
+            var session = new AudioBalanceSession();
+
+            session.Analyze(profile, null);
+            Assert.AreEqual(ClipStatus.Ok, session.AnchorStatus, "Precondition: the anchor measured fine.");
+            Assert.IsTrue(session.Rows.First(r => r.Clip.name == "broken").Gain.IsOutlier,
+                "Precondition: with an anchor, the -60 clip is a genuine outlier.");
+
+            profile.Anchor = null;
+            session.Analyze(profile, null);
+
+            Assert.AreEqual(ClipStatus.Unanalyzable, session.AnchorStatus,
+                "Clearing the anchor must reset the status, not leave the previous Ok in place.");
+            Assert.IsFalse(session.Rows.First(r => r.Clip.name == "broken").Gain.IsOutlier,
+                "A stale Ok would keep suppression off and flag rows against a gone reference.");
+        }
+
+        [Test]
         public void Analyze_WithANullProfile_ClearsRowsWithoutThrowing()
         {
+            // Analyze a real profile FIRST: on a fresh session Rows is already empty, so an
+            // implementation that returns early WITHOUT clearing passes a bare null call.
             var session = new AudioBalanceSession();
+            session.Analyze(Profile(Tone("anchor", -23.0), Tone("other", -20.0)), null);
+            Assert.AreEqual(2, session.Rows.Count, "Precondition: there are rows to clear.");
 
             Assert.DoesNotThrow(() => session.Analyze(null, null));
             Assert.AreEqual(0, session.Rows.Count);
+            Assert.AreEqual(ClipStatus.Unanalyzable, session.AnchorStatus);
         }
 
         [Test]
@@ -262,6 +295,149 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
+        public void Analyze_ThroughARealCache_ServesTheSecondPassFromTheCache()
+        {
+            // Every other session test passes cache: null, so deviation #10's load-bearing
+            // claim -- "re-analysis is near-free because Mode is a field on LoudnessCacheKey"
+            // -- was never exercised through Analyze at all. This needs asset-backed clips:
+            // AudioClip.Create has no asset path, so KeyFor returns an invalid key and the
+            // cache is structurally bypassed.
+            using (var fixture = new AudioAssetFixture())
+            {
+                var anchor = fixture.CreateTone("anchor", -23.0, 2.0);
+                var other = fixture.CreateTone("other", -18.0, 2.0);
+
+                var cachePath = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(), "hoppa-session-cache-" + System.Guid.NewGuid().ToString("N") + ".json");
+
+                try
+                {
+                    var cache = LoudnessCache.Load(cachePath);
+                    var profile = Profile(anchor, other);
+
+                    var session = new AudioBalanceSession();
+                    session.Analyze(profile, cache);
+
+                    var measured = session.Rows.First(r => r.Clip == other).Analysis.Lufs;
+                    Assert.AreEqual(ClipStatus.Ok, session.Rows.First(r => r.Clip == other).Analysis.Status);
+                    Assert.IsTrue(cache.IsDirty, "The first pass must have stored measurements.");
+
+                    // Poison the cache entry under the SAME key the second pass will look up.
+                    // If the second pass returns this impossible value, the hit was genuine;
+                    // if it returns the real measurement, Analyze silently bypassed the cache
+                    // and the "near-free" claim is false.
+                    var key = LoudnessCache.KeyFor(other, MeasureMode.Integrated);
+                    Assert.IsTrue(key.IsValid, "Precondition: an asset-backed clip has a valid cache key.");
+                    cache.Put(key, new CachedLoudness { Status = (int)ClipStatus.Ok, Lufs = -99f, PeakDb = -1f });
+
+                    session.Analyze(profile, cache);
+
+                    Assert.AreEqual(-99f, session.Rows.First(r => r.Clip == other).Analysis.Lufs, 1e-3f,
+                        "The second pass must be served from the cache, not re-measured.");
+                    Assert.AreNotEqual(-99f, measured,
+                        "Sanity: the poisoned value is not what the clip actually measures.");
+                }
+                finally
+                {
+                    if (System.IO.File.Exists(cachePath))
+                    {
+                        System.IO.File.Delete(cachePath);
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Analyze_AfterACategoryModeChange_MissesTheCacheForThatClipOnly()
+        {
+            // The other half of the same claim: the mode is part of the key, so a clip moved
+            // to a differently-measured category must NOT be served the old-mode value.
+            using (var fixture = new AudioAssetFixture())
+            {
+                var anchor = fixture.CreateTone("anchor", -23.0, 2.0);
+                var burst = fixture.CreateClip("burst", SignalFactory.Concat(
+                        SignalFactory.Sine(-12.0, 0.5, 2, Rate),
+                        SignalFactory.Sine(-50.0, 2.0, 2, Rate)),
+                    2, Rate);
+
+                var cachePath = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(), "hoppa-session-mode-" + System.Guid.NewGuid().ToString("N") + ".json");
+
+                try
+                {
+                    var cache = LoudnessCache.Load(cachePath);
+                    var profile = Profile(anchor);
+                    profile.SettingsFor(burst).Category = "Music";
+
+                    var session = new AudioBalanceSession();
+                    session.Analyze(profile, cache);
+                    var integrated = session.Rows.First(r => r.Clip == burst).Analysis.Lufs;
+
+                    profile.SettingsFor(burst).Category = "SFX"; // MomentaryMax
+                    session.Analyze(profile, cache);
+                    var momentary = session.Rows.First(r => r.Clip == burst).Analysis.Lufs;
+
+                    Assert.Greater(momentary - integrated, 0.5f,
+                        "A cache keyed without Mode would serve the Integrated value straight back.");
+
+                    // Both modes are now cached independently, so switching back is a hit.
+                    profile.SettingsFor(burst).Category = "Music";
+                    session.Analyze(profile, cache);
+
+                    Assert.AreEqual(integrated, session.Rows.First(r => r.Clip == burst).Analysis.Lufs, 1e-3f,
+                        "Switching back must hit the Integrated entry, not re-measure to a different value.");
+                }
+                finally
+                {
+                    if (System.IO.File.Exists(cachePath))
+                    {
+                        System.IO.File.Delete(cachePath);
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void RenamingACategory_MovesItsClipsWithIt()
+        {
+            // ClipSettings.Category is a name string and FindCategory falls back to
+            // Categories[0] on a miss, so renaming a category without re-pointing its clips
+            // silently moves the whole group to Music/Integrated -- shifting every baked gain,
+            // with an undo entry that looks like a harmless rename.
+            var anchor = Tone("anchor", -23.0);
+            var oneShot = Tone("oneShot", -20.0);
+            var profile = Profile(anchor);
+            profile.SettingsFor(oneShot).Category = "SFX";
+
+            Assert.AreEqual(MeasureMode.MomentaryMax,
+                profile.FindCategory(profile.FindSettings(oneShot).Category).Mode,
+                "Precondition: SFX is MomentaryMax.");
+
+            profile.RenameCategory("SFX", "SFX (UI)");
+
+            Assert.AreEqual("SFX (UI)", profile.FindSettings(oneShot).Category,
+                "The clip must follow its category through the rename.");
+            Assert.AreEqual(MeasureMode.MomentaryMax,
+                profile.FindCategory(profile.FindSettings(oneShot).Category).Mode,
+                "Without re-pointing, this falls through to Categories[0] (Music/Integrated).");
+        }
+
+        [Test]
+        public void RenamingACategory_ToAnEmptyName_IsIgnored()
+        {
+            // A half-typed field must not orphan a whole category's clips.
+            var anchor = Tone("anchor", -23.0);
+            var oneShot = Tone("oneShot", -20.0);
+            var profile = Profile(anchor);
+            profile.SettingsFor(oneShot).Category = "SFX";
+
+            profile.RenameCategory("SFX", string.Empty);
+
+            Assert.AreEqual("SFX", profile.FindSettings(oneShot).Category);
+            Assert.IsNotNull(profile.Categories.Find(c => c.Name == "SFX"));
+        }
+
+        [Test]
         public void Analyze_ReportsProgressAndHonoursCancel()
         {
             var anchor = Tone("anchor", -23.0);
@@ -277,6 +453,81 @@ namespace Hoppa.AudioBalance.Editor.Tests
 
             Assert.IsFalse(completed, "Analyze must report that it was cancelled.");
             Assert.AreEqual(1, seen, "Cancelling at the first clip must stop the work.");
+        }
+
+        [Test]
+        public void Analyze_WhenCancelledPartWayThrough_KeepsAndSolvesTheRowsAlreadyMeasured()
+        {
+            // Cancelling at index 0 cannot test this: Rows is empty either way, so an
+            // implementation that blanks the table on cancel, or that skips Resolve and leaves
+            // every Gain at default, passes. Both the XML doc and the commit message claim
+            // "rows measured so far are kept and still solved" -- this is the assertion that
+            // actually holds them to it.
+            var anchor = Tone("anchor", -23.0);
+            var profile = Profile(anchor, Tone("b", -12.0), Tone("c", -20.0));
+            var session = new AudioBalanceSession();
+
+            var completed = session.Analyze(profile, null,
+                (clip, index, total) => index == 2); // let 0 and 1 through, cancel at 2
+
+            Assert.IsFalse(completed);
+            Assert.AreEqual(2, session.Rows.Count,
+                "The two clips measured before the cancel must survive it.");
+
+            foreach (var row in session.Rows)
+            {
+                Assert.AreEqual(ClipStatus.Ok, row.Analysis.Status);
+
+                // Gain.Clip, NOT Gain.Status: ClipStatus.Ok is 0, so an unsolved default
+                // GainResult reports Status == Ok and that assertion would be vacuous.
+                // Clip is null until the solver populates it.
+                Assert.IsNotNull(row.Gain.Clip,
+                    $"'{row.Clip.name}' was measured but never solved -- Resolve was skipped on the cancel path.");
+            }
+
+            // The solver ran over exactly the surviving rows: anchor (-23) and b (-12) are
+            // 11 dB apart, so the quieter pins at 0 and the louder sits ~11 dB down.
+            Assert.AreEqual(0f, session.Rows.First(r => r.Clip.name == "anchor").Gain.FinalGainDb, 0.3f);
+            Assert.AreEqual(-11f, session.Rows.First(r => r.Clip.name == "b").Gain.FinalGainDb, 0.5f);
+        }
+
+        [Test]
+        public void Analyze_DoesNotEnrolTheAnchorOrAnyClipIntoTheProfile()
+        {
+            // Measuring is a READ. SettingsFor appends on a miss, so routing the measure path
+            // through it wrote to the profile asset outside any Undo scope, from a method the
+            // tests call directly. Enrolment is now the window's job, done explicitly inside
+            // Undo in RunAnalysis.
+            var anchor = Tone("anchor", -23.0);
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            profile.Anchor = anchor; // deliberately NOT enrolled
+
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            Assert.AreEqual(ClipStatus.Ok, session.AnchorStatus,
+                "The anchor is still measured, it is just not enrolled as a side effect.");
+            CollectionAssert.IsEmpty(profile.Clips,
+                "Analyze must not append a ClipSettings for the anchor -- that is a mutation.");
+        }
+
+        [Test]
+        public void Resolve_DoesNotEnrolAnUnknownClipIntoTheProfile()
+        {
+            // The same defect via the other door: GainSolver takes offset/trim lookups, and
+            // passing profile.OffsetDbFor/TrimDbFor routed solving through SettingsFor too.
+            var anchor = Tone("anchor", -23.0);
+            var profile = Profile(anchor);
+            var session = new AudioBalanceSession();
+            session.Analyze(profile, null);
+
+            var before = profile.Clips.Count;
+            profile.Clips.Clear(); // every row's clip is now unknown to the profile
+            session.Resolve(profile);
+
+            Assert.AreEqual(1, before, "Precondition: the anchor was enrolled by the Profile helper.");
+            CollectionAssert.IsEmpty(profile.Clips, "Resolve must not re-create settings while solving.");
         }
     }
 }
