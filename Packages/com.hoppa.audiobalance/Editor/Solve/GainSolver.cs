@@ -12,10 +12,18 @@ namespace Hoppa.AudioBalance.Editor
     ///
     /// The second line is the headroom pass. AudioSource.volume is hard-capped at 1.0, so a
     /// clip needing +6 dB simply cannot receive it -- the request silently does nothing and
-    /// the table no longer describes what you hear. Subtracting the maximum pins the loudest
-    /// clip at exactly 0 dB, preserves relative spacing exactly, and makes clipping
+    /// the table no longer describes what you hear. Subtracting the maximum pins the clip
+    /// that needed the MOST gain -- the quietest one relative to its target -- at exactly
+    /// 0 dB; every other clip is attenuated, and the clip loudest relative to its target is
+    /// attenuated most. Relative spacing is preserved exactly and clipping becomes
     /// structurally impossible rather than merely warned about. The cost is that overall
     /// output is quieter, which is compensated once on the master mixer.
+    ///
+    /// Note that <c>anchorLufs</c> appears in every raw gain and therefore
+    /// cancels exactly in the subtraction: FinalGainDb is provably independent of the
+    /// anchor's measured loudness. Relative placement between clips comes from the category
+    /// offsets alone. The anchor's only live effect here is on IsOutlier, which is computed
+    /// from the raw (pre-headroom) gain.
     /// </summary>
     public static class GainSolver
     {
