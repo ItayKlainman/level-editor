@@ -219,7 +219,7 @@ toolbar row (Write Table + Table field) and per-row **Play** / **A/B** buttons.
   from the **mutating** `SettingsFor` to `FindSettings`, so the 8 `BuildVisible` tests now exercise
   the same non-mutating shape production uses. Added the 4 requested gap tests.
 
-#### Task 13 review — BLOCKED on the item I flagged for scrutiny; fixed in `3a4a5c4` (655 → **657 green**)
+#### Task 13 review — BLOCKED on the item I flagged for scrutiny; fixed in `65dc135` (655 → **657 green**)
 - **HIGH — `OnUndoRedo` called `Resolve` where the undo CAN change a measurement.** My doc claimed
   an undo "cannot have changed any measurement"; **three comments in my own commit contradicted it**
   (`AudioBalanceSession:121-127`, the forward path at `AudioBalanceWindow:762-767`, and
