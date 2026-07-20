@@ -15,10 +15,16 @@ namespace Hoppa.AudioBalance
         [Serializable]
         public struct Entry
         {
+            [Tooltip("The audio file this gain applies to.")]
             public AudioClip Clip;
+
+            [Tooltip("The adjustment to apply to this clip, in dB. Always 0 or below, so " +
+                     "playback can never be pushed past AudioSource.volume's 1.0 cap.")]
             public float GainDb;
         }
 
+        [Tooltip("The baked per-clip gains. Written by the Audio Balance window's Write Table " +
+                 "button; edit them there rather than by hand, or the next bake overwrites you.")]
         [SerializeField] private Entry[] _entries = Array.Empty<Entry>();
 
         private Dictionary<AudioClip, float> _lookup;

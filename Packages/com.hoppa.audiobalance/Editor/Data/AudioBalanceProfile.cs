@@ -12,16 +12,27 @@ namespace Hoppa.AudioBalance.Editor
     public sealed class AudioBalanceProfile : ScriptableObject
     {
         /// <summary>Project-relative folders to scan, e.g. "Assets/BusBuddies/Audio".</summary>
+        [Tooltip("Folders of audio to include, relative to the project root. Prefer the " +
+                 "Add Folder button in the Audio Balance window over typing paths here.")]
         public List<string> Folders = new List<string>();
 
         /// <summary>The reference clip -- usually the background music that runs during levels.</summary>
+        [Tooltip("Your reference track, usually the background music that plays during " +
+                 "levels. Changing it will NOT move any clip's gain: it only decides which " +
+                 "clips get flagged as outliers. Category offsets set relative placement.")]
         public AudioClip Anchor;
 
+        [Tooltip("The groups clips are balanced into, such as Music, SFX and UI. Each group " +
+                 "carries how loud it should sit relative to the others, and how it is measured.")]
         public List<AudioCategory> Categories = new List<AudioCategory>();
 
+        [Tooltip("Every clip this profile has seen, with its group and its manual trim. The " +
+                 "window fills this in when you press Analyze; you rarely need to edit it here.")]
         public List<ClipSettings> Clips = new List<ClipSettings>();
 
         /// <summary>Destination asset for the baked gains.</summary>
+        [Tooltip("The Audio Gain Table asset that Write Table bakes into. That table is the " +
+                 "only piece of this system your game reads at runtime.")]
         public AudioGainTable Table;
 
         public void ResetToDefaultCategories()

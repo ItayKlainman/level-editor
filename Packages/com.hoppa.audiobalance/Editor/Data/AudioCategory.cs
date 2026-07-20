@@ -38,9 +38,17 @@ namespace Hoppa.AudioBalance.Editor
         // branch would silently deserialize every category name as "SFX" without this. One
         // line, and the question stops mattering.
         [FormerlySerializedAs("Name")]
+        [Tooltip("The group's name. Renaming it moves every clip in the group with it. Two " +
+                 "groups cannot share a name.")]
         [SerializeField] private string _name = "SFX";
 
+        [Tooltip("How loud this group should sit relative to the others, in dB. Positive is " +
+                 "louder: SFX at +3 sits above the music bed, UI blips at -6 sit below it.")]
         public float OffsetDb;
+
+        [Tooltip("How clips in this group are measured. Use the whole-clip average for music " +
+                 "and long loops, and the loudest moment for short one-shots. Changing this " +
+                 "re-measures every clip in the group.")]
         public MeasureMode Mode = MeasureMode.MomentaryMax;
 
         public AudioCategory()

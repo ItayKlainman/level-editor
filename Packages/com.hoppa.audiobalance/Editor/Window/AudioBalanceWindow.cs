@@ -104,6 +104,136 @@ namespace Hoppa.AudioBalance.Editor
         private static readonly GUIContent LabelGuide =
             new GUIContent("? Guide", "Open the Audio Balance guide in your browser");
 
+        // ------------------------------------------------------------------------------------
+        // Tooltips.
+        //
+        // Every one of these is laid over its control by Tip() rather than passed to the
+        // control itself -- see that method for why. They are static readonly because the clip
+        // table draws them once per ROW per event: building a GUIContent inline would put a
+        // few hundred allocations per repaint into the window's hottest loop, which is the same
+        // garbage the categoryNames array outside the row loop exists to avoid.
+        //
+        // ASCII only, like every other caption in this window: Unity 2022.3 IMGUI cannot be
+        // relied on to render geometric glyphs or emoji in the default font.
+        // ------------------------------------------------------------------------------------
+
+        private static readonly GUIContent TipProfile = new GUIContent(string.Empty,
+            "The asset holding your folders, groups and per-clip trims. Create one via " +
+            "Assets > Create > Hoppa > Audio > Audio Balance Profile.");
+
+        private static readonly GUIContent TipAddFolder = new GUIContent(string.Empty,
+            "Add a folder of audio to the profile. Everything inside it is included the next " +
+            "time you press Analyze. Your source audio files are never modified.");
+
+        private static readonly GUIContent TipAnalyze = new GUIContent(string.Empty,
+            "Measure every clip in the listed folders and work out its gain. Safe to press any " +
+            "time -- it only reads your audio, and nothing reaches the game until Write Table.");
+
+        private static readonly GUIContent TipWriteTable = new GUIContent(string.Empty,
+            "Bake the Gain column into the gain table asset. This is the only step that " +
+            "changes anything your game actually reads.");
+
+        private static readonly GUIContent TipTable = new GUIContent(string.Empty,
+            "The asset the baked gains are written to. Create one via " +
+            "Assets > Create > Hoppa > Audio > Audio Gain Table.");
+
+        /// <summary>
+        /// The highest-value tooltip in the window. Designers WILL swap the anchor and expect
+        /// the Gain column to move; it cannot, because the anchor term cancels in the headroom
+        /// subtraction. The in-window hint beside the field states the positive half ("what the
+        /// anchor IS for"), so this states the negative half ("what it will not do") rather than
+        /// repeating it -- read together they cover both without saying the same thing twice.
+        /// </summary>
+        private static readonly GUIContent TipAnchor = new GUIContent(string.Empty,
+            "Your reference track, usually the background music that plays during levels. " +
+            "Changing it will NOT move the Gain column -- it only decides which clips get " +
+            "flagged as outliers. To re-balance, change a group's offset or a clip's trim.");
+
+        private static readonly GUIContent TipAnchorReadout = new GUIContent(string.Empty,
+            "How loud the anchor measured, as a sanity check on where your material sits. " +
+            "Reads 'not analyzed' until you press Analyze.");
+
+        private static readonly GUIContent TipCategories = new GUIContent(string.Empty,
+            "Groups of clips that should sit at the same level. The offsets are what stop " +
+            "everything collapsing to one loudness.");
+
+        private static readonly GUIContent TipCategoryName = new GUIContent(string.Empty,
+            "The group's name. Renaming it moves every clip in the group with it. Two groups " +
+            "cannot share a name.");
+
+        private static readonly GUIContent TipCategoryOffset = new GUIContent(string.Empty,
+            "How loud this group should sit relative to the others, in dB. Positive is louder: " +
+            "SFX at +3 sits above the music bed, UI blips at -6 sit below it.");
+
+        private static readonly GUIContent TipCategoryMode = new GUIContent(string.Empty,
+            "How clips in this group are measured: whole-clip average for music and long " +
+            "loops, loudest moment for short one-shots. Changing it re-measures the group.");
+
+        private static readonly GUIContent TipAddCategory = new GUIContent(string.Empty,
+            "Add a new group. Give it a name and an offset, then assign clips to it using the " +
+            "dropdown on each row below.");
+
+        private static readonly GUIContent TipFilter = new GUIContent(string.Empty,
+            "Show only clips whose name contains this text. Clips you have ticked stay ticked " +
+            "even while the filter hides them.");
+
+        private static readonly GUIContent TipSort = new GUIContent(string.Empty,
+            "Which column the table is ordered by.");
+
+        private static readonly GUIContent TipSortDirection = new GUIContent(string.Empty,
+            "Switch between ascending and descending order.");
+
+        private static readonly GUIContent TipBulkAssign = new GUIContent(string.Empty,
+            "Move every ticked clip into one group at once. Groups are measured their own way, " +
+            "so this re-measures the clips you move.");
+
+        private static readonly GUIContent TipRowSelect = new GUIContent(string.Empty,
+            "Tick to include this clip in the Set Category button above.");
+
+        private static readonly GUIContent TipRowCategory = new GUIContent(string.Empty,
+            "Which group this clip is balanced with. Changing it re-measures the clip, because " +
+            "each group is measured its own way.");
+
+        private static readonly GUIContent TipRowLufs = new GUIContent(string.Empty,
+            "How loud the source file already is, in LUFS (perceived loudness -- lower is " +
+            "quieter). This is a measurement only; the file itself is never modified.");
+
+        private static readonly GUIContent TipRowGain = new GUIContent(string.Empty,
+            "The adjustment baked for this clip. Always 0 dB or below: the clip that was " +
+            "QUIETEST against its target sits at 0 dB and everything else is turned down to " +
+            "match, so raise your master mixer once to bring the whole mix back up.");
+
+        private static readonly GUIContent TipRowTrim = new GUIContent(string.Empty,
+            "A manual nudge for this one clip, on top of its group's offset. Use it when a " +
+            "single sound still feels wrong after the group is right.");
+
+        /// <summary>
+        /// Lays a hover tooltip over <paramref name="rect"/> without touching whatever is drawn
+        /// there.
+        ///
+        /// <para>
+        /// <b>Why an overlay and not the GUIContent overload.</b> For every EditorGUI control in
+        /// this window -- ObjectField, Popup, EnumPopup, Slider, TextField -- the overload that
+        /// takes a GUIContent treats it as a PREFIX LABEL drawn inside the same rect, which
+        /// shrinks the field itself. Switching to it to gain a tooltip would silently re-flow
+        /// every row and toolbar, and this package has already shipped two defects where
+        /// controls got pushed off-screen at minSize (720 wide). An empty-text label costs no
+        /// pixels, so all the existing arithmetic -- row 1 ending at x = 560, row 2 at 672, clip
+        /// rows at 794 against MinRowWidth 800 -- is untouched and did not need re-deriving.
+        /// </para>
+        ///
+        /// <para>
+        /// Safe to draw over an interactive control: <c>GUI.Label</c> allocates no control ID
+        /// and consumes no events, so it cannot steal a click from the field underneath. Called
+        /// AFTER the control so that on the Repaint pass this is the last writer of
+        /// <c>GUI.tooltip</c> for the rect.
+        /// </para>
+        /// </summary>
+        private static void Tip(Rect rect, GUIContent tip)
+        {
+            GUI.Label(rect, tip);
+        }
+
         /// <summary>
         /// One gesture for the whole clip table: only one control in a window can be dragged at
         /// a time, so a single instance covers every row's trim slider.
@@ -312,6 +442,10 @@ namespace Hoppa.AudioBalance.Editor
             var x = rect.x;
 
             GUI.Label(new Rect(x, rect.y, 50f, rect.height), "Profile");
+
+            // One tooltip spanning the caption AND the field: hovering the word "Profile" is at
+            // least as likely as hovering the object slot, and both mean the same question.
+            Tip(new Rect(x, rect.y, 274f, rect.height), TipProfile);
             x += 54f;
 
             var picked = (AudioBalanceProfile)EditorGUI.ObjectField(
@@ -348,9 +482,19 @@ namespace Hoppa.AudioBalance.Editor
                 AddFolder();
             }
 
+            Tip(new Rect(x, rect.y, 110f, rect.height - 4f), TipAddFolder);
             x += 116f;
 
             GUI.enabled = _profile != null;
+
+            // BEFORE the button, unlike every other Tip in this window: the click branch ends in
+            // GUIUtility.ExitGUI(), which unwinds out of OnGUI entirely, so a Tip placed after
+            // would simply never run on the frame the button is pressed.
+            //
+            // Drawn while GUI.enabled is false on a profile-less window, which is fine and
+            // wanted -- a disabled control still reports its tooltip, and that is exactly when
+            // a designer most needs to be told what the button would do.
+            Tip(new Rect(x, rect.y, 90f, rect.height - 4f), TipAnalyze);
 
             if (GUI.Button(new Rect(x, rect.y, 90f, rect.height - 4f), "Analyze"))
             {
@@ -408,10 +552,17 @@ namespace Hoppa.AudioBalance.Editor
                 }
             }
 
+            Tip(new Rect(x, rect.y, 110f, rect.height - 4f), TipWriteTable);
+
             GUI.enabled = true;
             x += 116f;
 
             GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Table");
+
+            // Spans caption + field, as with Profile above. Drawn before the early-out so the
+            // caption still explains itself on a profile-less window -- that is the state where
+            // Write Table is greyed out and the user is looking for the reason.
+            Tip(new Rect(x, rect.y, 230f, rect.height), TipTable);
             x += 44f;
 
             if (_profile == null)
@@ -442,6 +593,11 @@ namespace Hoppa.AudioBalance.Editor
         private void DrawAnchor(Rect rect)
         {
             GUI.Label(new Rect(rect.x, rect.y, 50f, rect.height), "Anchor");
+
+            // BEFORE the field, for the same reason as Analyze: picking a new anchor can end in
+            // GUIUtility.ExitGUI(), which would skip anything drawn after it. Spans caption +
+            // field.
+            Tip(new Rect(rect.x, rect.y, 274f, rect.height), TipAnchor);
 
             var picked = (AudioClip)EditorGUI.ObjectField(
                 new Rect(rect.x + 54f, rect.y, 220f, rect.height - 2f),
@@ -479,6 +635,7 @@ namespace Hoppa.AudioBalance.Editor
                 : "not analyzed";
 
             GUI.Label(new Rect(rect.x + 282f, rect.y, 120f, rect.height), summary);
+            Tip(new Rect(rect.x + 282f, rect.y, 120f, rect.height), TipAnchorReadout);
 
             // Designers WILL swap the anchor and expect the Gain column to move. It cannot:
             // the anchor term cancels in the headroom subtraction. Saying so at the point of
@@ -495,6 +652,7 @@ namespace Hoppa.AudioBalance.Editor
 
             var y = rect.y + 4f;
             GUI.Label(new Rect(rect.x + 6f, y, 240f, RowHeight), "Categories (offset dB)");
+            Tip(new Rect(rect.x + 6f, y, 240f, RowHeight), TipCategories);
             y += RowHeight;
 
             for (var i = 0; i < _profile.Categories.Count; i++)
@@ -515,15 +673,23 @@ namespace Hoppa.AudioBalance.Editor
                 // into a single undo entry and a single commit.
                 EditorGUI.BeginChangeCheck();
 
-                var name = EditorGUI.DelayedTextField(
-                    new Rect(x, y, 120f, RowHeight - 2f), category.Name);
+                // Tooltips sit INSIDE the change-check block, immediately after each control.
+                // GUI.Label never sets GUI.changed, so it cannot perturb the check -- and after
+                // EndChangeCheck is not an option, because the commit path inside it can end in
+                // GUIUtility.ExitGUI() and would skip them on exactly the frames an edit lands.
+                var nameRect = new Rect(x, y, 120f, RowHeight - 2f);
+                var name = EditorGUI.DelayedTextField(nameRect, category.Name);
+                Tip(nameRect, TipCategoryName);
                 x += 126f;
 
-                var offset = EditorGUI.FloatField(new Rect(x, y, 60f, RowHeight - 2f), category.OffsetDb);
+                var offsetRect = new Rect(x, y, 60f, RowHeight - 2f);
+                var offset = EditorGUI.FloatField(offsetRect, category.OffsetDb);
+                Tip(offsetRect, TipCategoryOffset);
                 x += 66f;
 
-                var mode = (MeasureMode)EditorGUI.EnumPopup(
-                    new Rect(x, y, 130f, RowHeight - 2f), category.Mode);
+                var modeRect = new Rect(x, y, 130f, RowHeight - 2f);
+                var mode = (MeasureMode)EditorGUI.EnumPopup(modeRect, category.Mode);
+                Tip(modeRect, TipCategoryMode);
 
                 if (EditorGUI.EndChangeCheck())
                 {
@@ -585,6 +751,9 @@ namespace Hoppa.AudioBalance.Editor
             {
                 CommitCategoryEdit();
             }
+
+            // Before the button: its branch ends in GUIUtility.ExitGUI().
+            Tip(new Rect(rect.x + 6f, y, 110f, RowHeight - 2f), TipAddCategory);
 
             if (GUI.Button(new Rect(rect.x + 6f, y, 110f, RowHeight - 2f), "Add Category"))
             {
@@ -749,12 +918,16 @@ namespace Hoppa.AudioBalance.Editor
             var x = rect.x;
 
             GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Filter");
+
+            // Caption + field under one tooltip, as with Profile and Table.
+            Tip(new Rect(x, rect.y, 186f, rect.height), TipFilter);
             x += 44f;
 
             _filter = EditorGUI.TextField(new Rect(x, rect.y, 140f, rect.height - 2f), _filter);
             x += 146f;
 
             GUI.Label(new Rect(x, rect.y, 32f, rect.height), "Sort");
+            Tip(new Rect(x, rect.y, 138f, rect.height), TipSort);
             x += 36f;
 
             _sort = (ClipSortMode)EditorGUI.EnumPopup(
@@ -768,6 +941,7 @@ namespace Hoppa.AudioBalance.Editor
                 _ascending = !_ascending;
             }
 
+            Tip(new Rect(x, rect.y, 44f, rect.height - 2f), TipSortDirection);
             x += 50f;
 
             GUI.enabled = _selected.Count > 0;
@@ -778,6 +952,8 @@ namespace Hoppa.AudioBalance.Editor
                 ShowBulkCategoryMenu();
             }
 
+            Tip(new Rect(x, rect.y, 170f, rect.height - 2f), TipBulkAssign);
+
             GUI.enabled = true;
         }
 
@@ -786,7 +962,9 @@ namespace Hoppa.AudioBalance.Editor
             var x = rect.x;
 
             var wasSelected = _selected.Contains(row.Clip);
-            var isSelected = EditorGUI.Toggle(new Rect(x, rect.y, 18f, rect.height), wasSelected);
+            var toggleRect = new Rect(x, rect.y, 18f, rect.height);
+            var isSelected = EditorGUI.Toggle(toggleRect, wasSelected);
+            Tip(toggleRect, TipRowSelect);
 
             if (isSelected != wasSelected)
             {
@@ -818,8 +996,9 @@ namespace Hoppa.AudioBalance.Editor
                 var options = ClipListView.CategoryPopupOptions(
                     categoryNames, settings.Category, out var current);
 
-                var picked = EditorGUI.Popup(
-                    new Rect(x, rect.y, 90f, rect.height - 2f), current, options);
+                var categoryRect = new Rect(x, rect.y, 90f, rect.height - 2f);
+                var picked = EditorGUI.Popup(categoryRect, current, options);
+                Tip(categoryRect, TipRowCategory);
 
                 // Bounds-checked against categoryNames, not options: the placeholder is the last
                 // entry and is not a real category, so selecting it must do nothing.
@@ -840,12 +1019,18 @@ namespace Hoppa.AudioBalance.Editor
 
             x += 96f;
 
+            // The table has no column headers, so these two cells are the only place a reader
+            // can be told what the numbers mean -- hence a tooltip on the VALUE itself rather
+            // than on a heading. TipRowGain carries the counterintuitive half (every gain is
+            // <= 0 dB, and it is the QUIETEST clip against its target that pins at 0 dB).
             GUI.Label(new Rect(x, rect.y, 90f, rect.height),
                 row.Analysis.Status == ClipStatus.Ok ? $"{row.Analysis.Lufs:0.0} LUFS" : "-");
+            Tip(new Rect(x, rect.y, 90f, rect.height), TipRowLufs);
             x += 94f;
 
             GUI.Label(new Rect(x, rect.y, 70f, rect.height),
                 row.Analysis.Status == ClipStatus.Ok ? $"{row.Gain.FinalGainDb:0.0} dB" : "-");
+            Tip(new Rect(x, rect.y, 70f, rect.height), TipRowGain);
             x += 74f;
 
             if (settings != null)
@@ -857,8 +1042,9 @@ namespace Hoppa.AudioBalance.Editor
                 // one Resolve; TrimSliderSeamTests pins that through real IMGUI events.
                 EditorGUI.BeginChangeCheck();
 
-                var trim = EditorGUI.Slider(
-                    new Rect(x, rect.y, 150f, rect.height - 2f), settings.TrimDb, -12f, 12f);
+                var trimRect = new Rect(x, rect.y, 150f, rect.height - 2f);
+                var trim = EditorGUI.Slider(trimRect, settings.TrimDb, -12f, 12f);
+                Tip(trimRect, TipRowTrim);
 
                 if (EditorGUI.EndChangeCheck())
                 {
