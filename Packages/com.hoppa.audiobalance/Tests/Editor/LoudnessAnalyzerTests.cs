@@ -10,6 +10,20 @@ namespace Hoppa.AudioBalance.Editor.Tests
     {
         private const int Rate = 48000;
 
+        private AudioAssetFixture _assets;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _assets = new AudioAssetFixture();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _assets.Dispose();
+        }
+
         private static AudioClip MakeToneClip(string name, double peakDbfs, double seconds)
         {
             var frames = (int)(seconds * Rate);
@@ -102,6 +116,123 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
+        public void Analyze_WithAnAssetBackedClip_StoresIntoTheCacheOnAMiss()
+        {
+            // Asset-backed via AudioAssetFixture -- unlike every clip above, this one has a real
+            // AssetDatabase guid/path, so LoudnessCache.KeyFor returns a VALID key and Analyze's
+            // store branch (previously dead in every test in this suite) actually runs.
+            var clip = _assets.CreateTone("tone", -23.0, 2.0);
+            var cache = LoudnessCache.Load(TempCachePath());
+            try
+            {
+                var key = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
+                Assert.IsTrue(key.IsValid, "Precondition: an imported asset must have a valid key.");
+                Assert.IsFalse(cache.TryGet(key, out _), "Precondition: the cache must start empty for this key.");
+
+                var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, cache);
+
+                Assert.AreEqual(ClipStatus.Ok, analysis.Status);
+                Assert.IsTrue(cache.TryGet(key, out var stored),
+                    "Analyze must Put the fresh measurement into the cache on a miss.");
+                Assert.AreEqual(analysis.Lufs, stored.Lufs, 1e-4f);
+                Assert.AreEqual(analysis.PeakDb, stored.PeakDb, 1e-4f);
+                Assert.AreEqual((int)ClipStatus.Ok, stored.Status);
+            }
+            finally
+            {
+                DeleteCacheFile(cache);
+            }
+        }
+
+        [Test]
+        public void Analyze_WithAnAssetBackedClip_ReturnsTheCachedValueOnAHit_NotARemeasurement()
+        {
+            // Proves a GENUINE hit, not merely "the code ran without throwing": seed the cache
+            // with a value that is deliberately wrong for this clip's real content, then assert
+            // Analyze returns exactly that wrong value. If Analyze were re-measuring instead of
+            // reading the cache, it would report the clip's true ~-23 LUFS, not the seeded -5.
+            var clip = _assets.CreateTone("tone", -23.0, 2.0);
+            var cache = LoudnessCache.Load(TempCachePath());
+            try
+            {
+                var key = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
+                Assert.IsTrue(key.IsValid, "Precondition: an imported asset must have a valid key.");
+
+                cache.Put(key, new CachedLoudness { Status = (int)ClipStatus.Ok, Lufs = -5f, PeakDb = -1f });
+
+                var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, cache);
+
+                Assert.AreEqual(ClipStatus.Ok, analysis.Status);
+                Assert.AreEqual(-5f, analysis.Lufs, 1e-4f,
+                    "A real measurement of this clip would read ~-23 LUFS, not the seeded -5 -- " +
+                    "this proves the value came from the cache.");
+                Assert.AreEqual(-1f, analysis.PeakDb, 1e-4f);
+            }
+            finally
+            {
+                DeleteCacheFile(cache);
+            }
+        }
+
+        [Test]
+        public void Analyze_OnACacheHit_ForASilentClip_PreservesTheReason()
+        {
+            // Regression: CachedLoudness has no Reason field, so a naive cache-hit reconstruction
+            // drops it -- a freshly-measured silent clip reports Reason == "silent", but the same
+            // clip served from cache reported Reason == null. Both calls here share one cache
+            // instance, so the second is a genuine hit (see the seeded-value test above for the
+            // stronger proof of that mechanism).
+            var clip = _assets.CreateSilence("quiet", 1.0);
+            var cache = LoudnessCache.Load(TempCachePath());
+            try
+            {
+                var first = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, cache);
+                Assert.AreEqual(ClipStatus.Silent, first.Status);
+                Assert.AreEqual("silent", first.Reason, "Precondition: a fresh measurement reports the reason.");
+
+                var second = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, cache);
+
+                Assert.AreEqual(ClipStatus.Silent, second.Status);
+                Assert.AreEqual("silent", second.Reason,
+                    "A cache hit must preserve the reason -- a UI must not show 'silent' on the " +
+                    "first run and blank on the next window open for the identical clip.");
+            }
+            finally
+            {
+                DeleteCacheFile(cache);
+            }
+        }
+
+        [Test]
+        public void Analyze_WithACorruptCachedStatus_ReMeasuresInsteadOfCastingOutOfRange()
+        {
+            // Regression: the cache is hand-editable JSON under Library/. A corrupt or
+            // forward-version entry (Status: 99, out of range for ClipStatus) must not be blindly
+            // cast -- an unchecked (ClipStatus)99 produces a value no downstream switch handles.
+            var clip = _assets.CreateTone("tone", -23.0, 2.0);
+            var cache = LoudnessCache.Load(TempCachePath());
+            try
+            {
+                var key = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
+                Assert.IsTrue(key.IsValid, "Precondition: an imported asset must have a valid key.");
+
+                cache.Put(key, new CachedLoudness { Status = 99, Lufs = -1f, PeakDb = -1f });
+
+                var analysis = LoudnessAnalyzer.Analyze(clip, MeasureMode.Integrated, cache);
+
+                Assert.AreEqual(ClipStatus.Ok, analysis.Status,
+                    "An out-of-range cached Status must be treated as a miss and re-measured, " +
+                    "not cast into an undefined ClipStatus value.");
+                Assert.AreEqual(-23f, analysis.Lufs, 0.2f,
+                    "The re-measured value must be the clip's real loudness, not the corrupt -1 seeded above.");
+            }
+            finally
+            {
+                DeleteCacheFile(cache);
+            }
+        }
+
+        [Test]
         public void ShouldCache_ForOk_ReturnsTrue()
         {
             Assert.IsTrue(LoudnessAnalyzer.ShouldCache(ClipStatus.Ok));
@@ -163,6 +294,76 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var clips = LoudnessAnalyzer.FindClips(new[] { "Assets/ThisFolderDoesNotExist" });
 
             Assert.AreEqual(0, clips.Count);
+        }
+
+        [Test]
+        public void FindClips_ReturnsAssetBackedClipsSortedByName()
+        {
+            // The entire positive path had zero coverage before AudioAssetFixture: FindAssets,
+            // LoadAssetAtPath, and the name sort. AudioClip.Create clips (every other test in
+            // this file) never reach this method's real logic because they are never under a
+            // project folder to begin with.
+            var folder = _assets.CreateSubFolder("Positive");
+            _assets.CreateTone("zeta", -20.0, 0.2, folder: folder);
+            _assets.CreateTone("alpha", -20.0, 0.2, folder: folder);
+
+            var clips = LoudnessAnalyzer.FindClips(new[] { folder });
+
+            Assert.AreEqual(2, clips.Count);
+            Assert.AreEqual("alpha", clips[0].name);
+            Assert.AreEqual("zeta", clips[1].name);
+        }
+
+        [Test]
+        public void FindClips_DedupesWhenFoldersOverlap()
+        {
+            // Passing both a parent and its own child folder must not return the child's clip
+            // twice -- AssetDatabase.FindAssets searches each given folder recursively, so the
+            // same guid is discovered once via the parent and once via the child.
+            var parent = _assets.FolderPath;
+            var child = _assets.CreateSubFolder("Nested");
+            _assets.CreateTone("onlyone", -20.0, 0.2, folder: child);
+
+            var clips = LoudnessAnalyzer.FindClips(new[] { parent, child });
+
+            Assert.AreEqual(1, clips.Count, "An overlapping folder pair must not duplicate the same clip.");
+            Assert.AreEqual("onlyone", clips[0].name);
+        }
+
+        [Test]
+        public void FindClips_TiesBrokenByAssetPathForEqualNames()
+        {
+            // Regression: List.Sort's comparator was name-only, so two clips both named "click"
+            // in different folders had a nondeterministic relative order -- which churns the
+            // generated gain table's diff between runs. List.Sort is not a stable sort, but it IS
+            // deterministic for a given pre-sort order, and .NET's small-array introsort path
+            // (insertion sort, used below its ~16-element threshold) happens to preserve input
+            // order for compare-equal items -- so simply feeding folders in ascending order would
+            // pass "by accident" even without a path tiebreak. Feed them in DESCENDING order
+            // instead: a name-only comparator has no reason to touch already-equal items, so
+            // without a path tiebreak the result stays in (wrong) descending order regardless of
+            // how the sort algorithm treats ties. Only an explicit path-ascending tiebreak can
+            // produce the ascending order asserted below.
+            var expectedPaths = new System.Collections.Generic.List<string>();
+            var searchFolders = new System.Collections.Generic.List<string>();
+            for (var i = 11; i >= 0; i--)
+            {
+                var folder = _assets.CreateSubFolder("Tie" + i.ToString("D2"));
+                var clip = _assets.CreateTone("click", -20.0, 0.1, folder: folder);
+                expectedPaths.Add(UnityEditor.AssetDatabase.GetAssetPath(clip));
+                searchFolders.Add(folder);
+            }
+            expectedPaths.Sort((a, b) => string.CompareOrdinal(a, b));
+
+            var clips = LoudnessAnalyzer.FindClips(searchFolders);
+
+            Assert.AreEqual(12, clips.Count);
+            for (var i = 0; i < clips.Count; i++)
+            {
+                Assert.AreEqual("click", clips[i].name);
+                Assert.AreEqual(expectedPaths[i], UnityEditor.AssetDatabase.GetAssetPath(clips[i]),
+                    "Equal-named clips must be tiebroken by asset path so the order is deterministic.");
+            }
         }
 
         [Test]

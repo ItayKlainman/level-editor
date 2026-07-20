@@ -126,6 +126,17 @@ namespace Hoppa.AudioBalance.Editor
         /// class doc for why. A clip with no asset path (e.g. a procedural clip built in a test)
         /// returns an invalid key (<see cref="LoudnessCacheKey.IsValid"/> false); so does a null
         /// clip.
+        ///
+        /// <para>
+        /// <b>Known limitation, not fixed:</b> the asset path is resolved to an absolute path via
+        /// <c>Path.Combine(projectRoot, assetPath)</c>, which is correct for anything under
+        /// <c>Assets/</c> or an <b>embedded</b> package. For a <b>registry or git-URL</b> package,
+        /// <see cref="AssetDatabase.GetAssetPath"/> still returns a <c>Packages/com.x/...</c>-rooted
+        /// path, but that combined path does not exist on disk under the project root, so the
+        /// file stat fails, this returns an invalid key, and the clip is re-decoded on every
+        /// window open, forever, with no warning. Fine for the intended use (game audio lives
+        /// under <c>Assets/</c>), but currently silent rather than diagnosed.
+        /// </para>
         /// </summary>
         public static LoudnessCacheKey KeyFor(AudioClip clip, MeasureMode mode)
         {

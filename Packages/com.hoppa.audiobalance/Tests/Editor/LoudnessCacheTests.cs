@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Hoppa.AudioBalance.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Hoppa.AudioBalance.Editor.Tests
@@ -10,6 +11,7 @@ namespace Hoppa.AudioBalance.Editor.Tests
     public class LoudnessCacheTests
     {
         private string _path;
+        private AudioAssetFixture _assets;
 
         [SetUp]
         public void SetUp()
@@ -19,6 +21,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 File.Delete(_path);
             }
+
+            _assets = new AudioAssetFixture();
         }
 
         [TearDown]
@@ -28,6 +32,8 @@ namespace Hoppa.AudioBalance.Editor.Tests
             {
                 File.Delete(_path);
             }
+
+            _assets.Dispose();
         }
 
         private static CachedLoudness Sample()
@@ -354,6 +360,33 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var key = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
 
             Assert.IsFalse(key.IsValid);
+        }
+
+        [Test]
+        public void KeyFor_OnAnAssetBackedClip_ReturnsAValidKeyThatRoundTripsThroughPutAndTryGet()
+        {
+            // KeyFor is the AssetDatabase-to-absolute-path adapter over KeyForPaths -- every other
+            // test of it (KeyForPaths_*) deliberately bypasses AssetDatabase entirely and hands
+            // KeyForPaths real temp files directly. This exercises KeyFor itself: GetAssetPath,
+            // AssetPathToGUID, and the project-root Path.Combine, against a real imported asset.
+            var clip = _assets.CreateTone("tone", -20.0, 0.2);
+            var assetPath = AssetDatabase.GetAssetPath(clip);
+            var expectedGuid = AssetDatabase.AssetPathToGUID(assetPath);
+
+            var key = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
+
+            Assert.IsTrue(key.IsValid);
+            Assert.AreEqual(expectedGuid, key.Guid);
+
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(key, Sample());
+
+            // Re-derive the key exactly as production code does on the next window open --
+            // proves KeyFor is stable across repeated calls for an unchanged asset, not just
+            // that the first call happened to produce something.
+            var rederived = LoudnessCache.KeyFor(clip, MeasureMode.Integrated);
+            Assert.IsTrue(cache.TryGet(rederived, out var value), "Re-deriving KeyFor for an unchanged asset must still hit.");
+            Assert.AreEqual(-21.5f, value.Lufs, 1e-4f);
         }
 
         [Test]

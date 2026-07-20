@@ -15,18 +15,15 @@ namespace Hoppa.AudioBalance.Editor
         /// <see cref="LoudnessCache"/> for why that duplication is a defect, not a convenience).
         ///
         /// <para>
-        /// <b>Untested branch:</b> the cache-hit path (an asset-backed clip whose
-        /// <see cref="LoudnessCacheKey"/> is valid, previously stored, and unchanged) has no
-        /// automated coverage. <see cref="AudioClip.Create"/> -- the only way the test suite
-        /// builds clips -- produces a procedural clip with no asset path, so
-        /// <see cref="LoudnessCache.KeyFor"/> always returns an invalid key for it and this
-        /// method always bypasses the cache in tests. Covering the hit path would need a real,
-        /// asset-backed clip, i.e. a committed audio fixture -- the same trade-off Task 8
-        /// already declined for the Streaming branch (see
-        /// <see cref="ClipSampleReader.StreamingError"/>). The store/lookup code itself is three
-        /// straight-line calls (<see cref="LoudnessCache.KeyFor"/>, <see cref="LoudnessCache.TryGet"/>,
-        /// <see cref="LoudnessCache.Put"/>) reviewable by inspection; <c>LoudnessCacheTests</c>
-        /// covers <c>TryGet</c>/<c>Put</c> themselves directly.
+        /// A cache hit is rehydrated, not returned verbatim: <see cref="CachedLoudness"/> has no
+        /// <c>Reason</c> field, so a <see cref="ClipStatus.Silent"/> hit reconstructs
+        /// <see cref="ClipAnalysis.SilentReason"/> itself -- otherwise a freshly-measured silent
+        /// clip would report the reason on first run and nothing on the next window open. Any
+        /// <see cref="CachedLoudness.Status"/> outside {<see cref="ClipStatus.Ok"/>,
+        /// <see cref="ClipStatus.Silent"/>} -- e.g. a hand-edited or forward-version entry in the
+        /// JSON under <c>Library/</c> -- is treated as a miss and falls through to a real
+        /// re-measurement (which also re-stores the corrected value) rather than being cast into
+        /// a <see cref="ClipStatus"/> value no downstream <c>switch</c> handles.
         /// </para>
         /// </summary>
         public static ClipAnalysis Analyze(AudioClip clip, MeasureMode mode, LoudnessCache cache)
@@ -44,7 +41,16 @@ namespace Hoppa.AudioBalance.Editor
 
             if (cache != null && key.IsValid && cache.TryGet(key, out var cached))
             {
-                return new ClipAnalysis(clip, (ClipStatus)cached.Status, cached.Lufs, cached.PeakDb);
+                var cachedStatus = (ClipStatus)cached.Status;
+                if (cachedStatus == ClipStatus.Ok || cachedStatus == ClipStatus.Silent)
+                {
+                    var reason = cachedStatus == ClipStatus.Silent ? ClipAnalysis.SilentReason : null;
+                    return new ClipAnalysis(clip, cachedStatus, cached.Lufs, cached.PeakDb, reason);
+                }
+
+                // Only Ok/Silent are ever Put (ShouldCache refuses Unanalyzable, and there are no
+                // other members), so anything else here is a corrupt or forward-version entry in
+                // the hand-editable Library/ JSON. Fall through and re-measure/re-store below.
             }
 
             var analysis = Measure(clip, mode);
@@ -83,9 +89,13 @@ namespace Hoppa.AudioBalance.Editor
 
         /// <summary>
         /// All distinct <see cref="AudioClip"/> assets under <paramref name="projectRelativeFolders"/>,
-        /// sorted by name. Folders that are null/empty or fail <see cref="AssetDatabase.IsValidFolder"/>
-        /// are silently skipped rather than throwing -- a stale folder reference in a profile
-        /// asset should degrade to "search fewer places," not fault the whole analysis pass.
+        /// sorted by name, tiebroken by asset path when two clips share a name (e.g. "click" in
+        /// two different folders) -- <see cref="List{T}.Sort"/> is not a stable sort, so a
+        /// name-only comparator gives such ties a nondeterministic relative order between runs,
+        /// which churns the generated gain table's diff for no reason. Folders that are
+        /// null/empty or fail <see cref="AssetDatabase.IsValidFolder"/> are silently skipped
+        /// rather than throwing -- a stale folder reference in a profile asset should degrade to
+        /// "search fewer places," not fault the whole analysis pass.
         /// </summary>
         public static List<AudioClip> FindClips(IEnumerable<string> projectRelativeFolders)
         {
@@ -125,7 +135,13 @@ namespace Hoppa.AudioBalance.Editor
                 }
             }
 
-            clips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            clips.Sort((a, b) =>
+            {
+                var byName = string.CompareOrdinal(a.name, b.name);
+                return byName != 0
+                    ? byName
+                    : string.CompareOrdinal(AssetDatabase.GetAssetPath(a), AssetDatabase.GetAssetPath(b));
+            });
             return clips;
         }
 
