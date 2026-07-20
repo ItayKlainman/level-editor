@@ -97,6 +97,14 @@ namespace Hoppa.AudioBalance.Editor
         private const float MinRowWidth = 800f;
 
         /// <summary>
+        /// ASCII only, matching the level editor's toolbar button. Unity 2022.3 IMGUI cannot be
+        /// relied on to render geometric glyphs or emoji in the default font, and a blank caption
+        /// is indistinguishable from a broken button.
+        /// </summary>
+        private static readonly GUIContent LabelGuide =
+            new GUIContent("? Guide", "Open the Audio Balance guide in your browser");
+
+        /// <summary>
         /// One gesture for the whole clip table: only one control in a window can be dragged at
         /// a time, so a single instance covers every row's trim slider.
         ///
@@ -356,15 +364,31 @@ namespace Hoppa.AudioBalance.Editor
             }
 
             GUI.enabled = true;
+            x += 96f;
+
+            // Stateless help action, and deliberately OUTSIDE the profile gate above: a user
+            // with no profile assigned yet is precisely the one who needs the guide.
+            // Row 1 ends at x = 560 against the 714 available at minSize -- see DrawTableBar.
+            if (GUI.Button(new Rect(x, rect.y, 62f, rect.height - 4f), LabelGuide))
+            {
+                AudioBalanceGuide.Open();
+            }
         }
 
         /// <summary>
         /// Second toolbar row. Appending these two controls to the first row instead would put
-        /// the Table field at x = 658 running to x = 838, against 708 usable px at minSize
+        /// the Table field at x = 726 running to x = 906, against 708 usable px at minSize
         /// (720 wide) -- and clipping the Table field specifically is UNRECOVERABLE, since Write
         /// Table stays disabled until a table is assigned. A fresh user would see a permanently
         /// greyed button and no visible way to fix it. On its own row the controls end at
         /// x = 672, inside the 714 available.
+        ///
+        /// <para>
+        /// Those figures moved when the "? Guide" button was added to row 1 (they were x = 658
+        /// running to 838 beforehand) -- row 1 now ends at x = 560, so appending here would
+        /// overflow the window edge outright rather than merely clipping. Re-derive both rows
+        /// before adding any further toolbar control.
+        /// </para>
         /// </summary>
         private void DrawTableBar(Rect rect)
         {

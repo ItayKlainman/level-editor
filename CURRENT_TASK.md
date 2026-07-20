@@ -9,9 +9,25 @@
 ## 🟢 CODE-COMPLETE (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
 
 Branch `feat/audio-balance`, **21+ commits, NOTHING PUSHED**.
-**All 13 tasks complete and reviewed. 657/657 EditMode green** (~139 in the new package).
+**All 13 tasks complete and reviewed. 682/682 EditMode green** (~164 in the new package).
 **Nothing has been hand-verified in a live editor by a human yet** — see the handover checklist
 at the end of the Task 13 section.
+
+#### Post-Task-13 addition (lead-requested) — "? Guide" button
+`? Guide` button on the window's **first** toolbar row + `Window ▸ Hoppa ▸ Audio Balance Guide`,
+rendering the Task 13 `Documentation~/audio-balance-guide.md` to a styled page. 657 → **682**.
+
+- **`MarkdownToHtml` is an ACKNOWLEDGED FORK** of the level-editor copy — labelled as such in an
+  XML doc comment on both files. `com.hoppa.audiobalance` still declares **no dependencies**, which
+  was the point; there is no shared package for the two to depend on and one was not invented.
+  Executable code is byte-identical between the copies; **change one, change the other.**
+- **Fixed a latent bug in the ORIGINAL while mirroring it:** the converter had no italic rule, so
+  single-asterisk emphasis rendered as literal asterisks — **9 occurrences in each guide**, so the
+  level editor's own shipped guide was already affected. Italic support added to **both** copies.
+  This is the one change made beyond the literal ask; cheap to revert if unwanted.
+- Toolbar row 1 now ends at **x = 560** against **714** available at `minSize` (720). The
+  `DrawTableBar` doc comment's arithmetic was re-derived and updated — appending the Table
+  controls to row 1 would now overflow (x = 726 → 906), not merely clip.
 
 - **Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
 - **Plan:** `docs/superpowers/plans/2026-07-19-audio-balance-panel.md` (13 TDD tasks; its
