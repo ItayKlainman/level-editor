@@ -28,9 +28,9 @@ namespace Hoppa.AudioBalance.Editor
         {
             Categories = new List<AudioCategory>
             {
-                new AudioCategory { Name = "Music", OffsetDb = 0f, Mode = MeasureMode.Integrated },
-                new AudioCategory { Name = "SFX", OffsetDb = 3f, Mode = MeasureMode.MomentaryMax },
-                new AudioCategory { Name = "UI", OffsetDb = -6f, Mode = MeasureMode.MomentaryMax }
+                new AudioCategory("Music", 0f, MeasureMode.Integrated),
+                new AudioCategory("SFX", 3f, MeasureMode.MomentaryMax),
+                new AudioCategory("UI", -6f, MeasureMode.MomentaryMax)
             };
         }
 
@@ -66,40 +66,63 @@ namespace Hoppa.AudioBalance.Editor
         /// silently moving the whole group to another category's offset AND
         /// <see cref="MeasureMode"/>. A designer tidying "SFX" to "SFX (UI)" would move every
         /// one-shot to Music/Integrated and shift its baked gain by several dB, with no
-        /// warning and an undo entry that looks like a harmless rename. Exposing this as one
-        /// method is what makes that mistake unrepresentable.
+        /// warning and an undo entry that looks like a harmless rename. Pairing them here, plus
+        /// <see cref="AudioCategory.Name"/> having no public setter, is what keeps the broken
+        /// half from being independently reachable.
         /// </para>
         ///
         /// <para>
-        /// No-ops on an empty new name (a half-typed field must not orphan anything) or when
-        /// no category has the old name. Matching is exact -- deliberately NOT
-        /// <see cref="FindCategory"/>, whose <c>Categories[0]</c> fallback would rename the
-        /// wrong category entirely.
+        /// <b>The target is passed by reference, not by name.</b> An earlier revision resolved
+        /// it by first exact name match, which silently renamed the WRONG row whenever two
+        /// categories shared a name -- three clicks away, because "Add Category" creates every
+        /// new row as literally "New". The caller already holds the object it drew, so there is
+        /// no reason to look it up at all.
+        /// </para>
+        ///
+        /// <para>
+        /// Returns false and changes nothing when the rename is rejected: an empty name (a
+        /// half-typed field must not orphan anything), a no-op rename, a target not in this
+        /// profile, or a name already taken by a DIFFERENT category. That last guard matters --
+        /// renaming "SFX" to "Music" would otherwise leave two categories called "Music",
+        /// re-point every SFX clip to a name that now resolves to the FIRST one, and hand them
+        /// its offset and MeasureMode: the exact silent regrouping this method exists to
+        /// prevent, arriving through a different door. Merging may be a reasonable feature one
+        /// day, but it must be explicit, not a side effect of typing.
         /// </para>
         /// </summary>
-        public void RenameCategory(string oldName, string newName)
+        public bool RenameCategory(AudioCategory target, string newName)
         {
-            if (string.IsNullOrEmpty(newName) || oldName == newName || Categories == null)
+            if (target == null || string.IsNullOrEmpty(newName) || Categories == null)
             {
-                return;
+                return false;
             }
 
-            AudioCategory target = null;
+            var oldName = target.Name;
+            if (oldName == newName)
+            {
+                return false;
+            }
+
+            var found = false;
             foreach (var category in Categories)
             {
-                if (category != null && category.Name == oldName)
+                if (ReferenceEquals(category, target))
                 {
-                    target = category;
-                    break;
+                    found = true;
+                }
+                else if (category != null && category.Name == newName)
+                {
+                    // Name collision with a different category -- see the doc above.
+                    return false;
                 }
             }
 
-            if (target == null)
+            if (!found)
             {
-                return;
+                return false;
             }
 
-            target.Name = newName;
+            target.SetNameUnchecked(newName);
 
             foreach (var settings in Clips)
             {
@@ -108,6 +131,8 @@ namespace Hoppa.AudioBalance.Editor
                     settings.Category = newName;
                 }
             }
+
+            return true;
         }
 
         /// <summary>
@@ -140,8 +165,17 @@ namespace Hoppa.AudioBalance.Editor
         /// ENROLS the clip into the profile. Because that is a mutation, call it only from a
         /// path that owns an <c>Undo.RecordObject</c> scope and follows with
         /// <c>EditorUtility.SetDirty</c>; use <see cref="FindSettings"/> everywhere else.
+        ///
+        /// <para>
+        /// <c>internal</c> on purpose: this is the package's only remaining mutating lookup,
+        /// and leaving it public meant any consumer -- or any future render path -- could write
+        /// to the asset just by reading from it. The sole production caller is the window's
+        /// <c>RunAnalysis</c>, which owns the Undo scope. Tests reach it via
+        /// <c>InternalsVisibleTo</c> (see <c>AssemblyInfo.cs</c>) rather than by widening the
+        /// API for their convenience.
+        /// </para>
         /// </summary>
-        public ClipSettings SettingsFor(AudioClip clip)
+        internal ClipSettings SettingsFor(AudioClip clip)
         {
             if (clip == null)
             {
@@ -164,9 +198,15 @@ namespace Hoppa.AudioBalance.Editor
             return created;
         }
 
+        // The three accessors below are READS and are now implemented as such. They previously
+        // routed through SettingsFor, so merely asking a clip's offset enrolled it -- which is
+        // how the render and solve paths came to write to the asset. Fixing them here removes
+        // the hazard at source rather than hiding it behind an access modifier: an un-enrolled
+        // clip simply answers with the neutral default instead of being created on the spot.
+
         public float OffsetDbFor(AudioClip clip)
         {
-            var settings = SettingsFor(clip);
+            var settings = FindSettings(clip);
             if (settings == null)
             {
                 return 0f;
@@ -178,12 +218,12 @@ namespace Hoppa.AudioBalance.Editor
 
         public float TrimDbFor(AudioClip clip)
         {
-            return SettingsFor(clip)?.TrimDb ?? 0f;
+            return FindSettings(clip)?.TrimDb ?? 0f;
         }
 
         public MeasureMode ModeFor(AudioClip clip)
         {
-            var settings = SettingsFor(clip);
+            var settings = FindSettings(clip);
             if (settings == null)
             {
                 return MeasureMode.Integrated;

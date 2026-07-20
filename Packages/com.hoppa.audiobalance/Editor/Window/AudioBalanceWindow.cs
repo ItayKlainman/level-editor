@@ -287,10 +287,15 @@ namespace Hoppa.AudioBalance.Editor
                     // Apply immediately regardless of step so the field stays live under a
                     // drag; only the commit is deferred. RenameCategory sets the name AND
                     // re-points every clip referencing it -- doing only the former would
-                    // silently reassign the whole group to Categories[0].
-                    if (renamedFrom != null)
+                    // silently reassign the whole group to Categories[0]. It takes the
+                    // category BY REFERENCE: resolving by name renamed the wrong row whenever
+                    // two categories shared a name, which "Add Category" makes easy.
+                    if (renamedFrom != null && !_profile.RenameCategory(category, name))
                     {
-                        _profile.RenameCategory(renamedFrom, name);
+                        // Rejected -- almost always a collision with an existing category.
+                        // Say so: silently reverting the field looks like dropped input.
+                        _categoryEditNeedsAnalyze = false;
+                        ShowNotification(new GUIContent($"'{name}' is already a category"));
                     }
 
                     category.OffsetDb = offset;
@@ -307,6 +312,24 @@ namespace Hoppa.AudioBalance.Editor
 
             // One poll per frame closes a gesture whose terminating frame carried no new value
             // (a mouse release does not change the number, it just ends the drag).
+            //
+            // Two known, accepted consequences -- documented so Task 12 does not rediscover
+            // them as bugs:
+            //
+            // (1) DEFERRED COMMIT UNDER A BUTTON. On the MouseUp frame of a click on Analyze or
+            //     Add Category, that button still holds hotControl when this poll runs, so a
+            //     pending gesture commits one frame LATER. Output is correct either way -- the
+            //     values were already applied per frame -- but the ordering means clicking
+            //     Analyze mid-gesture runs the pass against the applied value and the deferred
+            //     CommitCategoryEdit can then fire a SECOND RunAnalysis if
+            //     _categoryEditNeedsAnalyze is set. Wasted work on a large library, not wrong
+            //     numbers.
+            //
+            // (2) MID-GESTURE EDITS ARE NOT SetDirty-ED. Values apply on each frame but
+            //     SetDirty only lands at commit, and _categoryGesture is deliberately not
+            //     serialized, so a domain reload while the mouse is still down (a script
+            //     compile finishing mid-drag) loses that edit. Rare and low-stakes; the
+            //     alternative is the per-frame SetDirty this class exists to avoid.
             if (_categoryGesture.Advance(false, GUIUtility.hotControl != 0) == EditStep.Commit)
             {
                 CommitCategoryEdit();
@@ -315,12 +338,41 @@ namespace Hoppa.AudioBalance.Editor
             if (GUI.Button(new Rect(rect.x + 6f, y, 110f, RowHeight - 2f), "Add Category"))
             {
                 Undo.RecordObject(_profile, "Add Audio Category");
-                _profile.Categories.Add(new AudioCategory { Name = "New", OffsetDb = 0f });
+
+                // Unique by construction. Every new row used to be called "New", so two clicks
+                // produced two identically-named categories -- which made renaming ambiguous
+                // and, before RenameCategory took the target by reference, actively wrong.
+                // RenameCategory now also refuses to create a duplicate, so this keeps the
+                // Add path consistent with that rule rather than immediately violating it.
+                _profile.Categories.Add(new AudioCategory(
+                    UniqueCategoryName("New"), 0f, MeasureMode.MomentaryMax));
+
                 EditorUtility.SetDirty(_profile);
 
                 // The block just grew by one row, so every rect computed for this frame below
                 // it is stale. Redraw rather than paint the clip table at the wrong offset.
                 GUIUtility.ExitGUI();
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="baseName"/>, or "<paramref name="baseName"/> N" for the lowest N
+        /// that no existing category is using.
+        /// </summary>
+        private string UniqueCategoryName(string baseName)
+        {
+            if (_profile.Categories.Find(c => c != null && c.Name == baseName) == null)
+            {
+                return baseName;
+            }
+
+            for (var i = 2; ; i++)
+            {
+                var candidate = baseName + " " + i;
+                if (_profile.Categories.Find(c => c != null && c.Name == candidate) == null)
+                {
+                    return candidate;
+                }
             }
         }
 

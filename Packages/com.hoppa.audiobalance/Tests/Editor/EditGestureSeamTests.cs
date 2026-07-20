@@ -146,6 +146,10 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 });
                 window.SendEvent(new Event { type = EventType.MouseUp, mousePosition = start, button = 0 });
 
+                // Without this the test is green when SendEvent no-ops (headless runner, window
+                // never shown) -- 0 records because nothing ran, not because nothing committed.
+                Assert.Greater(window.Frames, 0, "Precondition: the harness actually ran OnGUI.");
+
                 Assert.AreEqual(0, window.Records, "Pressing and releasing without moving is not an edit.");
                 Assert.AreEqual(0, window.Commits, "...and must not dirty the asset or re-solve.");
             }

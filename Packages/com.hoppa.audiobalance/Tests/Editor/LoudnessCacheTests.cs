@@ -525,5 +525,89 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 }
             }
         }
+
+        // IsDirty exists so a caller can skip the disk write on a pass that measured nothing
+        // new -- the common case once a project is warm. Its contract is only useful if every
+        // mutator sets it and only a SUCCESSFUL save clears it.
+
+        [Test]
+        public void IsDirty_IsFalseOnAFreshlyLoadedCache()
+        {
+            Assert.IsFalse(LoudnessCache.Load(_path).IsDirty,
+                "Loading is not a mutation -- a caller that saves on dirty must not write straight back.");
+        }
+
+        [Test]
+        public void IsDirty_IsSetByPutAndClearedByASuccessfulSave()
+        {
+            var cache = LoudnessCache.Load(_path);
+
+            cache.Put(Key("guid-a", 1000, 5555), Sample());
+            Assert.IsTrue(cache.IsDirty, "Storing a measurement must mark the cache dirty.");
+
+            cache.Save();
+            Assert.IsFalse(cache.IsDirty, "A successful save clears the flag.");
+        }
+
+        [Test]
+        public void IsDirty_IsSetByRemoveByGuid_ButOnlyWhenSomethingWasActuallyRemoved()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555), Sample());
+            cache.Save();
+
+            Assert.AreEqual(0, cache.RemoveByGuid("guid-absent"));
+            Assert.IsFalse(cache.IsDirty, "Removing nothing changed nothing.");
+
+            Assert.AreEqual(1, cache.RemoveByGuid("guid-a"));
+            Assert.IsTrue(cache.IsDirty, "A prune must be persisted, so it must mark dirty.");
+        }
+
+        [Test]
+        public void IsDirty_IsSetByClear()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555), Sample());
+            cache.Save();
+
+            cache.Clear();
+
+            Assert.IsTrue(cache.IsDirty,
+                "Clear mutates the entries, so the flag must follow -- today Clear also deletes " +
+                "the file, but a caller gating Save on IsDirty must not depend on that coincidence.");
+        }
+
+        [Test]
+        public void IsDirty_SurvivesAFailedSaveSoTheMeasurementsAreNotSilentlyDropped()
+        {
+            // The load-bearing half of the contract. If a failed write cleared the flag, a
+            // caller that saves only when dirty would never retry, and the measurements would
+            // be gone with nothing but a warning in the console. Failure is forced by putting a
+            // DIRECTORY where the cache file needs to be, so every write to that path throws.
+            var blockedDir = Path.Combine(Path.GetTempPath(), "hoppa-cache-blocked-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(blockedDir);
+
+            try
+            {
+                var cache = LoudnessCache.Load(blockedDir);
+                cache.Put(Key("guid-a", 1000, 5555), Sample());
+                Assert.IsTrue(cache.IsDirty);
+
+                // Save swallows the IO exception and logs a warning by design.
+                UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+                cache.Save();
+                UnityEngine.TestTools.LogAssert.ignoreFailingMessages = false;
+
+                Assert.IsTrue(cache.IsDirty,
+                    "A failed save must leave the cache dirty so the next save retries.");
+            }
+            finally
+            {
+                if (Directory.Exists(blockedDir))
+                {
+                    Directory.Delete(blockedDir, recursive: true);
+                }
+            }
+        }
     }
 }

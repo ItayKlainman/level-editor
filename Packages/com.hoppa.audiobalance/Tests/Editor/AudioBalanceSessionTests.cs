@@ -413,13 +413,58 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 profile.FindCategory(profile.FindSettings(oneShot).Category).Mode,
                 "Precondition: SFX is MomentaryMax.");
 
-            profile.RenameCategory("SFX", "SFX (UI)");
+            Assert.IsTrue(profile.RenameCategory(profile.FindCategory("SFX"), "SFX (UI)"));
 
             Assert.AreEqual("SFX (UI)", profile.FindSettings(oneShot).Category,
                 "The clip must follow its category through the rename.");
             Assert.AreEqual(MeasureMode.MomentaryMax,
                 profile.FindCategory(profile.FindSettings(oneShot).Category).Mode,
                 "Without re-pointing, this falls through to Categories[0] (Music/Integrated).");
+        }
+
+        [Test]
+        public void RenamingOneOfTwoSameNamedCategories_RenamesTheOnePassedIn()
+        {
+            // Regression: RenameCategory used to resolve its target by FIRST EXACT NAME MATCH.
+            // "Add Category" named every new row "New", so two clicks produced two categories
+            // called "New" -- and renaming the second one renamed the FIRST, while the offset
+            // and mode from the same keystroke landed on the second. One edit, split across two
+            // categories. The target is passed by reference now, so there is nothing to
+            // mis-resolve.
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+
+            var first = new AudioCategory("New", 1f, MeasureMode.Integrated);
+            var second = new AudioCategory("New", 2f, MeasureMode.MomentaryMax);
+            profile.Categories.Add(first);
+            profile.Categories.Add(second);
+
+            Assert.IsTrue(profile.RenameCategory(second, "Ambience"));
+
+            Assert.AreEqual("Ambience", second.Name, "The category passed in must be the one renamed.");
+            Assert.AreEqual("New", first.Name, "The other same-named category must be untouched.");
+        }
+
+        [Test]
+        public void RenamingACategory_ToANameAlreadyInUse_IsRejected()
+        {
+            // Renaming "SFX" to "Music" would leave two categories called "Music", re-point
+            // every SFX clip to a name that resolves to the FIRST one, and hand them its
+            // offset and MeasureMode -- the same silent regrouping the rename guard exists to
+            // prevent, through a different door.
+            var anchor = Tone("anchor", -23.0);
+            var oneShot = Tone("oneShot", -20.0);
+            var profile = Profile(anchor);
+            profile.SettingsFor(oneShot).Category = "SFX";
+
+            var sfx = profile.FindCategory("SFX");
+
+            Assert.IsFalse(profile.RenameCategory(sfx, "Music"),
+                "A collision must be reported, not silently merged.");
+            Assert.AreEqual("SFX", sfx.Name, "The category keeps its name.");
+            Assert.AreEqual("SFX", profile.FindSettings(oneShot).Category, "...and keeps its clips.");
+            Assert.AreEqual(1, profile.Categories.FindAll(c => c.Name == "Music").Count,
+                "There must never be two categories with the same name after a rename.");
         }
 
         [Test]
@@ -431,10 +476,40 @@ namespace Hoppa.AudioBalance.Editor.Tests
             var profile = Profile(anchor);
             profile.SettingsFor(oneShot).Category = "SFX";
 
-            profile.RenameCategory("SFX", string.Empty);
+            Assert.IsFalse(profile.RenameCategory(profile.FindCategory("SFX"), string.Empty));
 
             Assert.AreEqual("SFX", profile.FindSettings(oneShot).Category);
             Assert.IsNotNull(profile.Categories.Find(c => c.Name == "SFX"));
+        }
+
+        [Test]
+        public void RenamingACategory_NotInThisProfile_IsRejected()
+        {
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+
+            var stranger = new AudioCategory("Elsewhere", 0f, MeasureMode.Integrated);
+
+            Assert.IsFalse(profile.RenameCategory(stranger, "Renamed"));
+            Assert.AreEqual("Elsewhere", stranger.Name);
+        }
+
+        [Test]
+        public void ReadingAClipsOffsetOrModeDoesNotEnrolIt()
+        {
+            // These three accessors used to route through SettingsFor, so merely ASKING a
+            // clip's offset enrolled it -- which is how the render and solve paths came to
+            // write to the asset. They are reads and must behave as reads.
+            var profile = ScriptableObject.CreateInstance<AudioBalanceProfile>();
+            profile.ResetToDefaultCategories();
+            var stranger = Tone("stranger", -20.0);
+
+            Assert.AreEqual(0f, profile.OffsetDbFor(stranger), 1e-4f);
+            Assert.AreEqual(0f, profile.TrimDbFor(stranger), 1e-4f);
+            Assert.AreEqual(MeasureMode.Integrated, profile.ModeFor(stranger));
+
+            CollectionAssert.IsEmpty(profile.Clips,
+                "Reading a clip's offset, trim or mode must not enrol it.");
         }
 
         [Test]

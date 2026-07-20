@@ -356,6 +356,12 @@ namespace Hoppa.AudioBalance.Editor
         {
             _entries.Clear();
 
+            // Keep the IsDirty invariant local to every mutator. Today this is belt-and-braces
+            // -- Clear also deletes the file, so a skipped Save happens to be harmless -- but
+            // that is two paths agreeing by accident. The moment Clear becomes in-memory-only,
+            // a caller that gates Save on IsDirty would silently discard the clear.
+            IsDirty = true;
+
             try
             {
                 if (File.Exists(_path))
