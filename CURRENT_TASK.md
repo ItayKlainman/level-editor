@@ -8,10 +8,43 @@
 
 ## 🟢 CODE-COMPLETE (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
 
-Branch `feat/audio-balance`, **21+ commits, NOTHING PUSHED**.
-**All 13 tasks complete and reviewed. 682/682 EditMode green** (~164 in the new package).
+Branch `feat/audio-balance`, **37 commits ahead of `master`, NOTHING PUSHED** (+2 spec/plan commits
+already sitting on local `master`, also unpushed).
+**All 13 tasks complete and reviewed, plus 2 lead-requested additions. 688/688 EditMode green**
+(~170 in the new package; verified by the coordinator's own `tests-run`, not just agent reports).
 **Nothing has been hand-verified in a live editor by a human yet** — see the handover checklist
 at the end of the Task 13 section.
+
+### 🅿️ PARKED 2026-07-20 — lead's call, end of day ("park what you can")
+
+Surfaced by the tooltip pass. Neither is a bug; both are real UX gaps in the clip table:
+
+1. **The clip table has NO column headers.** Values render (LUFS, Gain, Status) with nothing
+   labelling them. Tooltips were therefore placed on the **value cells** instead — arguably better,
+   since they work on every row rather than only at the top of a scrolled table. A header row costs
+   ~20 px vertical plus a layout re-derivation.
+2. **`ClipAnalysis.PeakDb` is measured, cached, and NEVER DISPLAYED.** Grep over `Editor/Window/`
+   returns zero hits — it is dead data in the UI. Cheap to surface (already computed), and useful for
+   spotting squashed or near-clipping assets. Adds a column, so re-derive against `MinRowWidth` 800.
+
+#### Post-Task-13 addition #2 (lead-requested) — tooltips
+`ffb97ec`, 682 → **688**. Tooltips on every interactive control (profile, Add Folder, Analyze, Write
+Table, Table field, anchor + its readout, category name/offset/mode, Add Category, filter, sort,
+Asc/Desc, bulk Set Category, row checkbox/category/LUFS/Gain/trim) plus `[Tooltip]` on the serialized
+fields of `AudioBalanceProfile`/`AudioCategory`/`ClipSettings`/`AudioGainTable`.
+
+- **No geometry moved.** Unity's `GUIContent` overloads would have turned every `EditorGUI` field into
+  a *prefix-labelled* field inside the same rect, shrinking each control and re-flowing both toolbars.
+  Instead a `Tip(rect, content)` helper lays an **empty-text `GUI.Label`** over the same rect: zero
+  pixels, no control ID, consumes no events. Row 1 still ends at 560, row 2 at 672, clip rows at 794.
+- Three controls (`Analyze`, `Anchor`, `Add Category`) end their click branch in `GUIUtility.ExitGUI()`,
+  which unwinds out of `OnGUI` — so their tooltips are drawn **before** the control or they'd never run
+  on the frame the control is used. Commented in place.
+- **Deliberately no test asserts tooltip wording** (breaks on every copy edit, pins nothing). The
+  "every control supplies a tooltip" invariant was also rejected: verifying it means reimplementing
+  IMGUI dispatch, and the writable version would have passed against a window with zero tooltips —
+  exactly this initiative's recurring failure mode. `[Tooltip]`-presence + ASCII checks are the only
+  real invariants found, and were mutation-verified by deleting one attribute.
 
 #### Post-Task-13 addition (lead-requested) — "? Guide" button
 `? Guide` button on the window's **first** toolbar row + `Window ▸ Hoppa ▸ Audio Balance Guide`,
