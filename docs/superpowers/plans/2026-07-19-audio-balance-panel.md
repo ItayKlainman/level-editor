@@ -2479,13 +2479,15 @@ EOF
 - Produces:
   - `CachedLoudness` — serializable class with fields `int Status`, `float Lufs`, `float PeakDb`
   - `LoudnessCache.Load(string path = null) -> LoudnessCache`
-  - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool`
-  - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)`
+  - `LoudnessCache.TryGet(string guid, long length, long ticks, out CachedLoudness value) -> bool` — **contract:** `ticks` must be `Math.Max(assetLastWriteTicks, metaLastWriteTicks)`, not the asset's alone (see rationale below).
+  - `LoudnessCache.Put(string guid, long length, long ticks, CachedLoudness value)` — same `ticks` contract as `TryGet`; a null `value` is ignored rather than stored.
   - `LoudnessCache.Save()`
-  - `LoudnessCache.Clear()`
+  - `LoudnessCache.Clear()` — also deletes the on-disk file, not just the in-memory entries.
   - `LoudnessCache.DefaultPath` = `"Library/HoppaAudioBalance/loudness-cache.json"`
 
-> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, lastWriteTicks)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+> `Library/` because the cache is regenerable and must never be committed. Keying on `(guid, fileLength, ticks)` rather than a content hash trades a rare unnecessary re-analysis (a content-preserving touch) for not hashing megabytes on every window open.
+>
+> **`ticks` is the combined max of the source asset's AND its `.meta`'s last-write ticks — amended mid-execution, 2026-07-20, lead-approved.** What is actually measured is the decoded `AudioClip`, which is a product of the `.meta` importer settings (Force To Mono, Quality, Sample Rate Override, ...), not just the source bytes. The original plan only reasoned about the safe direction — a harmless touch causing a needless re-analysis — and missed the unsafe one: changing an importer setting leaves the `.wav` byte-identical (same length, same mtime) while changing the decoded clip, so the old key silently served a stale, wrong LUFS value straight into `GainSolver` and the baked runtime gain table. Task 10 (the analyzer, and only caller of `TryGet`/`Put`) is responsible for computing and passing the combined `ticks`; `LoudnessCache` itself does not read files and cannot enforce this — it is documented as a caller contract on both methods.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4785,6 +4787,7 @@ EOF
 3. **`AudioBalanceSession.Resolve()`** exists so a category/trim edit re-solves without re-decoding. Not in the spec, but without it every slider drag would re-analyze the whole library.
 5. **`ApproxTruePeakDb` was struck entirely** — amended mid-execution, 2026-07-19, lead-approved. Spec §5.2 called for a 4× linear-interpolation true-peak meter. Linear interpolation produces a convex combination of its endpoints, so `|a + (b−a)t| ≤ max(|a|,|b|)` always: it cannot exceed the sample peak, and so cannot detect an inter-sample peak — the only reason true-peak meters exist. Review also produced a counter-example (mono `[0, 0, 1.0]`) where it read 2.5 dB *below* the sample peak, because the loop never evaluated `t = 1` on the final frame. `SamplePeakDb` survives as the single honest peak diagnostic; `ClipAnalysis`/`CachedLoudness` carry one `PeakDb` field instead of two. Real true-peak would need polyphase FIR upsampling (BS.1770-4 Annex 2) — a follow-up if ever needed.
 4. **`ShortTermMax` (3 s) became `MomentaryMax` (400 ms)** — amended mid-execution, 2026-07-19, lead-approved. The original rationale in spec §5.1 was simply wrong: integrated loudness' relative gate already excludes a decay tail, so a 3 s window did not rescue short SFX, it *hurt* them. Measured on the plan's own test signal (0.5 s at −18 dBFS + 4 s at −50 dBFS): integrated −19.5, 3 s window −25.8. The 3 s mode read 6 dB **below** the mode it was meant to beat. A 400 ms window lands inside the attack (≈ −18) and delivers the intended behaviour. Task 4's failing test is what surfaced this — the implementer correctly reported BLOCKED rather than adjusting a constant to make it pass.
+6. **`LoudnessCache`'s key is `(guid, fileLength, ticks)` where `ticks = max(assetTicks, metaTicks)`, not the asset's `lastWriteTicks` alone** — amended mid-execution, 2026-07-20, lead-approved, caught by opus review of Task 9's implementation (not by a plan-authoring-time test, since `LoudnessCache` itself takes `ticks` as an opaque long — the defect is only observable once a caller passes the asset-only value, which is Task 10). The plan's original rationale (deviation note in Task 9) reasoned only about the safe direction: a content-preserving touch causing a needless re-analysis. It missed the unsafe direction: the cache actually keys the *decoded clip*, which importer settings (Force To Mono, Quality, Sample Rate Override) change without touching the source file's bytes, length, or mtime at all — so a meta-only edit would silently serve a stale, wrong LUFS reading into the gain solver. Fix: `ticks` is now documented (XML docs on `TryGet`/`Put`, and the Task 9 rationale note above) as a caller contract — the combined max of the asset's and its `.meta`'s last-write ticks. Task 10, the only caller, must honor it.
 
 **Type consistency:** verified — `ClipStatus`, `ClipAnalysis`, `GainResult`, `MeasureMode`, `AudioGainTable.Entry`, and `AudioBalanceRow` are named and shaped identically everywhere they appear.
 
