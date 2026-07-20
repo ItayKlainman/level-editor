@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Hoppa.AudioBalance.Editor
 {
@@ -31,6 +32,12 @@ namespace Hoppa.AudioBalance.Editor
     [Serializable]
     public sealed class AudioCategory
     {
+        // Was a public field literally called "Name" before it became a property backed by
+        // _name. A filesystem sweep found zero AudioBalanceProfile assets anywhere, so nothing
+        // in this repo needs migrating -- but a profile sitting in someone's stash or side
+        // branch would silently deserialize every category name as "SFX" without this. One
+        // line, and the question stops mattering.
+        [FormerlySerializedAs("Name")]
         [SerializeField] private string _name = "SFX";
 
         public float OffsetDb;

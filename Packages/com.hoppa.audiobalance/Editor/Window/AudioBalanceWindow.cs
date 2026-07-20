@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -47,6 +49,58 @@ namespace Hoppa.AudioBalance.Editor
         // both are cheap to rebuild in OnEnable.
         [SerializeField] private AudioBalanceProfile _profile;
         [SerializeField] private Vector2 _clipScroll;
+        [SerializeField] private string _filter = string.Empty;
+        [SerializeField] private ClipSortMode _sort = ClipSortMode.Name;
+        [SerializeField] private bool _ascending = true;
+
+        /// <summary>
+        /// Checked rows, for bulk assign. Not serialized -- a HashSet is not a serializable
+        /// field type, so marking it would be a lie. A recompile therefore clears the selection,
+        /// which is the safe direction: the alternative (stale clips from another profile) is
+        /// the bug <see cref="PruneSelection"/> exists to prevent.
+        /// </summary>
+        private readonly HashSet<AudioClip> _selected = new HashSet<AudioClip>();
+
+        /// <summary>
+        /// Clip settings resolved ONCE per row-set change, never during rendering.
+        /// <c>AudioBalanceProfile.SettingsFor</c> appends on a miss, so resolving per row per
+        /// OnGUI event both mutated the asset mid-render and made drawing O(n^2). Built via
+        /// <see cref="ClipListView.BuildSettingsLookup"/>, which cannot write to the profile at
+        /// all.
+        /// </summary>
+        private Dictionary<AudioClip, ClipSettings> _settings =
+            new Dictionary<AudioClip, ClipSettings>();
+
+        private int _settingsStamp = -1;
+
+        /// <summary>
+        /// Widest a clip row actually draws, with room for the preview buttons Task 13 appends.
+        /// The scroll view's content rect must be at least this wide or the horizontal scrollbar
+        /// never appears and the right-hand controls are silently unreachable at the window's
+        /// minimum width (720).
+        /// </summary>
+        private const float MinRowWidth = 800f;
+
+        /// <summary>
+        /// One gesture for the whole clip table: only one control in a window can be dragged at
+        /// a time, so a single instance covers every row's trim slider.
+        ///
+        /// <para>
+        /// The trim slider is the first control in this window that genuinely STREAMS -- the
+        /// category block's label-less FloatField has an empty drag hot zone and never did --
+        /// so this is where the batching actually earns its keep. <c>TrimSliderSeamTests</c>
+        /// drives it through real IMGUI events and asserts the streaming as a precondition.
+        /// </para>
+        /// </summary>
+        private readonly EditGesture _trimGesture = new EditGesture();
+
+        /// <summary>
+        /// Set when a control inside the clip table needs a full re-measure. It cannot run
+        /// inline: the table draws inside an open <c>GUI.BeginScrollView</c>, and RunAnalysis
+        /// puts up a modal progress bar and REPLACES every row the rest of the frame is about to
+        /// read. Deferred to the end of OnGUI, outside the scroll view, instead.
+        /// </summary>
+        private bool _analyzeRequested;
 
         private readonly AudioBalanceSession _session = new AudioBalanceSession();
         private LoudnessCache _cache;
@@ -83,8 +137,9 @@ namespace Hoppa.AudioBalance.Editor
         /// Whether the edit currently being committed changed a measurement input (a mode or
         /// a name) rather than only an offset. Sticky across the frames of one drag, because
         /// the decision is made when the value changes but acted on when the gesture ends.
+        /// See <see cref="PendingAnalyze"/> for why it is a type and not a bool.
         /// </summary>
-        private bool _categoryEditNeedsAnalyze;
+        private readonly PendingAnalyze _categoryAnalyze = new PendingAnalyze();
 
         [MenuItem("Window/Hoppa/Audio Balance")]
         public static void Open()
@@ -128,6 +183,19 @@ namespace Hoppa.AudioBalance.Editor
             y += CategoryBlockHeight + Pad;
 
             DrawClips(new Rect(Pad, y, position.width - Pad * 2f, position.height - y - Pad));
+
+            // Deferred to here on purpose -- see _analyzeRequested. At the end of OnGUI the
+            // scroll view is closed and nothing further reads the rows this replaces, so the
+            // modal progress bar has nothing to unwind through and no ExitGUI is needed.
+            if (_analyzeRequested)
+            {
+                _analyzeRequested = false;
+
+                if (_profile != null)
+                {
+                    RunAnalysis();
+                }
+            }
         }
 
         private void DrawToolbar(Rect rect)
@@ -148,10 +216,16 @@ namespace Hoppa.AudioBalance.Editor
 
                 // Any edit gesture in flight belonged to the OLD profile; carrying its pending
                 // re-analysis flag across would apply it to the new one.
-                _categoryEditNeedsAnalyze = false;
+                _categoryAnalyze.Reset();
+                _analyzeRequested = false;
 
-                // Task 12 adds a _selected set here too -- see ClearSelection() in that task.
-                // Anything holding onto clips from the old profile MUST be dropped here.
+                // Everything holding clips from the old profile is dropped here. Leaving
+                // _selected populated made the bulk button read "Set Category (12)" while the
+                // resolved target set was empty -- clicking looked like it worked and silently
+                // did nothing.
+                _selected.Clear();
+                _settings.Clear();
+                _settingsStamp = -1;
             }
 
             x += 226f;
@@ -267,18 +341,14 @@ namespace Hoppa.AudioBalance.Editor
 
                 if (EditorGUI.EndChangeCheck())
                 {
-                    // A mode change changes the MEASUREMENT, which Resolve cannot do. A rename
-                    // re-points every clip that referenced the old name, which can change their
-                    // effective mode too. Both must re-analyze; the cache makes it near-free
-                    // for any clip whose mode did not actually move.
                     var renamedFrom = name != category.Name ? category.Name : null;
-                    _categoryEditNeedsAnalyze |= mode != category.Mode || renamedFrom != null;
 
                     // hotControl, not the event type -- by this point the controls above have
                     // consumed the event and Use() has rewritten BOTH type and rawType to
                     // Used. See the EditGesture class doc.
                     var step = _categoryGesture.Advance(true, GUIUtility.hotControl != 0);
 
+                    // Before any mutation, or the entry captures the post-edit state.
                     if (step == EditStep.Record || step == EditStep.RecordAndCommit)
                     {
                         Undo.RecordObject(_profile, "Edit Audio Category");
@@ -290,13 +360,27 @@ namespace Hoppa.AudioBalance.Editor
                     // silently reassign the whole group to Categories[0]. It takes the
                     // category BY REFERENCE: resolving by name renamed the wrong row whenever
                     // two categories shared a name, which "Add Category" makes easy.
-                    if (renamedFrom != null && !_profile.RenameCategory(category, name))
+                    //
+                    // Applied BEFORE the analyze flag is folded, so a rejection contributes
+                    // nothing instead of clearing the flag. The old code assigned false here,
+                    // which wiped a mode change from an EARLIER frame of the same gesture --
+                    // the commit then fell through to Resolve, which cannot re-measure, and
+                    // baked a gain from the old-mode LUFS.
+                    var renameApplied = renamedFrom != null && _profile.RenameCategory(category, name);
+
+                    if (renamedFrom != null && !renameApplied)
                     {
                         // Rejected -- almost always a collision with an existing category.
                         // Say so: silently reverting the field looks like dropped input.
-                        _categoryEditNeedsAnalyze = false;
                         ShowNotification(new GUIContent($"'{name}' is already a category"));
                     }
+
+                    // A mode change changes the MEASUREMENT, which Resolve cannot do. An
+                    // APPLIED rename re-points every clip that referenced the old name, which
+                    // can change their effective mode too. Both must re-analyze; the cache
+                    // makes it near-free for any clip whose mode did not actually move.
+                    // Evaluated before category.Mode is overwritten, below.
+                    _categoryAnalyze.Observe(mode != category.Mode || renameApplied);
 
                     category.OffsetDb = offset;
                     category.Mode = mode;
@@ -321,9 +405,8 @@ namespace Hoppa.AudioBalance.Editor
             //     pending gesture commits one frame LATER. Output is correct either way -- the
             //     values were already applied per frame -- but the ordering means clicking
             //     Analyze mid-gesture runs the pass against the applied value and the deferred
-            //     CommitCategoryEdit can then fire a SECOND RunAnalysis if
-            //     _categoryEditNeedsAnalyze is set. Wasted work on a large library, not wrong
-            //     numbers.
+            //     CommitCategoryEdit can then fire a SECOND RunAnalysis if _categoryAnalyze is
+            //     set. Wasted work on a large library, not wrong numbers.
             //
             // (2) MID-GESTURE EDITS ARE NOT SetDirty-ED. Values apply on each frame but
             //     SetDirty only lands at commit, and _categoryGesture is deliberately not
@@ -385,10 +468,8 @@ namespace Hoppa.AudioBalance.Editor
         {
             EditorUtility.SetDirty(_profile);
 
-            if (_categoryEditNeedsAnalyze)
+            if (_categoryAnalyze.Consume())
             {
-                _categoryEditNeedsAnalyze = false;
-
                 // Only meaningful once rows exist; otherwise there is nothing to re-measure
                 // and a bare category rename would trigger a full-library decode.
                 if (_session.Rows.Count > 0)
@@ -403,26 +484,294 @@ namespace Hoppa.AudioBalance.Editor
             _session.Resolve(_profile);
         }
 
-        /// <summary>Replaced with the full sortable table in Task 12.</summary>
+        /// <summary>
+        /// Rebuilds the clip-settings map when the row set changes, so the render path never
+        /// resolves settings per row per event -- <c>SettingsFor</c> appends on a miss and
+        /// <c>FindSettings</c> is a linear scan, so doing it inline was both an asset write
+        /// during a repaint and O(n^2) drawing.
+        ///
+        /// <para>
+        /// The stamp is deliberately coarse. It only has to notice that the ROW SET changed;
+        /// edits that mutate a ClipSettings in place (a bulk assign, a trim) are invisible to it
+        /// and need to be -- the map holds live references, so those edits are already visible
+        /// through it. Profile switches reset the stamp explicitly rather than relying on the
+        /// counts to differ.
+        /// </para>
+        /// </summary>
+        private void SyncSettings()
+        {
+            var stamp = _profile == null
+                ? -1
+                : _session.Rows.Count * 397 ^ _profile.Clips.Count;
+
+            if (stamp == _settingsStamp)
+            {
+                return;
+            }
+
+            _settingsStamp = stamp;
+            _settings = ClipListView.BuildSettingsLookup(_profile, _session.Rows);
+        }
+
+        private string CategoryOf(AudioBalanceRow row)
+        {
+            return row?.Clip != null && _settings.TryGetValue(row.Clip, out var settings) && settings != null
+                ? settings.Category
+                : string.Empty;
+        }
+
+        /// <summary>
+        /// Drops selection entries that no longer resolve. Without it the bulk button reads
+        /// "Set Category (12)" while the resolved target list is empty -- clicking appears to
+        /// work and silently does nothing.
+        /// </summary>
+        private void PruneSelection()
+        {
+            if (_selected.Count == 0)
+            {
+                return;
+            }
+
+            _selected.RemoveWhere(clip => clip == null || !_settings.ContainsKey(clip));
+        }
+
         private void DrawClips(Rect rect)
         {
-            GUI.Box(rect, GUIContent.none);
+            SyncSettings();
+            PruneSelection();
 
-            var content = new Rect(0f, 0f, rect.width - 20f, _session.Rows.Count * RowHeight + 4f);
-            _clipScroll = GUI.BeginScrollView(rect, _clipScroll, content);
+            DrawClipHeader(new Rect(rect.x, rect.y, rect.width, RowHeight));
+
+            var body = new Rect(rect.x, rect.y + RowHeight + 2f, rect.width,
+                Mathf.Max(0f, rect.height - RowHeight - 2f));
+
+            GUI.Box(body, GUIContent.none);
+
+            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, CategoryOf);
+
+            // Content must be as wide as the widest row actually IS, not as wide as the
+            // viewport. Hard-coding it to the viewport means the horizontal scrollbar never
+            // appears and anything past the right edge is silently unreachable at the window's
+            // minimum width.
+            var content = new Rect(0f, 0f,
+                Mathf.Max(body.width - 20f, MinRowWidth), visible.Count * RowHeight + 4f);
+
+            // Allocated once per frame rather than once per ROW: Select().ToArray() inside the
+            // row loop is two allocations per row per event, which at a few hundred clips is
+            // the dominant garbage in the window.
+            var categoryNames = _profile.Categories
+                .Where(c => c != null)
+                .Select(c => c.Name)
+                .ToArray();
+
+            _clipScroll = GUI.BeginScrollView(body, _clipScroll, content);
 
             var y = 2f;
-            foreach (var row in _session.Rows)
+            foreach (var row in visible)
             {
-                var label = row.Analysis.Status == ClipStatus.Ok
-                    ? $"{row.Clip.name}    {row.Analysis.Lufs:0.0} LUFS    {row.Gain.FinalGainDb:0.0} dB"
-                    : $"{row.Clip.name}    {row.Analysis.Reason}";
-
-                GUI.Label(new Rect(4f, y, content.width - 8f, RowHeight), label);
+                DrawClipRow(new Rect(4f, y, content.width - 8f, RowHeight), row, categoryNames);
                 y += RowHeight;
             }
 
             GUI.EndScrollView();
+
+            // One poll per frame closes a trim gesture whose terminating frame carried no new
+            // value -- a mouse release does not change the number, it just ends the drag. Same
+            // shape as the category block's poll, and subject to the same two documented
+            // consequences (deferred commit under a button; mid-gesture edits not SetDirty-ed).
+            if (_trimGesture.Advance(false, GUIUtility.hotControl != 0) == EditStep.Commit)
+            {
+                CommitTrimEdit();
+            }
+        }
+
+        private void DrawClipHeader(Rect rect)
+        {
+            var x = rect.x;
+
+            GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Filter");
+            x += 44f;
+
+            _filter = EditorGUI.TextField(new Rect(x, rect.y, 140f, rect.height - 2f), _filter);
+            x += 146f;
+
+            GUI.Label(new Rect(x, rect.y, 32f, rect.height), "Sort");
+            x += 36f;
+
+            _sort = (ClipSortMode)EditorGUI.EnumPopup(
+                new Rect(x, rect.y, 100f, rect.height - 2f), _sort);
+            x += 106f;
+
+            // ASCII captions: default IMGUI font glyph coverage is not guaranteed, and a blank
+            // button is indistinguishable from a broken one.
+            if (GUI.Button(new Rect(x, rect.y, 44f, rect.height - 2f), _ascending ? "Asc" : "Desc"))
+            {
+                _ascending = !_ascending;
+            }
+
+            x += 50f;
+
+            GUI.enabled = _selected.Count > 0;
+
+            if (GUI.Button(new Rect(x, rect.y, 130f, rect.height - 2f),
+                    $"Set Category ({_selected.Count})"))
+            {
+                ShowBulkCategoryMenu();
+            }
+
+            GUI.enabled = true;
+        }
+
+        private void DrawClipRow(Rect rect, AudioBalanceRow row, string[] categoryNames)
+        {
+            var x = rect.x;
+
+            var wasSelected = _selected.Contains(row.Clip);
+            var isSelected = EditorGUI.Toggle(new Rect(x, rect.y, 18f, rect.height), wasSelected);
+
+            if (isSelected != wasSelected)
+            {
+                if (isSelected)
+                {
+                    _selected.Add(row.Clip);
+                }
+                else
+                {
+                    _selected.Remove(row.Clip);
+                }
+            }
+
+            x += 22f;
+
+            GUI.Label(new Rect(x, rect.y, 170f, rect.height), row.Clip.name);
+            x += 174f;
+
+            // Resolved in SyncSettings, never here -- see that method. A clip with no settings
+            // is not enrolled, so it has nothing to edit; it still shows its measurement.
+            _settings.TryGetValue(row.Clip, out var settings);
+
+            if (settings != null && categoryNames.Length > 0)
+            {
+                var current = Mathf.Max(0, System.Array.IndexOf(categoryNames, settings.Category));
+                var picked = EditorGUI.Popup(
+                    new Rect(x, rect.y, 90f, rect.height - 2f), current, categoryNames);
+
+                if (picked != current && picked >= 0 && picked < categoryNames.Length)
+                {
+                    Undo.RecordObject(_profile, "Change Audio Category");
+                    settings.Category = categoryNames[picked];
+                    EditorUtility.SetDirty(_profile);
+
+                    // Categories carry their own MeasureMode, so this changes HOW the clip must
+                    // be measured -- Resolve cannot do that and would keep the old-mode number.
+                    // Re-measure; the cache makes it a hit for every clip whose mode is
+                    // unchanged. Deferred to the end of OnGUI because we are inside an open
+                    // scroll view -- see _analyzeRequested.
+                    _analyzeRequested = true;
+                }
+            }
+
+            x += 96f;
+
+            GUI.Label(new Rect(x, rect.y, 90f, rect.height),
+                row.Analysis.Status == ClipStatus.Ok ? $"{row.Analysis.Lufs:0.0} LUFS" : "-");
+            x += 94f;
+
+            GUI.Label(new Rect(x, rect.y, 70f, rect.height),
+                row.Analysis.Status == ClipStatus.Ok ? $"{row.Gain.FinalGainDb:0.0} dB" : "-");
+            x += 74f;
+
+            if (settings != null)
+            {
+                // A slider STREAMS: it fires a change on every OnGUI frame the value differs.
+                // Comparing values directly, or recording undo inside EndChangeCheck, would push
+                // one undo entry per frame -- dozens for a single drag -- and re-run GainSolver
+                // over every row each time. EditGesture collapses the drag into one entry and
+                // one Resolve; TrimSliderSeamTests pins that through real IMGUI events.
+                EditorGUI.BeginChangeCheck();
+
+                var trim = EditorGUI.Slider(
+                    new Rect(x, rect.y, 150f, rect.height - 2f), settings.TrimDb, -12f, 12f);
+
+                if (EditorGUI.EndChangeCheck())
+                {
+                    var step = _trimGesture.Advance(true, GUIUtility.hotControl != 0);
+
+                    if (step == EditStep.Record || step == EditStep.RecordAndCommit)
+                    {
+                        Undo.RecordObject(_profile, "Change Audio Trim");
+                    }
+
+                    // Applied every frame so the slider stays live under the cursor; only the
+                    // commit is deferred, so the Gain column catches up on release.
+                    settings.TrimDb = trim;
+
+                    if (step == EditStep.Commit || step == EditStep.RecordAndCommit)
+                    {
+                        CommitTrimEdit();
+                    }
+                }
+            }
+
+            x += 156f;
+
+            var icon = ClipListView.StatusIcon(row);
+            if (!string.IsNullOrEmpty(icon))
+            {
+                GUI.Label(new Rect(x, rect.y, 90f, rect.height),
+                    new GUIContent(icon, row.Analysis.Reason ?? "gain is far from the category target"));
+            }
+        }
+
+        /// <summary>
+        /// Ends a trim edit. Resolve -- NOT Analyze -- is correct here and only here: a trim
+        /// moves the target, it cannot change how the clip is measured.
+        /// </summary>
+        private void CommitTrimEdit()
+        {
+            if (_profile == null)
+            {
+                return;
+            }
+
+            EditorUtility.SetDirty(_profile);
+            _session.Resolve(_profile);
+        }
+
+        private void ShowBulkCategoryMenu()
+        {
+            var menu = new GenericMenu();
+            var targets = _session.Rows.Where(r => r?.Clip != null && _selected.Contains(r.Clip)).ToArray();
+
+            if (targets.Length == 0)
+            {
+                // Defensive: PruneSelection should already have made this unreachable. Being
+                // told nothing is selected beats a menu that silently does nothing.
+                menu.AddDisabledItem(new GUIContent("Nothing selected"));
+                menu.ShowAsContext();
+                return;
+            }
+
+            foreach (var category in _profile.Categories)
+            {
+                if (category == null)
+                {
+                    continue;
+                }
+
+                var name = category.Name;
+                menu.AddItem(new GUIContent(name), false, () =>
+                {
+                    ClipListView.BulkAssignCategory(targets, _profile, name);
+
+                    // Bulk assign moves clips between categories, and categories carry their
+                    // own MeasureMode -- so this needs a re-measure, not just a re-solve. The
+                    // menu callback runs outside OnGUI, so it can call RunAnalysis directly.
+                    RunAnalysis();
+                });
+            }
+
+            menu.ShowAsContext();
         }
 
         private void AddFolder()

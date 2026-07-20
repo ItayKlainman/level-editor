@@ -114,7 +114,38 @@ computed `CategoryBlockHeight`, real progress+Cancel, ASCII captions, `ExitGUI()
   reload mid-drag loses them.
 - All four round-2 behaviours mutation-verified, each failing its own test and no other.
 
-### Remaining (Tasks 12–13) — GATED, do not dispatch cold
+### Shipped 2026-07-20 (Task 12) — sortable/filterable clip table + bulk assign
+**602 → 623 EditMode green** (+15 `ClipListViewTests`, +2 `TrimSliderSeamTests`, +4 `PendingAnalyzeTests`).
+New: `ClipSortMode` / `ClipListView` / `PendingAnalyze` under `Editor/Window/`; `DrawClips` replaced
+with header (filter · sort · Asc/Desc · bulk **Set Category (n)**) + per-row
+select · name · category · LUFS · gain · **trim slider** · status icon.
+
+- **The trim slider is the first control in this window that genuinely STREAMS** (measured: 5 change
+  frames per drag vs the category `FloatField`'s empty drag zone). It is wired to the existing
+  `EditGesture` via `hotControl`, **not** the plan's `_trimDragClip` + `Event.type == MouseUp` shape —
+  the plan's Task 12 text still used the event-type mechanism that Task 11 disproved. `TrimSliderSeam
+  Tests` drives real IMGUI events and asserts `ChangeFrames > 1` as a **precondition**, so it cannot
+  pass vacuously the way the label-less-field harness could.
+- **Deviations from the plan (all deliberate, see commit body):** `EditGesture` for the trim (above);
+  `ClipListView.BuildSettingsLookup` (new, tested, uses `FindSettings`) instead of an untested private
+  `SyncSettings` calling the **mutating** `SettingsFor` from `OnGUI`; the per-row category change sets
+  `_analyzeRequested` and runs at the END of `OnGUI` rather than firing a modal progress bar from
+  inside an open `GUI.BeginScrollView`; category-name array hoisted out of the row loop.
+- **Weak test found by mutation and fixed:** the plan's `BuildVisible_SortsByCategory` fixture
+  (`"bed"`/`"blip"`) passed against a build that ignored the sort mode and always sorted by NAME.
+  Renamed to `"zzz_bed"`/`"aaa_blip"` so name order contradicts category order.
+- **Task 11 review nit folded in (lead's instruction):** `_categoryEditNeedsAnalyze` (a bool the
+  rejected-rename path assigned `false` to, wiping a pending mode change from an earlier gesture
+  frame) is now the `PendingAnalyze` type, which can only accumulate. The rename is applied **before**
+  the flag is folded, so a rejection contributes nothing instead of clearing everything. The IMGUI
+  interleaving itself is **not** covered by a test — see that file's class doc for why a harness would
+  have passed vacuously.
+- `[FormerlySerializedAs("Name")]` added to `AudioCategory._name`. Zero profile assets exist anywhere,
+  so nothing needs migrating today; it costs one line and makes a stashed profile a non-question.
+- All new behaviour **mutation-verified** in 5 rounds; every mutation failed its own test and, except
+  where noted, no other.
+
+### Remaining (Task 13) — GATED, do not dispatch cold
 `window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
 **Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
 test-fixture helper.** Tasks 11–13 as originally written contain known defects — do NOT implement
