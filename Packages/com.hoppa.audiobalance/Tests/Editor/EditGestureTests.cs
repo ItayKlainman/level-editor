@@ -116,5 +116,24 @@ namespace Hoppa.AudioBalance.Editor.Tests
             Assert.AreEqual(1, records, "One drag must produce exactly one undo entry.");
             Assert.AreEqual(1, commits, "One drag must produce exactly one commit.");
         }
+
+        /// <summary>
+        /// Abandoning a gesture must not leave it armed. Switching profiles mid-drag used to
+        /// leave <c>_pending</c> set, so the next idle poll returned <c>Commit</c> and marked
+        /// the NEWLY selected profile dirty -- an asset the user had not touched. No wrong
+        /// numbers, but a spurious dirty flag and VCS churn on someone else's file.
+        /// </summary>
+        [Test]
+        public void Reset_DropsAnOpenGestureSoNoPhantomCommitFollows()
+        {
+            var gesture = new EditGesture();
+
+            gesture.Advance(true, true); // drag opens
+
+            gesture.Reset();
+
+            Assert.AreEqual(EditStep.None, gesture.Advance(false, false),
+                "A reset gesture must not commit an edit that belonged to the old profile.");
+        }
     }
 }

@@ -103,5 +103,16 @@ namespace Hoppa.AudioBalance.Editor
 
             return EditStep.None;
         }
+
+        /// <summary>
+        /// Abandons an open gesture without committing it. For profile switches only: an edit
+        /// in flight belonged to the OLD profile, and leaving the gesture armed meant the next
+        /// idle poll returned <see cref="EditStep.Commit"/> and marked the NEWLY selected
+        /// profile dirty -- an asset the user never touched.
+        /// </summary>
+        public void Reset()
+        {
+            _pending = false;
+        }
     }
 }

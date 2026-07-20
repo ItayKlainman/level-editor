@@ -38,12 +38,21 @@ namespace Hoppa.AudioBalance.Editor.Tests
         /// The read-only category lookup BuildVisible now takes. Resolving settings up front
         /// is exactly what the window does -- BuildVisible must not be able to touch the
         /// profile at all.
+        ///
+        /// <para>
+        /// <b>FindSettings, not SettingsFor.</b> This helper backs eight BuildVisible tests, and
+        /// building it out of the MUTATING accessor meant all eight exercised the tool against
+        /// a lookup that can append to the asset -- precisely the hazard the read-only lookup
+        /// parameter was introduced to make structurally impossible. Production's
+        /// <c>CategoryOf</c> reads a pre-resolved map and cannot write; the fixture must match
+        /// it, or the tests are not testing the shipped shape.
+        /// </para>
         /// </summary>
         private static Func<AudioBalanceRow, string> Lookup(AudioBalanceProfile profile)
         {
             return row => profile == null || row?.Clip == null
                 ? string.Empty
-                : profile.SettingsFor(row.Clip)?.Category ?? string.Empty;
+                : profile.FindSettings(row.Clip)?.Category ?? string.Empty;
         }
 
         [Test]
@@ -153,26 +162,11 @@ namespace Hoppa.AudioBalance.Editor.Tests
             Assert.AreEqual("second", visible[1].Clip.name);
         }
 
-        [Test]
-        public void BuildVisible_DoesNotMutateTheProfile()
-        {
-            // BuildVisible is documented as pure. It used to call profile.SettingsFor(),
-            // which APPENDS a ClipSettings on a miss -- writing to the asset from inside
-            // OnGUI. Passing a lookup instead makes that structurally impossible; this test
-            // fails loudly if anyone reintroduces a profile parameter.
-            var known = Row("known", -20f, -3f);
-            var stranger = Row("stranger", -20f, -3f);
-            var profile = Profile(known);
-            var countBefore = profile.Clips.Count;
-
-            ClipListView.BuildVisible(
-                new List<AudioBalanceRow> { known, stranger },
-                string.Empty, ClipSortMode.Category, true,
-                row => "Music");
-
-            Assert.AreEqual(countBefore, profile.Clips.Count,
-                "Building the visible list must not add settings for unknown clips.");
-        }
+        // DELETED: BuildVisible_DoesNotMutateTheProfile. It could not fail. BuildVisible has no
+        // profile parameter, so it cannot reach profile.Clips BY THE TYPE SYSTEM -- and the
+        // regression it claimed to guard ("anyone reintroduces a profile parameter") would be a
+        // COMPILE ERROR in this test file, not a red test. BuildSettingsLookup_DoesNotEnrol
+        // UnknownClips below is the real version of this assertion and covers the live path.
 
         [Test]
         public void BuildVisible_HandlesNullRowsWithoutThrowing()
@@ -252,6 +246,121 @@ namespace Hoppa.AudioBalance.Editor.Tests
                 "Resolving settings for rendering must never write to the profile asset.");
             Assert.IsFalse(lookup.ContainsKey(stranger.Clip),
                 "An un-enrolled clip has no settings; it must be absent, not invented.");
+        }
+
+        // ---------------------------------------------------------------------------------
+        // Gaps the Task 12 review asked for.
+        // ---------------------------------------------------------------------------------
+
+        [Test]
+        public void BulkAssignCategory_LeavesRowsItWasNotGivenAlone()
+        {
+            var selected = Row("selected", -20f, -3f);
+            var untouched = Row("untouched", -20f, -3f);
+            var profile = Profile(selected, untouched);
+            profile.SettingsFor(untouched.Clip).Category = "Music";
+
+            ClipListView.BulkAssignCategory(new[] { selected }, profile, "UI");
+
+            Assert.AreEqual("UI", profile.FindSettings(selected.Clip).Category);
+            Assert.AreEqual("Music", profile.FindSettings(untouched.Clip).Category,
+                "A bulk assign must touch only the rows it was handed.");
+        }
+
+        [Test]
+        public void BulkAssignCategory_WithAnEmptyCategory_ChangesNothing()
+        {
+            var row = Row("row", -20f, -3f);
+            var profile = Profile(row);
+            profile.SettingsFor(row.Clip).Category = "Music";
+
+            ClipListView.BulkAssignCategory(new[] { row }, profile, string.Empty);
+
+            Assert.AreEqual("Music", profile.FindSettings(row.Clip).Category,
+                "An empty category is not a category -- assigning it would orphan the clip.");
+        }
+
+        [Test]
+        public void StatusIcon_OnANullRow_IsEmptyRatherThanThrowing()
+        {
+            Assert.AreEqual(string.Empty, ClipListView.StatusIcon(null));
+        }
+
+        [Test]
+        public void BuildVisible_SortsByCategoryDescending()
+        {
+            // Names deliberately contradict category order, so a build that ignores the sort
+            // mode and falls back to Name cannot pass this.
+            var aaa = Row("aaa_ui", -20f, -3f);
+            var zzz = Row("zzz_music", -20f, -3f);
+            var profile = Profile(aaa, zzz);
+            profile.SettingsFor(aaa.Clip).Category = "UI";
+            profile.SettingsFor(zzz.Clip).Category = "Music";
+
+            var visible = ClipListView.BuildVisible(
+                new List<AudioBalanceRow> { zzz, aaa }, string.Empty,
+                ClipSortMode.Category, false, Lookup(profile));
+
+            Assert.AreEqual("aaa_ui", visible[0].Clip.name, "UI sorts after Music, so it leads descending.");
+            Assert.AreEqual("zzz_music", visible[1].Clip.name);
+        }
+
+        // ---------------------------------------------------------------------------------
+        // CategoryPopupOptions -- an orphaned category used to be a DEAD-END control: a clip
+        // whose Category matched nothing clamped to index 0, displaying as the first category,
+        // and picking that first category to "fix" it was a no-op because the value had not
+        // changed. The user could see the wrong category and had no way to correct it.
+        // ---------------------------------------------------------------------------------
+
+        [Test]
+        public void CategoryPopupOptions_ForAKnownCategory_SelectsItAndAddsNoExtraEntry()
+        {
+            var options = ClipListView.CategoryPopupOptions(
+                new[] { "Music", "SFX", "UI" }, "SFX", out var index);
+
+            Assert.AreEqual(3, options.Length, "A resolvable category needs no placeholder.");
+            Assert.AreEqual(1, index);
+        }
+
+        [Test]
+        public void CategoryPopupOptions_ForAnOrphanedCategory_AppendsAPlaceholderAndSelectsIt()
+        {
+            var options = ClipListView.CategoryPopupOptions(
+                new[] { "Music", "SFX" }, "Deleted", out var index);
+
+            Assert.AreEqual(3, options.Length);
+            Assert.AreEqual(2, index,
+                "The orphan must select the placeholder, NOT clamp to index 0 -- clamping shows " +
+                "a category the clip is not in, and re-picking it is a no-op.");
+            StringAssert.Contains("Deleted", options[2],
+                "Naming the missing category is what makes the state diagnosable.");
+        }
+
+        [Test]
+        public void CategoryPopupOptions_WithNoCategoriesAtAll_DoesNotThrow()
+        {
+            var options = ClipListView.CategoryPopupOptions(new string[0], "Music", out var index);
+
+            Assert.AreEqual(1, options.Length);
+            Assert.AreEqual(0, index);
+        }
+
+        // ---------------------------------------------------------------------------------
+        // BulkCategoryCaption -- selection deliberately survives filtering, so the button can
+        // act on rows that are not on screen. The count alone hides that.
+        // ---------------------------------------------------------------------------------
+
+        [Test]
+        public void BulkCategoryCaption_WhenEverySelectedRowIsVisible_ShowsOnlyTheCount()
+        {
+            Assert.AreEqual("Set Category (3)", ClipListView.BulkCategoryCaption(3, 3));
+        }
+
+        [Test]
+        public void BulkCategoryCaption_WhenTheFilterHidesSomeSelection_SaysHowMany()
+        {
+            Assert.AreEqual("Set Category (12, 10 hidden)", ClipListView.BulkCategoryCaption(12, 2),
+                "Acting on 10 rows the user cannot see must be stated, not implied by a number.");
         }
     }
 }

@@ -60,14 +60,14 @@ namespace Hoppa.AudioBalance.Editor.Tests
         }
 
         [Test]
-        public void Reset_DropsAPendingRequest()
+        public void ResetForProfileSwitch_DropsAPendingRequest()
         {
             // Switching profiles: an edit in flight belonged to the OLD profile, so carrying its
             // pending re-analysis across would apply it to the new one.
             var pending = new PendingAnalyze();
             pending.Observe(true);
 
-            pending.Reset();
+            pending.ResetForProfileSwitch();
 
             Assert.IsFalse(pending.Consume());
         }

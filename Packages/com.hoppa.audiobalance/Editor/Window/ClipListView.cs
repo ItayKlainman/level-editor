@@ -96,11 +96,13 @@ namespace Hoppa.AudioBalance.Editor
         ///
         /// <para>
         /// Every row originates from <c>profile.Clips</c> (see
-        /// <see cref="AudioBalanceSession.Analyze"/>), so a miss should not be reachable at all
-        /// -- enrolment already happened in the window's <c>RunAnalysis</c>, inside an Undo
-        /// scope. Resolving with <c>SettingsFor</c> "just in case" would trade an impossible
-        /// miss for a real hazard: an asset write during a repaint. A missing clip is simply
-        /// absent from the map, and the row draws without its category/trim controls.
+        /// <see cref="AudioBalanceSession.Analyze"/>), so a miss is rare -- but it IS reachable:
+        /// undoing the "Scan Audio Folders" enrolment shrinks <c>profile.Clips</c> after the
+        /// rows were built. Read-only is the correct response to that, not re-enrolment.
+        /// Resolving with <c>SettingsFor</c> "just in case" would trade a benign miss for a real
+        /// hazard: an asset write during a repaint, outside any Undo scope. A missing clip is
+        /// simply absent from the map, and its row draws without category/trim controls while
+        /// still showing its measurement.
         /// </para>
         /// </summary>
         public static Dictionary<AudioClip, ClipSettings> BuildSettingsLookup(
@@ -127,6 +129,62 @@ namespace Hoppa.AudioBalance.Editor
             }
 
             return map;
+        }
+
+        /// <summary>
+        /// The entries for a row's category popup, plus the index to show as selected.
+        ///
+        /// <para>
+        /// A clip whose <c>Category</c> resolves to nothing -- the category was renamed outside
+        /// <see cref="AudioBalanceProfile.RenameCategory"/>, or deleted -- used to clamp to
+        /// index 0 via <c>Mathf.Max(0, IndexOf(...))</c>. That made the control a <b>dead end</b>:
+        /// it displayed the first category, which is not the category the clip is in, and
+        /// picking that first category to correct it did nothing, because the popup's value had
+        /// not changed. The user saw a wrong value they could not fix. Appending an explicit
+        /// placeholder instead makes the orphaned state visible, names the missing category so
+        /// it is diagnosable, and leaves every real category one click away.
+        /// </para>
+        /// </summary>
+        public static string[] CategoryPopupOptions(string[] categoryNames, string current,
+            out int index)
+        {
+            var names = categoryNames ?? new string[0];
+            index = Array.IndexOf(names, current);
+
+            if (index >= 0)
+            {
+                return names;
+            }
+
+            var withPlaceholder = new string[names.Length + 1];
+            Array.Copy(names, withPlaceholder, names.Length);
+            withPlaceholder[names.Length] = string.IsNullOrEmpty(current)
+                ? "(none)"
+                : $"(unknown: {current})";
+
+            index = names.Length;
+            return withPlaceholder;
+        }
+
+        /// <summary>
+        /// Caption for the bulk-assign button, naming the part of the selection the filter is
+        /// hiding.
+        ///
+        /// <para>
+        /// Selection deliberately survives filtering -- typing in the filter box must not
+        /// destroy what you already picked. The consequence is that the button can act on rows
+        /// that are not on screen: select 12, filter down to 2, and "Set Category (12)" quietly
+        /// reassigns 10 rows the user cannot see. The count alone reads as a bug report waiting
+        /// to happen; stating the hidden portion makes it a deliberate, visible choice.
+        /// </para>
+        /// </summary>
+        public static string BulkCategoryCaption(int selectedCount, int visibleSelectedCount)
+        {
+            var hidden = selectedCount - visibleSelectedCount;
+
+            return hidden > 0
+                ? $"Set Category ({selectedCount}, {hidden} hidden)"
+                : $"Set Category ({selectedCount})";
         }
 
         /// <summary>Empty string for a healthy row -- the table should not be a wall of icons.</summary>

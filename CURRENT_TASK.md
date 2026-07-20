@@ -6,10 +6,12 @@
 
 ---
 
-## 🟡 IN FLIGHT (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
+## 🟢 CODE-COMPLETE (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
 
-Branch `feat/audio-balance`, **19+ commits, NOTHING PUSHED**.
-Tasks **1–10 of 13** complete and reviewed. **557/557 EditMode green** (~105 in the new package).
+Branch `feat/audio-balance`, **21+ commits, NOTHING PUSHED**.
+**All 13 tasks complete and reviewed. 655/655 EditMode green** (~137 in the new package).
+**Nothing has been hand-verified in a live editor by a human yet** — see the handover checklist
+at the end of the Task 13 section.
 
 - **Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
 - **Plan:** `docs/superpowers/plans/2026-07-19-audio-balance-panel.md` (13 TDD tasks; its
@@ -145,11 +147,83 @@ select · name · category · LUFS · gain · **trim slider** · status icon.
 - All new behaviour **mutation-verified** in 5 rounds; every mutation failed its own test and, except
   where noted, no other.
 
-### Remaining (Task 13) — GATED, do not dispatch cold
-`window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
-**Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
-test-fixture helper.** Tasks 11–13 as originally written contain known defects — do NOT implement
-from the un-amended plan.
+### Shipped 2026-07-20 (Task 13) — preview player, Write Table, docs — FINAL TASK
+**623 → 655 EditMode green** (+9 `GainTableWriterTests`, +8 `PreviewClipFactoryTests`,
++6 `CategoryEditTests`, +9 `ClipListViewTests`, +1 `EditGestureTests`, −1 deleted vacuous test).
+New: `GainTableWriter` / `PreviewClipFactory` / `AudioPreviewPlayer` / `CategoryEdit` under
+`Editor/Window/`; `README.md` + `Documentation~/audio-balance-guide.md`; window gained a second
+toolbar row (Write Table + Table field) and per-row **Play** / **A/B** buttons.
+
+- **The preview player is NOT the design the plan originally described.** `AudioSource.Play()` is
+  silent outside Play Mode, so the planned hidden-scene-AudioSource could never have made a sound.
+  Per the lead's amended decision it reflects into `UnityEditor.AudioUtil.PlayPreviewClip` and makes
+  the gain audible by **pre-scaling into one reusable temp clip** (`HideAndDontSave`, destroyed
+  before each new preview and on domain reload / play-mode change / window close — never one per
+  click). **Reflection resolution VERIFIED live on this editor** via `script-execute`:
+  Unity 6000.3.8f1 exposes `PlayPreviewClip(AudioClip, Int32, Boolean)` and `StopAllPreviewClips`,
+  both found by the name-and-first-parameter search. Whether it is *audible* is still lead-only.
+- **The reflection boundary is an accepted, documented gap**, in the same house style as
+  `ClipSampleReader.StreamingError`. The testable half was extracted into `PreviewClipFactory`
+  (`Scale`/`Mix`) and given 8 tests. **The plan's 7 Mix/Scale tests all passed 0 dB for both gains**,
+  so every one of them would have survived a `Mix` that ignored its gain arguments entirely — the
+  exact failure that makes A/B useless. Added `Mix_AppliesEachSignalsOwnGainRatherThanIgnoringThem`,
+  which pins the two gains *separately*; mutation-verified (sharing one gain reads 0.6 vs 0.5).
+- **`GainTableWriter.BuildEntries` also skips rows whose gain was never solved** (`Gain.Clip == null`),
+  a strengthening beyond the plan. `Analysis` and `Gain` are filled by separate passes, and an
+  unsolved `default(GainResult)` is **0 dB** — a plausible-looking value meaning "full volume".
+  Per the standing rule, the discriminator is `Gain.Clip != null`, never `Gain.Status` (`Ok == 0`).
+- `AssetDatabase.SaveAssets()` lives in the window's button handler, **not** in `Write` — `Write` is
+  a pure asset mutation, so a test run cannot flush every dirty asset in the project.
+- **Layout verified against `minSize` (720 wide, 708 usable):** table bar ends at x=672; the
+  Play/A-B buttons end at x=794 inside the 800-wide `MinRowWidth` content rect, so they are reached
+  by the horizontal scrollbar Task 12 introduced. **Do not narrow `MinRowWidth`.**
+- **Docs are truthful about the two counterintuitive things** and must not regress: the anchor does
+  **not** move the Gain column (it cancels; it is the outlier reference + readout), and it is the
+  **quietest** clip relative to target that pins at 0 dB, not the loudest. Also stated plainly:
+  source files are never modified, clipping is structurally impossible, nothing reaches the game
+  until Write Table, compensate **once** on the master mixer, and the cache no-ops for clips in
+  non-embedded packages.
+- **Task 13's plan text did NOT carry the disproven `Event.type` gesture mechanism** (Task 12's did).
+  Nothing to ignore there; reported for the record.
+- Smoke-verified via `script-execute`: window renders at `minSize` in the empty state, with a table
+  assigned, and with none assigned (hint path); `Teardown` is safe with nothing ever played. Editor
+  left closed and clean.
+
+#### Task 12 review findings, folded in here (reviewer's instruction — same files)
+- **MEDIUM-1 `_settingsStamp` was blind to an identity change at constant count.** `rows*397 ^ clips`
+  is unchanged by [A,B]→[A,C], so the settings map kept stale B: row C drew with **no category
+  dropdown and no trim slider** while showing LUFS/Gain normally, and stale B stayed counted in the
+  bulk button while resolving zero targets. (The hash was not injective either.) **Fingerprinting
+  removed entirely** — `RebuildSettings()` is called from the three events that can invalidate it
+  (`RunAnalysis`, profile switch, undo). Strictly stronger than a better hash.
+- **MEDIUM-2 nothing subscribed to `Undo.undoRedoPerformed`.** Now subscribed in `OnEnable` /
+  unsubscribed in `OnDisable`; the handler rebuilds the settings map and calls `Resolve` (**not**
+  `Analyze` — an undo must not trigger a full-library decode and cannot have changed a measurement).
+  This also closes the detached-`ClipSettings` hazard the reviewer flagged as likely-but-unverified.
+- **LOW** — gestures now reset on profile switch (new `EditGesture.Reset()`, tested); the orphaned
+  category is no longer a dead-end control (`ClipListView.CategoryPopupOptions` appends an explicit
+  `(unknown: X)` entry instead of clamping to index 0, which displayed a category the clip was not
+  in and could not be corrected by selecting it); the bulk button now reads
+  `Set Category (12, 10 hidden)` when the filter hides part of the selection; the overstated
+  "a miss should not be reachable at all" doc on `BuildSettingsLookup` now names the real path
+  (undo of enrolment) and why read-only is the right response; `PendingAnalyze.Reset()` renamed
+  **`ResetForProfileSwitch()`** so misuse reads wrong at the call site.
+- **The category-fold sequencing is now testable and tested.** Extracted to `CategoryEdit.Apply`
+  — pure sequencing, no IMGUI — with 6 tests. The load-bearing one is
+  `Apply_WithARejectedRenameAndAModeChange_StillAsksForAReMeasure`. Mutation-verified: moving the
+  `needsAnalyze` computation *after* `category.Mode = newMode` (a very easy real-world edit) fails
+  it. The reviewer was right that this beat my "a harness would pass vacuously" reasoning.
+- **TESTS** — deleted `BuildVisible_DoesNotMutateTheProfile` (**could not fail**: `BuildVisible` has
+  no profile parameter, so the regression it claimed to guard would be a *compile error in the test*,
+  not a red test — the 7th tautological test in this initiative). `ClipListViewTests.Lookup` switched
+  from the **mutating** `SettingsFor` to `FindSettings`, so the 8 `BuildVisible` tests now exercise
+  the same non-mutating shape production uses. Added the 4 requested gap tests.
+
+#### Verification standard for this task
+The only RED available for new types is a compile error, which is weak — so **all 33 new tests were
+mutation-verified in 5 rounds**, each failing with its own message and, where mutations were grouped,
+each group chosen so failures were uniquely attributable. Two tests were strengthened *because* a
+mutation showed the plan's version could not fail (the Mix-gain one above; the unsolved-gain one).
 
 ### 🔴 AUDIT OF TASKS 11–13 (2026-07-20) — 16 findings, 2 design-level
 
@@ -212,9 +286,54 @@ falls through to a re-measure on a corrupt/forward-version `Status`; `FindClips`
 now tiebreaks on asset path. Documented (not fixed): `KeyFor`'s project-root path resolution
 silently no-ops for registry/git-URL packages. 557 → 565 EditMode tests, all green.
 
-### ⏭️ NEXT, in order
-1. **Plan amendment** (in flight) — both lead decisions + 13 mechanical corrections.
-2. **Tasks 11 → 12 → 13.**
+### ⏭️ NEXT — all remaining work is the LEAD's
+
+**The initiative is code-complete. Nothing further is agent-actionable without a human in the editor.**
+
+**1. Hands-on editor pass (the initiative's handover checklist).** Create a profile + gain table, add
+a folder with at least two clips of clearly different loudness, set an anchor, press Analyze:
+- [ ] LUFS appears for every readable clip.
+- [ ] **Every gain is ≤ 0 dB and exactly one clip reads 0.0 dB** — and it is the clip *quietest*
+      relative to its category target. If the LOUDEST clip sits at 0, the solver's sign is inverted.
+- [ ] Two clips in the same category differ by their measured LUFS difference.
+- [ ] **Press Play on a row and confirm you actually HEAR it, with the gain applied.** This is the
+      one thing no test covers. A quiet clip and a loud one should sound closer together than the
+      raw files do. Silence here means the `AudioUtil` reflection failed → check the console for the
+      `[AudioBalance]` warning. (Resolution itself is already verified on 6000.3.8f1.)
+- [ ] **A/B** plays the clip over the anchor bed, and the bed keeps playing after a short clip ends.
+- [ ] **Write Table** populates the asset — check it in the Inspector.
+- [ ] The Table field and the Play / A-B buttons are all reachable **without resizing the window**
+      (scrolling the table sideways is expected and fine).
+- [ ] **Anchor behaviour, the thing most likely to be reported as a bug:** note the Gain column, swap
+      the anchor for a much louder/quieter clip, re-run Analyze — **the Gain column must NOT change.**
+      Only the `outlier` markers may move.
+- [ ] Clear the anchor entirely, re-run Analyze — confirm **no** rows are marked `outlier` (not every
+      row). 
+- [ ] Undo a trim and a category change; confirm the Gain column updates without pressing Analyze.
+- [ ] Console clean apart from intentional `[AudioBalance]` diagnostics.
+- [ ] Orphan a category (rename via the Inspector, not the window) and confirm the row's dropdown
+      shows `(unknown: X)` and can be corrected.
+
+**2. Decide on adoption.** **No game consumes the runtime `AudioGainTable` yet.** v1 deliberately
+wires up nothing — BB adoption is a separate, explicit step (add the package, assign a table, call
+`PlayOneShotBalanced`). Until then this ships value to nobody, which is fine and was the plan.
+
+**3. Push.** 21+ commits, nothing pushed. Package is `0.1.0`, untagged.
+
+### Loose ends visible from Task 13 (NOT fixed silently — lead's call)
+1. **Task 8's Streaming branch is still uncovered**, and is now known to be *closable* via
+   `AudioAssetFixture` + an `AudioImporter.loadType` flip. The XML doc still frames it as an
+   accepted gap; the lead chose not to reopen it. Re-word if it is ever revisited.
+2. **Suite-wide test hygiene (plan deviation #22):** no test file in this package calls
+   `DestroyImmediate` on the `ScriptableObject`s / `AudioClip`s it creates. Consistent, but it does
+   leak Unity objects across an EditMode run. Eleven files; a suite-wide decision, not a Task-13 one.
+3. **`LoudnessCacheTests` logs two real-looking `[AudioBalance]` warnings** ("Could not write the
+   loudness cache…", "Could not read the loudness cache…") during every suite run. They are
+   *deliberate* negative tests asserting graceful degradation, but only one of them wraps the log in
+   `LogAssert.ignoreFailingMessages`. Harmless; noted because they look alarming in a fresh console
+   and cost time to re-diagnose.
+4. **`AudioBalanceWindow` is ~1000 lines.** Still thin per-method and everything testable is out of
+   `OnGUI`, but it is the largest file in the package and the natural next split if it grows again.
 
 > **Known limitation to document, not fix:** `KeyFor` builds a path under the project root, so the
 > cache silently no-ops for clips in **non-embedded** packages (registry/git URL) — those get

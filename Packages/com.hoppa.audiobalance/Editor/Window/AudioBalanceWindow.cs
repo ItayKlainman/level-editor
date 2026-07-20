@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Hoppa.AudioBalance;
 using UnityEditor;
 using UnityEngine;
 
@@ -67,11 +68,23 @@ namespace Hoppa.AudioBalance.Editor
         /// OnGUI event both mutated the asset mid-render and made drawing O(n^2). Built via
         /// <see cref="ClipListView.BuildSettingsLookup"/>, which cannot write to the profile at
         /// all.
+        ///
+        /// <para>
+        /// <b>Rebuilt on the EVENTS that can change it, never on a fingerprint of the data.</b>
+        /// It used to be guarded by a stamp of <c>rows.Count * 397 ^ clips.Count</c>, which is
+        /// blind to an identity change at constant count: undo the enrolment of B, drop in a new
+        /// file, Analyze, and the profile holds [A, C] with rows [A, C] at the SAME stamp as the
+        /// old [A, B]. The map then still held B, so row C drew with no category dropdown and no
+        /// trim slider while showing LUFS and Gain normally -- no error, no visual cue -- and
+        /// stale B survived <see cref="PruneSelection"/> and stayed counted in the bulk button
+        /// while resolving zero targets. (The hash was not injective either: (1,0) and (0,397)
+        /// collide.) The row set changes in exactly two places -- <see cref="RunAnalysis"/> and
+        /// a profile switch -- plus undo, which can rewrite the profile underneath us. All three
+        /// rebuild explicitly, so there is no fingerprint left to be wrong.
+        /// </para>
         /// </summary>
         private Dictionary<AudioClip, ClipSettings> _settings =
             new Dictionary<AudioClip, ClipSettings>();
-
-        private int _settingsStamp = -1;
 
         /// <summary>
         /// Widest a clip row actually draws, with room for the preview buttons Task 13 appends.
@@ -152,11 +165,50 @@ namespace Hoppa.AudioBalance.Editor
         private void OnEnable()
         {
             _cache = LoudnessCache.Load();
+            Undo.undoRedoPerformed += OnUndoRedo;
         }
 
         private void OnDisable()
         {
+            Undo.undoRedoPerformed -= OnUndoRedo;
+
+            // Teardown, not StopAll: this also destroys the temporary gain-applied clip, which
+            // is HideAndDontSave and would otherwise outlive the window that made it.
+            AudioPreviewPlayer.Teardown();
+
             _cache?.Save();
+        }
+
+        /// <summary>
+        /// Nothing subscribed to undo before this, and two things went stale because of it.
+        ///
+        /// <para>
+        /// The certain one: an undo of a category/trim/enrolment edit left the rows and the Gain
+        /// column showing pre-undo numbers until the user happened to press Analyze.
+        /// </para>
+        ///
+        /// <para>
+        /// The subtle one: <c>Undo.RecordObject</c> on a ScriptableObject restores a
+        /// <c>List&lt;T&gt;</c> of <c>[Serializable]</c> managed classes by RECREATING its
+        /// elements rather than writing into them, so every <see cref="ClipSettings"/> reference
+        /// in <see cref="_settings"/> can be detached from the profile after an undo. The row
+        /// drawer would then write a trim into an orphaned object -- the slider visibly moves --
+        /// while <c>Resolve</c> reads the live one through <c>FindSettings</c>, so the Gain
+        /// column never responds and the edit is never persisted. Silent lost work,
+        /// indistinguishable from a broken binding. Rebuilding the map is what fixes it.
+        /// </para>
+        ///
+        /// <para>
+        /// <see cref="AudioBalanceSession.Resolve"/>, not <c>Analyze</c>: an undo must not kick
+        /// off a full-library decode the user did not ask for, and it cannot have changed any
+        /// measurement -- only the offsets and trims a re-solve reads.
+        /// </para>
+        /// </summary>
+        private void OnUndoRedo()
+        {
+            RebuildSettings();
+            _session.Resolve(_profile);
+            Repaint();
         }
 
         private void OnGUI()
@@ -164,6 +216,9 @@ namespace Hoppa.AudioBalance.Editor
             var y = Pad;
 
             DrawToolbar(new Rect(Pad, y, position.width - Pad * 2f, ToolbarHeight));
+            y += ToolbarHeight + 2f;
+
+            DrawTableBar(new Rect(Pad, y, position.width - Pad * 2f, ToolbarHeight));
             y += ToolbarHeight + Pad;
 
             if (_profile == null)
@@ -215,8 +270,13 @@ namespace Hoppa.AudioBalance.Editor
                 _session.Clear();
 
                 // Any edit gesture in flight belonged to the OLD profile; carrying its pending
-                // re-analysis flag across would apply it to the new one.
-                _categoryAnalyze.Reset();
+                // re-analysis flag across would apply it to the new one. The GESTURES themselves
+                // must be reset too -- an open one left armed makes the next idle poll return
+                // Commit and marks the NEWLY selected profile dirty, an asset the user never
+                // touched.
+                _categoryAnalyze.ResetForProfileSwitch();
+                _categoryGesture.Reset();
+                _trimGesture.Reset();
                 _analyzeRequested = false;
 
                 // Everything holding clips from the old profile is dropped here. Leaving
@@ -225,7 +285,6 @@ namespace Hoppa.AudioBalance.Editor
                 // did nothing.
                 _selected.Clear();
                 _settings.Clear();
-                _settingsStamp = -1;
             }
 
             x += 226f;
@@ -251,6 +310,63 @@ namespace Hoppa.AudioBalance.Editor
             }
 
             GUI.enabled = true;
+        }
+
+        /// <summary>
+        /// Second toolbar row. These two controls live here rather than appended to the first
+        /// row because at minSize (720 px wide, 708 usable) the first row is already full after
+        /// Analyze -- and clipping the Table field specifically is UNRECOVERABLE, since Write
+        /// Table stays disabled until a table is assigned. A fresh user would see a permanently
+        /// greyed button and no visible way to fix it. On this row the controls end at x = 672,
+        /// inside the 714 available.
+        /// </summary>
+        private void DrawTableBar(Rect rect)
+        {
+            var x = rect.x;
+
+            GUI.enabled = _profile != null && _profile.Table != null && _session.Rows.Count > 0;
+
+            if (GUI.Button(new Rect(x, rect.y, 110f, rect.height - 4f), "Write Table"))
+            {
+                if (GainTableWriter.Write(_profile, _session.Rows))
+                {
+                    // GainTableWriter.Write is a pure asset mutation so it stays test-safe --
+                    // SaveAssets flushes EVERY dirty asset in the project, which is only
+                    // acceptable as the direct result of an explicit user action, i.e. here.
+                    AssetDatabase.SaveAssets();
+                    ShowNotification(new GUIContent("Gain table written"));
+                }
+            }
+
+            GUI.enabled = true;
+            x += 116f;
+
+            GUI.Label(new Rect(x, rect.y, 40f, rect.height), "Table");
+            x += 44f;
+
+            if (_profile == null)
+            {
+                return;
+            }
+
+            var table = (AudioGainTable)EditorGUI.ObjectField(
+                new Rect(x, rect.y, 180f, rect.height - 4f),
+                _profile.Table, typeof(AudioGainTable), false);
+
+            if (table != _profile.Table)
+            {
+                Undo.RecordObject(_profile, "Set Gain Table");
+                _profile.Table = table;
+                EditorUtility.SetDirty(_profile);
+            }
+
+            x += 186f;
+
+            if (_profile.Table == null)
+            {
+                GUI.Label(new Rect(x, rect.y, 320f, rect.height),
+                    "Assign a gain table to enable Write Table.", HintStyle);
+            }
         }
 
         private void DrawAnchor(Rect rect)
@@ -341,8 +457,6 @@ namespace Hoppa.AudioBalance.Editor
 
                 if (EditorGUI.EndChangeCheck())
                 {
-                    var renamedFrom = name != category.Name ? category.Name : null;
-
                     // hotControl, not the event type -- by this point the controls above have
                     // consumed the event and Use() has rewritten BOTH type and rawType to
                     // Used. See the EditGesture class doc.
@@ -354,36 +468,20 @@ namespace Hoppa.AudioBalance.Editor
                         Undo.RecordObject(_profile, "Edit Audio Category");
                     }
 
-                    // Apply immediately regardless of step so the field stays live under a
-                    // drag; only the commit is deferred. RenameCategory sets the name AND
-                    // re-points every clip referencing it -- doing only the former would
-                    // silently reassign the whole group to Categories[0]. It takes the
-                    // category BY REFERENCE: resolving by name renamed the wrong row whenever
-                    // two categories shared a name, which "Add Category" makes easy.
-                    //
-                    // Applied BEFORE the analyze flag is folded, so a rejection contributes
-                    // nothing instead of clearing the flag. The old code assigned false here,
-                    // which wiped a mode change from an EARLIER frame of the same gesture --
-                    // the commit then fell through to Resolve, which cannot re-measure, and
-                    // baked a gain from the old-mode LUFS.
-                    var renameApplied = renamedFrom != null && _profile.RenameCategory(category, name);
+                    // Applied immediately regardless of step so the fields stay live under a
+                    // drag; only the commit is deferred. The sequencing inside Apply is
+                    // load-bearing and lives in CategoryEdit so it can be tested without IMGUI
+                    // -- see CategoryEditTests.
+                    var edit = CategoryEdit.Apply(_profile, category, name, offset, mode);
 
-                    if (renamedFrom != null && !renameApplied)
+                    if (edit.RenameRejected)
                     {
-                        // Rejected -- almost always a collision with an existing category.
-                        // Say so: silently reverting the field looks like dropped input.
+                        // Almost always a collision with an existing category. Say so:
+                        // silently reverting the field looks like dropped input.
                         ShowNotification(new GUIContent($"'{name}' is already a category"));
                     }
 
-                    // A mode change changes the MEASUREMENT, which Resolve cannot do. An
-                    // APPLIED rename re-points every clip that referenced the old name, which
-                    // can change their effective mode too. Both must re-analyze; the cache
-                    // makes it near-free for any clip whose mode did not actually move.
-                    // Evaluated before category.Mode is overwritten, below.
-                    _categoryAnalyze.Observe(mode != category.Mode || renameApplied);
-
-                    category.OffsetDb = offset;
-                    category.Mode = mode;
+                    _categoryAnalyze.Observe(edit.NeedsAnalyze);
 
                     if (step == EditStep.Commit || step == EditStep.RecordAndCommit)
                     {
@@ -485,31 +583,20 @@ namespace Hoppa.AudioBalance.Editor
         }
 
         /// <summary>
-        /// Rebuilds the clip-settings map when the row set changes, so the render path never
-        /// resolves settings per row per event -- <c>SettingsFor</c> appends on a miss and
-        /// <c>FindSettings</c> is a linear scan, so doing it inline was both an asset write
-        /// during a repaint and O(n^2) drawing.
+        /// Rebuilds the clip-settings map, so the render path never resolves settings per row
+        /// per event -- <c>SettingsFor</c> appends on a miss and <c>FindSettings</c> is a linear
+        /// scan, so doing it inline was both an asset write during a repaint and O(n^2) drawing.
         ///
         /// <para>
-        /// The stamp is deliberately coarse. It only has to notice that the ROW SET changed;
-        /// edits that mutate a ClipSettings in place (a bulk assign, a trim) are invisible to it
-        /// and need to be -- the map holds live references, so those edits are already visible
-        /// through it. Profile switches reset the stamp explicitly rather than relying on the
-        /// counts to differ.
+        /// Called from the three places that can invalidate it: <see cref="RunAnalysis"/> (the
+        /// only thing that replaces the row set), a profile switch, and
+        /// <see cref="OnUndoRedo"/>. Deliberately NOT called per frame behind a data
+        /// fingerprint -- see the note on <see cref="_settings"/> for the identity-change-at-
+        /// constant-count case that made the fingerprint silently wrong.
         /// </para>
         /// </summary>
-        private void SyncSettings()
+        private void RebuildSettings()
         {
-            var stamp = _profile == null
-                ? -1
-                : _session.Rows.Count * 397 ^ _profile.Clips.Count;
-
-            if (stamp == _settingsStamp)
-            {
-                return;
-            }
-
-            _settingsStamp = stamp;
             _settings = ClipListView.BuildSettingsLookup(_profile, _session.Rows);
         }
 
@@ -537,17 +624,19 @@ namespace Hoppa.AudioBalance.Editor
 
         private void DrawClips(Rect rect)
         {
-            SyncSettings();
             PruneSelection();
 
-            DrawClipHeader(new Rect(rect.x, rect.y, rect.width, RowHeight));
+            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, CategoryOf);
+
+            // Built BEFORE the header so the bulk button can name the part of the selection the
+            // filter is hiding -- acting on rows the user cannot see must be stated outright.
+            DrawClipHeader(new Rect(rect.x, rect.y, rect.width, RowHeight),
+                visible.Count(r => _selected.Contains(r.Clip)));
 
             var body = new Rect(rect.x, rect.y + RowHeight + 2f, rect.width,
                 Mathf.Max(0f, rect.height - RowHeight - 2f));
 
             GUI.Box(body, GUIContent.none);
-
-            var visible = ClipListView.BuildVisible(_session.Rows, _filter, _sort, _ascending, CategoryOf);
 
             // Content must be as wide as the widest row actually IS, not as wide as the
             // viewport. Hard-coding it to the viewport means the horizontal scrollbar never
@@ -585,7 +674,7 @@ namespace Hoppa.AudioBalance.Editor
             }
         }
 
-        private void DrawClipHeader(Rect rect)
+        private void DrawClipHeader(Rect rect, int visibleSelectedCount)
         {
             var x = rect.x;
 
@@ -613,8 +702,8 @@ namespace Hoppa.AudioBalance.Editor
 
             GUI.enabled = _selected.Count > 0;
 
-            if (GUI.Button(new Rect(x, rect.y, 130f, rect.height - 2f),
-                    $"Set Category ({_selected.Count})"))
+            if (GUI.Button(new Rect(x, rect.y, 170f, rect.height - 2f),
+                    ClipListView.BulkCategoryCaption(_selected.Count, visibleSelectedCount)))
             {
                 ShowBulkCategoryMenu();
             }
@@ -652,10 +741,18 @@ namespace Hoppa.AudioBalance.Editor
 
             if (settings != null && categoryNames.Length > 0)
             {
-                var current = Mathf.Max(0, System.Array.IndexOf(categoryNames, settings.Category));
-                var picked = EditorGUI.Popup(
-                    new Rect(x, rect.y, 90f, rect.height - 2f), current, categoryNames);
+                // An orphaned category gets an explicit placeholder entry rather than being
+                // clamped to index 0 -- clamping displayed a category the clip is NOT in, and
+                // picking that category to fix it was a no-op because the value had not changed.
+                // See ClipListView.CategoryPopupOptions.
+                var options = ClipListView.CategoryPopupOptions(
+                    categoryNames, settings.Category, out var current);
 
+                var picked = EditorGUI.Popup(
+                    new Rect(x, rect.y, 90f, rect.height - 2f), current, options);
+
+                // Bounds-checked against categoryNames, not options: the placeholder is the last
+                // entry and is not a real category, so selecting it must do nothing.
                 if (picked != current && picked >= 0 && picked < categoryNames.Length)
                 {
                     Undo.RecordObject(_profile, "Change Audio Category");
@@ -721,6 +818,36 @@ namespace Hoppa.AudioBalance.Editor
                 GUI.Label(new Rect(x, rect.y, 90f, rect.height),
                     new GUIContent(icon, row.Analysis.Reason ?? "gain is far from the category target"));
             }
+
+            x += 94f;
+
+            // ASCII captions: a glyph the default IMGUI font lacks renders as a blank button,
+            // which is indistinguishable from a broken one. These end at x = 794 against a
+            // content rect of MinRowWidth (800), so they are only reachable because that rect is
+            // wider than the viewport at minSize and a horizontal scrollbar appears. Do not
+            // narrow MinRowWidth.
+            GUI.enabled = row.Analysis.Status == ClipStatus.Ok;
+
+            if (GUI.Button(new Rect(x, rect.y, 40f, rect.height - 2f),
+                    new GUIContent("Play", "Preview with the solved gain applied")))
+            {
+                AudioPreviewPlayer.PlayWithGain(row.Clip, row.Gain.FinalGainDb);
+            }
+
+            x += 44f;
+
+            GUI.enabled = row.Analysis.Status == ClipStatus.Ok && _profile.Anchor != null;
+
+            if (GUI.Button(new Rect(x, rect.y, 36f, rect.height - 2f),
+                    new GUIContent("A/B", "Play mixed over the anchor bed")))
+            {
+                var anchorRow = _session.Rows.FirstOrDefault(r => r.Clip == _profile.Anchor);
+                AudioPreviewPlayer.PlayAgainstAnchor(
+                    row.Clip, row.Gain.FinalGainDb,
+                    _profile.Anchor, anchorRow?.Gain.FinalGainDb ?? 0f);
+            }
+
+            GUI.enabled = true;
         }
 
         /// <summary>
@@ -893,6 +1020,12 @@ namespace Hoppa.AudioBalance.Editor
             {
                 _cache.Save();
             }
+
+            // The row set was just replaced, so the settings map is stale by definition. This is
+            // the ONLY place rows change other than a profile switch and an undo, and all three
+            // rebuild explicitly -- see the note on _settings for why a per-frame fingerprint
+            // was not a safe substitute.
+            RebuildSettings();
 
             Repaint();
         }

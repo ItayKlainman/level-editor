@@ -49,8 +49,15 @@ namespace Hoppa.AudioBalance.Editor
         /// <summary>
         /// Drops a pending request outright. For profile switches only: an edit in flight
         /// belonged to the OLD profile, so carrying it across would apply it to the new one.
+        ///
+        /// <para>
+        /// Named for its one legitimate caller rather than <c>Reset()</c>, because this method
+        /// is the single exception to the accumulate-only invariant above -- and a bare
+        /// <c>Reset()</c> reads as harmless at a call site that has no business clearing a
+        /// request it does not own. That is exactly the bug this type was introduced to remove.
+        /// </para>
         /// </summary>
-        public void Reset()
+        public void ResetForProfileSwitch()
         {
             _needed = false;
         }
