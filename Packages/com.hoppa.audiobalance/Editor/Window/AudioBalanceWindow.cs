@@ -78,9 +78,11 @@ namespace Hoppa.AudioBalance.Editor
         /// trim slider while showing LUFS and Gain normally -- no error, no visual cue -- and
         /// stale B survived <see cref="PruneSelection"/> and stayed counted in the bulk button
         /// while resolving zero targets. (The hash was not injective either: (1,0) and (0,397)
-        /// collide.) The row set changes in exactly two places -- <see cref="RunAnalysis"/> and
-        /// a profile switch -- plus undo, which can rewrite the profile underneath us. All three
-        /// rebuild explicitly, so there is no fingerprint left to be wrong.
+        /// collide.) Within THIS WINDOW the row set changes in exactly two places --
+        /// <see cref="RunAnalysis"/> and a profile switch -- plus undo, which can rewrite the
+        /// profile underneath us. All three rebuild explicitly, so there is no fingerprint left
+        /// to be wrong. External mutation (the Inspector's <c>Clips</c> list, an asset revert)
+        /// fires none of those, and is covered separately by <see cref="OnFocus"/>.
         /// </para>
         /// </summary>
         private Dictionary<AudioClip, ClipSettings> _settings =
@@ -199,16 +201,60 @@ namespace Hoppa.AudioBalance.Editor
         /// </para>
         ///
         /// <para>
-        /// <see cref="AudioBalanceSession.Resolve"/>, not <c>Analyze</c>: an undo must not kick
-        /// off a full-library decode the user did not ask for, and it cannot have changed any
-        /// measurement -- only the offsets and trims a re-solve reads.
+        /// <b><see cref="AudioBalanceSession.Analyze"/>, not <c>Resolve</c>.</b> An earlier
+        /// revision used <c>Resolve</c> on the premise that an undo "cannot have changed any
+        /// measurement". That premise is false: FOUR of the undo entries this window pushes
+        /// restore a measurement input -- <c>"Edit Audio Category"</c> (a category's
+        /// <see cref="MeasureMode"/>), <c>"Change Audio Category"</c> and
+        /// <c>"Assign Audio Category"</c> (a clip's category, which resolves to a different
+        /// mode), and <c>"Scan Audio Folders"</c> (un-enrolment falls back to
+        /// <see cref="MeasureMode.Integrated"/>). <c>Resolve</c> rebuilds its analyses from
+        /// <c>row.Analysis</c> verbatim, so it cannot correct any of them. Because
+        /// <c>GainSolver</c>'s headroom pass subtracts <c>max(raw)</c> across the whole set,
+        /// a few rows left on the wrong measurement move the 0 dB ceiling for EVERY clip --
+        /// silently, with <c>Write Table</c> still enabled.
+        /// </para>
+        ///
+        /// <para>
+        /// The cost objection does not hold: <see cref="LoudnessCacheKey"/> carries the mode, so
+        /// every clip whose effective mode did not change is a cache HIT and is never re-decoded
+        /// -- the same reasoning that makes the forward path's re-analysis acceptable.
+        /// <c>Analyze</c> ends in <c>Resolve</c>, so it subsumes the old behaviour, and
+        /// rebuilding rows from <c>profile.Clips</c> also repairs the undone-enrolment case.
+        /// </para>
+        ///
+        /// <para>
+        /// The session is driven DIRECTLY rather than through <see cref="RunAnalysis"/>: that
+        /// method calls <c>Undo.RecordObject</c> and enrols clips, which is unsafe re-entrant
+        /// work inside an <c>undoRedoPerformed</c> callback. Guarded on <c>Rows.Count</c> so an
+        /// undo on a never-analyzed profile does not kick off a full-library decode.
         /// </para>
         /// </summary>
         private void OnUndoRedo()
         {
             RebuildSettings();
-            _session.Resolve(_profile);
+
+            if (_profile != null && _session.Rows.Count > 0)
+            {
+                _session.Analyze(_profile, _cache);
+                RebuildSettings();
+            }
+
             Repaint();
+        }
+
+        /// <summary>
+        /// An edit made OUTSIDE this window -- the default Inspector exposes the profile's
+        /// <c>Clips</c> list, and an asset revert or reimport from version control has the same
+        /// effect -- recreates the <c>[Serializable]</c> <see cref="ClipSettings"/> elements
+        /// WITHOUT firing <c>undoRedoPerformed</c>. <see cref="_settings"/> would then hold
+        /// detached references: a trim slider writes into an orphan, so the slider visibly moves
+        /// while the Gain column never responds and the edit is never persisted. The window
+        /// necessarily regains focus after any such edit, and the rebuild is a linear scan.
+        /// </summary>
+        private void OnFocus()
+        {
+            RebuildSettings();
         }
 
         private void OnGUI()
@@ -313,12 +359,12 @@ namespace Hoppa.AudioBalance.Editor
         }
 
         /// <summary>
-        /// Second toolbar row. These two controls live here rather than appended to the first
-        /// row because at minSize (720 px wide, 708 usable) the first row is already full after
-        /// Analyze -- and clipping the Table field specifically is UNRECOVERABLE, since Write
+        /// Second toolbar row. Appending these two controls to the first row instead would put
+        /// the Table field at x = 658 running to x = 838, against 708 usable px at minSize
+        /// (720 wide) -- and clipping the Table field specifically is UNRECOVERABLE, since Write
         /// Table stays disabled until a table is assigned. A fresh user would see a permanently
-        /// greyed button and no visible way to fix it. On this row the controls end at x = 672,
-        /// inside the 714 available.
+        /// greyed button and no visible way to fix it. On its own row the controls end at
+        /// x = 672, inside the 714 available.
         /// </summary>
         private void DrawTableBar(Rect rect)
         {

@@ -13,11 +13,14 @@ namespace Hoppa.AudioBalance.Editor
         /// Scales every sample by a linear gain, clamping to [-1, 1].
         ///
         /// <para>
-        /// Clamping is a real decision, not defensive noise: solved gains are normalised
-        /// downward so they are almost always negative, but a per-clip trim of up to +12 dB
-        /// can push a peak past full scale. Clipping the preview is honest -- it is what the
-        /// runtime would do -- whereas normalising here would make the preview quieter than
-        /// the thing it is previewing.
+        /// The clamp is defence in depth HERE, not the load-bearing case. Every caller passes
+        /// <c>row.Gain.FinalGainDb</c>, which the headroom pass guarantees is at or below 0 dB,
+        /// so scaling alone cannot exceed full scale -- the per-clip trim is already folded into
+        /// that solved value rather than applied on top of it. The clamp that actually does work
+        /// is the one in <see cref="Mix"/>, where two signals each at or below unity sum past it.
+        /// Clamping is kept here so the function is total for any gain a future caller passes,
+        /// and because clipping is the honest failure -- it is what the runtime would do, whereas
+        /// normalising would make the preview quieter than the thing it is previewing.
         /// </para>
         /// </summary>
         public static float[] Scale(float[] samples, float gainDb)

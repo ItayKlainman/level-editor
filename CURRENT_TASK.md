@@ -9,7 +9,7 @@
 ## 🟢 CODE-COMPLETE (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
 
 Branch `feat/audio-balance`, **21+ commits, NOTHING PUSHED**.
-**All 13 tasks complete and reviewed. 655/655 EditMode green** (~137 in the new package).
+**All 13 tasks complete and reviewed. 657/657 EditMode green** (~139 in the new package).
 **Nothing has been hand-verified in a live editor by a human yet** — see the handover checklist
 at the end of the Task 13 section.
 
@@ -218,6 +218,41 @@ toolbar row (Write Table + Table field) and per-row **Play** / **A/B** buttons.
   not a red test — the 7th tautological test in this initiative). `ClipListViewTests.Lookup` switched
   from the **mutating** `SettingsFor` to `FindSettings`, so the 8 `BuildVisible` tests now exercise
   the same non-mutating shape production uses. Added the 4 requested gap tests.
+
+#### Task 13 review — BLOCKED on the item I flagged for scrutiny; fixed in `3a4a5c4` (655 → **657 green**)
+- **HIGH — `OnUndoRedo` called `Resolve` where the undo CAN change a measurement.** My doc claimed
+  an undo "cannot have changed any measurement"; **three comments in my own commit contradicted it**
+  (`AudioBalanceSession:121-127`, the forward path at `AudioBalanceWindow:762-767`, and
+  `ClipListView:219-222`). Four undo entries this window pushes restore a measurement input —
+  `"Edit Audio Category"` (a category's `MeasureMode`), `"Change Audio Category"` and
+  `"Assign Audio Category"` (a clip's category → a different mode), and `"Scan Audio Folders"`
+  (un-enrolment → `Integrated`). **Severity is systemic, not local:** the headroom pass subtracts
+  `max(raw)` across the whole set, so bulk-assigning 20 one-shots and pressing Ctrl+Z moved the
+  0 dB ceiling for **every clip in the library** — no marker, no warning, `Write Table` still
+  enabled. Now drives `_session.Analyze` **directly** (not `RunAnalysis`, which does
+  `Undo.RecordObject` + enrolment — unsafe re-entrant work inside an `undoRedoPerformed` callback),
+  guarded on `Rows.Count`. My cost objection was wrong: `LoudnessCacheKey` carries the mode, so any
+  clip whose mode is unchanged is a cache hit. `Analyze` ends in `Resolve`, so it subsumes the old
+  behaviour, and it fixes the undone-enrolment staleness for free.
+- **MEDIUM — added `OnFocus() => RebuildSettings()`.** `RebuildSettings` was exhaustive for edits
+  originating in this window, but **external** mutation (the Inspector's `Clips` list, an asset
+  revert/reimport) recreates the `[Serializable] ClipSettings` elements without firing
+  `undoRedoPerformed`, leaving `_settings` holding detached references — a trim slider writes into
+  an orphan, the slider moves, the Gain column never responds, the edit never persists. The
+  `_settings` doc claim is scoped to "within this window" accordingly.
+- **LOW (comments only, no behaviour):** `PreviewClipFactory.Scale`'s clamp rationale was wrong —
+  `Scale` is only ever called with `FinalGainDb`, guaranteed ≤ 0 dB, so it cannot overdrive; the
+  load-bearing clamp is in `Mix`, where two ≤0 dB signals sum past unity. `DrawTableBar`'s
+  justification said the first row was "full after Analyze" (it ends at x=492) — the split is still
+  right, the arithmetic quoted for it was not; now states the real figure (the field would land at
+  x=658→838 against 708). `AudioPreviewPlayer.StopAll` no longer gates on `Resolve()`'s return
+  (which reports whether the PLAY method was found), so a Unity renaming only `PlayPreviewClip`
+  cannot make Stop unreachable.
+- **The new test got a real RED, not a compile error:** `Expected: greater than 0.5f / But was: 0.0f`
+  — `Resolve` leaves the LUFS byte-identical. Mutation-verified by reverting to `Resolve`, which
+  reproduces that exact failure and no other. Uses `AudioAssetFixture` + a 0.5 s tone / 3.5 s
+  silence one-shot, where Integrated and MomentaryMax diverge ~1.5 dB, and a null cache so both
+  passes really measure.
 
 #### Verification standard for this task
 The only RED available for new types is a compile error, which is weak — so **all 33 new tests were

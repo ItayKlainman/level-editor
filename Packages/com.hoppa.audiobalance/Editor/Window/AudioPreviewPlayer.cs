@@ -85,7 +85,13 @@ namespace Hoppa.AudioBalance.Editor
 
         public static void StopAll()
         {
-            if (!Resolve() || _stop == null)
+            // Resolve() for its one-time side effect of populating _stop, but gated on _stop
+            // itself rather than on Resolve()'s return -- that reports whether the PLAY method
+            // was found, so a Unity that renamed only PlayPreviewClip would otherwise make Stop
+            // unreachable too. Nothing is playing in that state, so this is belt-and-braces.
+            Resolve();
+
+            if (_stop == null)
             {
                 return;
             }
