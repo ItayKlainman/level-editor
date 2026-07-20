@@ -70,6 +70,28 @@ computed `CategoryBlockHeight`, real progress+Cancel, ASCII captions, `ExitGUI()
   block height 170 ≥ 162 needed. Editor left closed/clean.
 - **Still lead-only:** whether it *looks* right. See the Task 11 review notes handed back.
 
+#### Review round 1 — BLOCKED, fixed in `fb54b89` (582 → **593 green**)
+- **C1 — the gesture machine was unreachable from the window, and the reviewer's prescribed fix
+  would not have worked either.** Review said "use `Event.current.rawType`, which is not rewritten
+  to `Used` on consumption." **Measured, in live IMGUI with real mouse events: `Use()` rewrites
+  BOTH `type` AND `rawType` to `Used`** (`after type:Used/raw:Used` on every frame). `rawType`
+  surviving consumption is a widely-repeated belief that is false in this position. Fixed with
+  `GUIUtility.hotControl != 0` instead — measured stable at `487` for the whole gesture, `0` after
+  release, untouched by `Use()`. **Second correction:** the review's stated mechanism (dragging the
+  category `OffsetDb` label) does not occur — `EditorGUI.FloatField(rect, value)` is the *label-less*
+  overload with an EMPTY drag hot zone and never streams (`changed:False` on every drag frame). The
+  defect was real but latent; it goes live with **Task 12's trim slider**, which the probe confirms
+  does stream per frame. New `EditGestureSeamTests` drives real events through a real window —
+  reproducing the old behaviour fails it `Expected: 1 But was: 3`.
+- **I2/I3/I4 fixed** — `FindSettings` (non-mutating) added to the profile so `AudioBalanceSession`
+  never enrols; enrolment is explicit in `RunAnalysis` inside Undo; anchor measured once not twice;
+  `RenameCategory` renames AND re-points clips as one unrepresentable-to-get-wrong operation;
+  `[SerializeField]` on `_profile`/`_clipScroll`.
+- **Three tests that could not fail** were rewritten (null-profile clear, anchor-status staleness,
+  cancel-keeps-rows). Note `Gain.Status` is a **vacuous assertion by construction** — `ClipStatus.Ok`
+  is `0`, so an unsolved `default(GainResult)` reports `Ok`; assert `Gain.Clip != null` instead.
+- All five fixes mutation-verified, not just observed green.
+
 ### Remaining (Tasks 12–13) — GATED, do not dispatch cold
 `window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
 **Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
