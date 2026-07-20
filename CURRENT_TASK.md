@@ -92,6 +92,28 @@ computed `CategoryBlockHeight`, real progress+Cancel, ASCII captions, `ExitGUI()
   is `0`, so an unsolved `default(GainResult)` reports `Ok`; assert `Gain.Clip != null` instead.
 - All five fixes mutation-verified, not just observed green.
 
+#### Review round 2 — BLOCKED on a regression I introduced; fixed in `fa7da62` (593 → **602 green**)
+- **HIGH-1 was my own regression.** Round 1's `RenameCategory(oldName, newName)` resolved the target
+  by **first exact name match**. `Add Category` named every new row `"New"`, so two clicks + a rename
+  renamed the **wrong row** while that same keystroke's offset/mode landed on the right one — one edit
+  split across two categories. Now takes the `AudioCategory` **by reference**. `288d109` was correct
+  here; my "structural" fix traded a good object reference for a lookup. **Lesson: a fix that
+  introduces an indirection the caller didn't need is a regression risk, not a hardening.**
+- **MEDIUM-2** — rename onto an existing name is rejected (was a silent merge that re-pointed clips to
+  whichever category came first). **MEDIUM-3** — enforcement made real, not documented:
+  `AudioCategory.Name` is now a read-only property (`Categories[i].Name = "x"` is a **compile error**
+  outside the package), `SettingsFor` is `internal` + new `InternalsVisibleTo`, and
+  `OffsetDbFor`/`TrimDbFor`/`ModeFor` — the actual hazard — are **genuinely non-mutating**, removing
+  it at source rather than hiding it. Verified by reflection **from a separate assembly**.
+  Residual gap stated in the doc rather than overclaimed: C# has no friend-of-one-type access, so
+  in-assembly code can still reach the internal setter.
+- **LOW** — `Clear()` sets `IsDirty`; `IsDirty` gained its own suite incl. the load-bearing
+  **failed-`Save` keeps it set** case; seam click-test gained a ran-at-all precondition.
+- **Documented for Task 12 (accepted, not bugs):** commit is deferred one frame when a button holds
+  `hotControl` (can cause a second `RunAnalysis`); mid-gesture edits aren't `SetDirty`-ed, so a domain
+  reload mid-drag loses them.
+- All four round-2 behaviours mutation-verified, each failing its own test and no other.
+
 ### Remaining (Tasks 12–13) — GATED, do not dispatch cold
 `window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
 **Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
