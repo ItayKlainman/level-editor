@@ -6,10 +6,10 @@
 
 ---
 
-## ⏸ PAUSED MID-BUILD (2026-07-19) — Audio Balance panel (new package `com.hoppa.audiobalance`)
+## 🟡 IN FLIGHT (2026-07-20) — Audio Balance panel (new package `com.hoppa.audiobalance`)
 
-**Resume here first tomorrow.** Branch `feat/audio-balance`, **16 commits, NOTHING PUSHED**.
-Tasks **1–8 of 13** complete and reviewed. **512/512 EditMode green** (60 in the new package).
+Branch `feat/audio-balance`, **19+ commits, NOTHING PUSHED**.
+Tasks **1–10 of 13** complete and reviewed. **557/557 EditMode green** (~105 in the new package).
 
 - **Spec:** `docs/superpowers/specs/2026-07-19-audio-balance-panel-design.md`
 - **Plan:** `docs/superpowers/plans/2026-07-19-audio-balance-panel.md` (13 TDD tasks; its
@@ -31,9 +31,96 @@ match the published 48 kHz table to 1e-9) · `LufsMeter` integrated loudness + t
 (**calibration test reads −22.9933 LUFS**) · `MomentaryMax` · `PeakMeter.SamplePeakDb` ·
 `AudioBalanceProfile`/`AudioCategory`/`ClipSettings` · `GainSolver` + headroom pass · `ClipSampleReader`.
 
-### Remaining (Tasks 9–13)
-`LoudnessCache` → `LoudnessAnalyzer` → window shell → clip table → preview player + write-table + docs.
-Tasks 11–13 are IMGUI and should be expected to need in-editor iteration.
+### Shipped 2026-07-20 (Tasks 9–10)
+- **Task 9 `LoudnessCache`** — `a229595`, verdict SHIP. Took **three review rounds**; see the
+  cache-key story below. `Library/HoppaAudioBalance/loudness-cache.json`, regenerable, gitignored.
+- **Task 10 `LoudnessAnalyzer`** — `7290daf`, verdict SHIP, no Criticals. `Analyze`/`FindClips`/
+  `PruneMissingClips`/`ShouldCache`. **`Unanalyzable` results are deliberately NOT cached**:
+  `ClipSampleReader.LoadPendingError` is *transient* and its message tells the user to re-run, but
+  re-running doesn't change the key — so a cached failure would be served forever and the instructed
+  remedy was impossible. Chose that over adding a `Reason` field (also kills a Task-12 bug where a
+  missing `Reason` fell through to an *outlier* tooltip — a wrong diagnosis).
+
+### Remaining (Tasks 11–13) — GATED, do not dispatch cold
+`window shell → clip table → preview player + write-table + docs`. All IMGUI; expect in-editor iteration.
+**Two things must land first (both lead-approved, see below): the plan amendment, then the WAV
+test-fixture helper.** Tasks 11–13 as originally written contain known defects — do NOT implement
+from the un-amended plan.
+
+### 🔴 AUDIT OF TASKS 11–13 (2026-07-20) — 16 findings, 2 design-level
+
+A read-only audit was commissioned after the 5th plan defect. Both design-level findings were
+lead-decided; the rest are folded into a plan-amendment pass.
+
+1. **THE ANCHOR IS MATHEMATICALLY INERT.** `raw_i = anchorLufs + offset_i + trim_i − measured_i`,
+   then `final_i = raw_i − max_j(raw_j)`. `anchorLufs` is the *same constant in every* `raw_i`, so it
+   cancels **exactly**. `FinalGainDb` is provably independent of the anchor's measured loudness; its
+   only live effect is `IsOutlier`. **It was not wrong when designed — it became inert when
+   downward-only normalization was adopted** (the `AudioSource.volume ≤ 1.0` constraint), and the docs
+   never caught up. README/guide still promise clips are "positioned relative to it", so swapping the
+   anchor changes nothing in the Gain column and reads as a broken binding.
+   Also: the no-anchor fallback `: 0f` is **digital full scale**, so typical −20 LUFS content gives
+   `raw ≈ +20` and trips the 12 dB outlier threshold on *every row* — press Analyze before picking an
+   anchor and the whole table lights up red on healthy clips.
+   **LEAD DECISION: keep the anchor** as the outlier reference + sanity readout, fix every doc claim,
+   fix the fallback.
+2. **`AudioPreviewPlayer` cannot play.** It builds a hidden scene `AudioSource`, but
+   `AudioSource.Play()` produces no audio outside Play Mode. The plan correctly rejected the built-in
+   preview (no volume control) but picked the replacement that doesn't work at all — ~110 untested
+   lines + both ▶/A-B buttons + a guide section, all discovered dead at Step 9, the *last* checkpoint.
+   **LEAD DECISION: reflect into `UnityEditor.AudioUtil.PlayPreviewClip` + pre-scale via a
+   gain-applied temp clip; A/B stays.** Resolve the method defensively (signature varies by Unity
+   version) and degrade with a clear diagnostic.
+
+Also folded into the amendment: **category change re-solves but never RE-MEASURES** (a category
+carries its own `MeasureMode` — Music=Integrated vs SFX/UI=MomentaryMax — so Music→SFX silently keeps
+the old-mode LUFS and bakes a wrong gain, worst on short one-shots; the existing test *encodes the bug
+as expected behavior*); **"loudest clip lands at 0 dB" is BACKWARDS in 4 places** (it is the
+*quietest* that pins at 0; the loudest is attenuated most) and is inherited from shipped `GainSolver`'s
+own docstring so it is actively propagating; a **stale 4-arg `ClipAnalysis.Ok`** in Task 12 (deviation
+#5 reached Task 13's identical helper but not Task 12's — the exact defect class the audit was
+commissioned to find); `BuildVisible` documented as pure while `SettingsFor` **appends to the profile
+during `OnGUI`** (un-undoable writes, O(n²) per repaint); a decorative progress bar whose Cancel
+doesn't cancel; and **3 layout defects that make both headline Task-13 features invisible at default
+window size**.
+
+**Audited clean:** Task 10 in full, every 2022.3 API signature, the DSP assertions (traced by hand),
+`AudioBalanceSession`, `GainTableWriter`. The known 2022.3 emoji-in-IMGUI trap did **not** apply —
+those glyphs are BMP geometric shapes, not astral-plane emoji.
+
+### ✅ WAV TEST-FIXTURE HELPER CLOSED (2026-07-20, commit `4a3df42`)
+`AudioAssetFixture` (Tests/Editor) writes a minimal 16-bit PCM WAV into a uniquely-named temp
+folder under `Assets/`, imports it via `AssetDatabase.ImportAsset`, and deletes the whole folder
+in `[TearDown]` — asset-backed, nothing committed. Closed all **three** zero-coverage seams: the
+cache hit/store path in `LoudnessAnalyzer.Analyze` (incl. a genuine-hit proof — seed the cache
+with a deliberately wrong value, assert `Analyze` returns it instead of the real measurement),
+`FindClips`' entire positive path (dedupe across overlapping folders, `LoadAssetAtPath`, sort),
+and `KeyFor`'s AssetDatabase→absolute-path adapter. TDD: all three bug-fix tests observed RED
+first (`Analyze_OnACacheHit_ForASilentClip_PreservesTheReason` — expected `"silent"`, got `null`;
+`Analyze_WithACorruptCachedStatus_ReMeasuresInsteadOfCastingOutOfRange` — expected `Ok`, got the
+raw out-of-range value `99`; `FindClips_TiesBrokenByAssetPathForEqualNames` — first attempt passed
+"by accident" because folders were fed in ascending order and .NET's small-array insertion sort
+happens to preserve ties, so it was rewritten to feed folders in descending order before it
+produced a real RED). Also fixed while in those files: `Silent`'s `Reason` was dropped on a cache
+hit (`CachedLoudness` has no `Reason` field) — cache hits now reconstruct
+`ClipAnalysis.SilentReason`; the unchecked `(ClipStatus)cached.Status` cast now range-checks and
+falls through to a re-measure on a corrupt/forward-version `Status`; `FindClips`' name-only sort
+now tiebreaks on asset path. Documented (not fixed): `KeyFor`'s project-root path resolution
+silently no-ops for registry/git-URL packages. 557 → 565 EditMode tests, all green.
+
+### ⏭️ NEXT, in order
+1. **Plan amendment** (in flight) — both lead decisions + 13 mechanical corrections.
+2. **Tasks 11 → 12 → 13.**
+
+> **Known limitation to document, not fix:** `KeyFor` builds a path under the project root, so the
+> cache silently no-ops for clips in **non-embedded** packages (registry/git URL) — those get
+> re-decoded on every window open with no warning. Fine for game audio under `Assets/`.
+
+> **Task 8's Streaming gap is now known-closable.** It was accepted on the reasoning that covering it
+> meant committing a `.wav` binary — that reasoning is false by the fixture technique above (plus an
+> `AudioImporter.defaultSampleSettings.loadType` flip). Lead chose not to reopen it now. It is
+> therefore a deliberate choice, **not** an unavoidable limitation — re-word the XML doc if it's ever
+> revisited.
 
 ### ✅ BOTH TASK-8 FOLLOW-UPS CLOSED (2026-07-19, commit `fd4e7ff`)
 - **(A) APPLIED.** `LoadAudioData()` is **async** — a `true` return means *queued*, not loaded, and
@@ -48,9 +135,11 @@ Tasks 11–13 are IMGUI and should be expected to need in-editor iteration.
   Streaming — deliberately rejected to keep binaries out of the package. Reasoning is recorded in the
   XML doc on `ClipSampleReader.StreamingError` so no future maintainer assumes coverage exists.
 
-**→ Task 9 (`LoudnessCache`) is the next thing to dispatch. Nothing is blocking it.**
+### ⚠️ FIVE plan errors caught by TESTS/AUDIT, not review (all lead-approved, plan amended + committed)
 
-### ⚠️ Three plan errors caught by TESTS, not review (all lead-approved, plan amended + committed)
+> **The pattern:** this plan was written end-to-end *before any code existed*, so later sections encode
+> assumptions that earlier sections invalidated once real. The anchor (#5 below) is the purest case —
+> correct when written, silently made inert by a later approved decision.
 1. **T3** — a tolerance that was mathematically impossible to satisfy (block-straddling artifact
    forces a −0.223 dB offset; the plan asserted 0.2).
 2. **T4 — the measure mode's rationale was BACKWARDS.** The claim was "integrated gating discards a
@@ -62,6 +151,24 @@ Tasks 11–13 are IMGUI and should be expected to need in-editor iteration.
    its endpoints, so `|a+(b−a)t| ≤ max(|a|,|b|)`: it can never exceed the sample peak, hence never
    detect an inter-sample peak — the only purpose of a true-peak meter. It also read 2.5 dB *below*
    sample peak on mono `[0,0,1.0]`. `ClipAnalysis`/`CachedLoudness` now carry **one `PeakDb`** field.
+4. **T9 — the cache key ignored import settings, and the amendment didn't propagate.** The key read the
+   **source `.wav`**, but what's measured is the **decoded `AudioClip`** — a product of the `.meta`
+   importer settings. Force To Mono leaves the `.wav` byte-identical, so the cache hit and served a stale
+   **stereo** LUFS (~3 dB off) straight into the baked gain table, silently. Fix round 1 amended three
+   places but **left a copy-paste-ready `ResolveIdentity` inside Task 10's body** computing it the old
+   way — an agent working Task 10 top-to-bottom would have retyped the fixed bug from a plan claiming in
+   three other places it was fixed. Its regression test was also **vacuous** (computed `Math.Max` in the
+   test file itself, so it asserted `5100 != 5200` and passed unchanged against the broken code). The new
+   "crash-safe" save had also regressed to `delete → move`, leaving a window where **neither** file exists.
+   **Lesson: a design defect cannot be fixed with documentation** — a contract in an XML doc is only as
+   strong as the next agent reading it, and here the same plan handed that agent contradictory code.
+   Round 3 made it **structural**: `KeyFor(clip, mode)` is the only place `Ticks` is computed and
+   `TryGet`/`Put` take a `LoudnessCacheKey` struct, so hand-rolling an identity is now a **compile
+   error**. Measure mode became a real struct field instead of being string-mangled into the guid.
+   Took 3 review rounds (budget is 2 — the 3rd was explicit lead direction after escalation).
+5. **T11/T13 — the anchor is mathematically inert** (full detail in the audit section above). Found by
+   *audit*, not by tests: every test passes and every number looks plausible, because the feature simply
+   doesn't do what its own documentation says.
 
 ### Design constraint worth re-reading before touching `GainSolver`
 `AudioSource.volume` is hard-capped at 1.0, so a clip needing +6 dB **cannot get it**. Gains are
