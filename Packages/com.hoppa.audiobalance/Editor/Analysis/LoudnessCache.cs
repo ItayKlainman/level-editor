@@ -27,8 +27,10 @@ namespace Hoppa.AudioBalance.Editor
     /// </para>
     ///
     /// <para>
-    /// <b>Not in scope:</b> pruning entries for guids that no longer exist in the project (stale
-    /// cache growth for deleted clips). That belongs to the caller (Task 10), not this class.
+    /// <b>Pruning stale entries</b> (guids for deleted/renamed clips) is a two-party split: this
+    /// class owns the storage primitives (<see cref="Guids"/> to enumerate, <see cref="RemoveByGuid"/>
+    /// to remove), but has no <c>AssetDatabase</c> policy of its own for deciding what "stale" means
+    /// -- that decision belongs to the caller (<c>LoudnessAnalyzer.PruneMissingClips</c>, Task 10).
     /// </para>
     ///
     /// <para>
@@ -261,6 +263,60 @@ namespace Hoppa.AudioBalance.Editor
                 Ticks = key.Ticks,
                 Value = Copy(value)
             };
+        }
+
+        /// <summary>
+        /// Every distinct guid with at least one entry (a guid with entries under multiple
+        /// <see cref="MeasureMode"/>s is reported once), in no particular order. Exists so a
+        /// caller can decide -- via whatever asset-existence check makes sense to it, e.g.
+        /// <c>AssetDatabase.GUIDToAssetPath</c> -- which guids are stale and prune them with
+        /// <see cref="RemoveByGuid"/>. This class deliberately owns no such policy itself: it
+        /// has no opinion on what "still exists" means, only on storage.
+        /// </summary>
+        public IEnumerable<string> Guids
+        {
+            get
+            {
+                var seen = new HashSet<string>();
+                foreach (var key in _entries.Keys)
+                {
+                    if (seen.Add(key.Guid))
+                    {
+                        yield return key.Guid;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes every entry (across all <see cref="MeasureMode"/>s) for <paramref name="guid"/>.
+        /// Returns the number of entries removed, which is >1 whenever the same clip was measured
+        /// under more than one mode. A null/empty <paramref name="guid"/> or one with no entries
+        /// removes nothing and returns 0. Does not call <see cref="Save"/> -- the caller decides
+        /// when to persist, so a batch of removals can share one write.
+        /// </summary>
+        public int RemoveByGuid(string guid)
+        {
+            if (string.IsNullOrEmpty(guid))
+            {
+                return 0;
+            }
+
+            var toRemove = new List<(string Guid, int Mode)>();
+            foreach (var key in _entries.Keys)
+            {
+                if (key.Guid == guid)
+                {
+                    toRemove.Add(key);
+                }
+            }
+
+            foreach (var key in toRemove)
+            {
+                _entries.Remove(key);
+            }
+
+            return toRemove.Count;
         }
 
         /// <summary>

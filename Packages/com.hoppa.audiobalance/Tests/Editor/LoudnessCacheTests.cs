@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Hoppa.AudioBalance.Editor;
 using NUnit.Framework;
@@ -398,6 +399,68 @@ namespace Hoppa.AudioBalance.Editor.Tests
                     Directory.Delete(dir, recursive: true);
                 }
             }
+        }
+
+        [Test]
+        public void Guids_ReturnsEachGuidOnceEvenWhenItHasEntriesUnderMultipleModes()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555, MeasureMode.Integrated), Sample());
+            cache.Put(Key("guid-a", 1000, 5555, MeasureMode.MomentaryMax), Sample());
+            cache.Put(Key("guid-b", 2000, 6666, MeasureMode.Integrated), Sample());
+
+            var guids = new List<string>(cache.Guids);
+
+            Assert.AreEqual(2, guids.Count);
+            CollectionAssert.Contains(guids, "guid-a");
+            CollectionAssert.Contains(guids, "guid-b");
+        }
+
+        [Test]
+        public void Guids_OnAnEmptyCache_ReturnsAnEmptyCollection()
+        {
+            var cache = LoudnessCache.Load(_path);
+
+            Assert.AreEqual(0, new List<string>(cache.Guids).Count);
+        }
+
+        [Test]
+        public void RemoveByGuid_RemovesEveryModeForThatGuidButLeavesOtherGuidsAlone()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555, MeasureMode.Integrated), Sample());
+            cache.Put(Key("guid-a", 1000, 5555, MeasureMode.MomentaryMax), Sample());
+            cache.Put(Key("guid-b", 2000, 6666, MeasureMode.Integrated), Sample());
+
+            var removed = cache.RemoveByGuid("guid-a");
+
+            Assert.AreEqual(2, removed);
+            Assert.IsFalse(cache.TryGet(Key("guid-a", 1000, 5555, MeasureMode.Integrated), out _));
+            Assert.IsFalse(cache.TryGet(Key("guid-a", 1000, 5555, MeasureMode.MomentaryMax), out _));
+            Assert.IsTrue(cache.TryGet(Key("guid-b", 2000, 6666, MeasureMode.Integrated), out _));
+        }
+
+        [Test]
+        public void RemoveByGuid_ForAGuidWithNoEntries_ReturnsZeroAndChangesNothing()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555), Sample());
+
+            var removed = cache.RemoveByGuid("never-seen");
+
+            Assert.AreEqual(0, removed);
+            Assert.IsTrue(cache.TryGet(Key("guid-a", 1000, 5555), out _));
+        }
+
+        [Test]
+        public void RemoveByGuid_WithANullOrEmptyGuid_ReturnsZero()
+        {
+            var cache = LoudnessCache.Load(_path);
+            cache.Put(Key("guid-a", 1000, 5555), Sample());
+
+            Assert.AreEqual(0, cache.RemoveByGuid(null));
+            Assert.AreEqual(0, cache.RemoveByGuid(string.Empty));
+            Assert.IsTrue(cache.TryGet(Key("guid-a", 1000, 5555), out _));
         }
 
         [Test]
