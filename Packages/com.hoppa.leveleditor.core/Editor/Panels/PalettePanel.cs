@@ -32,7 +32,15 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color ToolActiveBg   = new Color(0.35f, 0.68f, 1.00f, 1.00f);
         private static readonly Color ToolInactiveBg = new Color(0.22f, 0.24f, 0.30f, 1.00f);
 
+        // IEditorPanel entry point — no optional left panel (used by generic callers).
         public void OnGUI(Rect rect, LevelEditorSession session)
+            => OnGUI(rect, session, null, null);
+
+        // Full entry point. When `leftPanel` is non-null it is drawn in a reserved
+        // region between the cell list and TOOLS (the cell list shrinks to fit);
+        // when null the layout is byte-identical to the original (list fills the
+        // space above the fixed TOOLS + BRUSH sections).
+        public void OnGUI(Rect rect, LevelEditorSession session, ProfileLeftPanel leftPanel, GameProfile profile)
         {
             if (session == null)
             {
@@ -40,12 +48,23 @@ namespace Hoppa.LevelEditor.Core.Editor
                 return;
             }
 
-            float fixedBottom = ToolsH + BrushH;
-            var listRect  = new Rect(rect.x, rect.y, rect.width, rect.height - fixedBottom);
-            var toolsRect = new Rect(rect.x, listRect.yMax, rect.width, ToolsH);
+            float fixedBottom  = ToolsH + BrushH;
+            float leftPanelH   = leftPanel != null ? leftPanel.PreferredHeight : 0f;
+
+            var listRect  = new Rect(rect.x, rect.y, rect.width, rect.height - fixedBottom - leftPanelH);
+            DrawCellList(listRect, session);
+
+            float y = listRect.yMax;
+            if (leftPanel != null)
+            {
+                var leftRect = new Rect(rect.x, y, rect.width, leftPanelH);
+                leftPanel.OnGUI(leftRect, session, profile);
+                y = leftRect.yMax;
+            }
+
+            var toolsRect = new Rect(rect.x, y, rect.width, ToolsH);
             var brushRect = new Rect(rect.x, toolsRect.yMax, rect.width, BrushH);
 
-            DrawCellList(listRect, session);
             DrawToolsPanel(toolsRect, session);
             DrawBrushPanel(brushRect, session);
         }

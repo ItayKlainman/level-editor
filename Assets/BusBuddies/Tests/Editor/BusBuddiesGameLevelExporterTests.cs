@@ -127,6 +127,31 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void Export_RoadBlock_EmitsExactSlotConfigsJson()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            doc.GameData = new JObject { ["conveyorCount"] = 5 };
+            // UI "slot 5" → 0-based internal index 4, amount 10.
+            BusBuddiesSlotConfigs.SetBlocked(doc, 4, 10);
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+
+            var slotConfigs = (JArray)ReadLevel(1)["SlotConfigs"];
+            Assert.AreEqual(1, slotConfigs.Count);
+            Assert.AreEqual(4, (int)slotConfigs[0]["SlotIndex"]);
+            Assert.AreEqual("RoadBlock", (string)slotConfigs[0]["SlotType"]);
+            Assert.AreEqual(10, (int)slotConfigs[0]["RoadBlockAmount"]);
+        }
+
+        [Test]
+        public void Export_NoRoadBlocks_OmitsSlotConfigsKey()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            doc.GameData = new JObject { ["conveyorCount"] = 5 };
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+            Assert.IsNull(ReadLevel(1)["SlotConfigs"], "no blocked slots → no SlotConfigs key");
+        }
+
+        [Test]
         public void Export_UnmappedOrEmpty_MapsToZero()
         {
             var cells = new ICellData[] { new BBEmptyCell(), Pixel("notacolor"), Pixel("red") };

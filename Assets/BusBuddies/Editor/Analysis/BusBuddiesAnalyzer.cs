@@ -42,6 +42,11 @@ namespace Hoppa.BusBuddies.Editor
                     slots = cfg.DefaultActiveSlots;
                 if (slots < 1) slots = 1;
 
+                // TODO road-block: model reduced usable slots once release semantics are
+                // wired. GameData["slotConfigs"] (BusBuddiesSlotConfigs) marks blocked
+                // slots that free up only after N buses are clicked; the sim currently
+                // treats all `slots` as usable from the start.
+
                 var queue = doc.TopSection?.ToObject<BusQueueData>();
                 var model = BusLevelModel.Build(doc.Grid, queue, slots);
 

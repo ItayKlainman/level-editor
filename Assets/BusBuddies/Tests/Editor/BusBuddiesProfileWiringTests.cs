@@ -41,5 +41,18 @@ namespace Hoppa.BusBuddies.Editor.Tests
                 "The bus-queue panel must be wired into the top-section slot so it " +
                 "renders below the grid under SpoolsBelowGrid.");
         }
+
+        [Test]
+        public void MoreOptionsPanel_IsWiredIntoLeftColumn()
+        {
+            // The Road-Block authoring UI was relocated into the left-column "More
+            // options" panel via the ProfileLeftPanel hook. Pin the wiring so a future
+            // asset edit can't silently drop it (which would lose road-block authoring).
+            var panel = LoadProfile().CreateLeftPanel();
+            Assert.IsNotNull(panel,
+                "BusBuddiesProfile must assign a left-panel script (_leftPanelScript).");
+            Assert.IsInstanceOf<BusBuddiesMoreOptionsPanel>(panel,
+                "The left-column panel must be the More Options (road-block) panel.");
+        }
     }
 }

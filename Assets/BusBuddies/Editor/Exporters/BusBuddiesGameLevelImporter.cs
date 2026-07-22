@@ -74,6 +74,21 @@ namespace Hoppa.BusBuddies.Editor
                 GameData = new JObject { ["conveyorCount"] = slots },
             };
 
+            // Road-Block slots: TOP-LEVEL sparse SlotConfigs[] → GameData["slotConfigs"]
+            // via the helper (reversing IndexBase back to a 0-based internal index).
+            // SlotType is accepted as the string "RoadBlock" OR the int ordinal 1.
+            if (root["SlotConfigs"] is JArray slotConfigs)
+            {
+                foreach (var tok in slotConfigs)
+                {
+                    if (tok is not JObject o) continue;
+                    if (!IsRoadBlock(o["SlotType"])) continue;
+                    int slotIndex = (o.Value<int?>("SlotIndex") ?? 0) - BusBuddiesSlotConfigs.IndexBase;
+                    int amount    = o.Value<int?>("RoadBlockAmount") ?? 1;
+                    BusBuddiesSlotConfigs.SetBlocked(doc, slotIndex, amount);
+                }
+            }
+
             // Rebuild the editable bus queue (per-column) AND record the flattened
             // original buses (for the re-tweak report). Same BusEntry instances feed both.
             var queue = new BusQueueData();
@@ -133,6 +148,16 @@ namespace Hoppa.BusBuddies.Editor
                 ColumnCount = columnCount,
                 OriginalBuses = originalBuses,
             };
+        }
+
+        // A SlotConfigs entry counts as a Road Block when SlotType is the string
+        // "RoadBlock" (case-insensitive) or the int ordinal 1 (BUBSlotType.RoadBlock).
+        private static bool IsRoadBlock(JToken slotType)
+        {
+            if (slotType == null) return false;
+            if (slotType.Type == JTokenType.Integer) return slotType.Value<int>() == 1;
+            return string.Equals(slotType.Value<string>(), "RoadBlock",
+                System.StringComparison.OrdinalIgnoreCase);
         }
 
         private static BusEntry BusAt(BusQueueData queue, int? col, int? index)

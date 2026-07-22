@@ -42,6 +42,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a ProfileRightPanel subclass script to render a game-specific section in the RIGHT column (beneath Spool Analysis).\nExample: BusBuddiesDifficultyPanel — leave empty for none.")]
         [SerializeField] private MonoScript _rightPanelScript;
 
+        [Tooltip("Optional: assign a ProfileLeftPanel subclass script to render a game-specific section in the LEFT column (between the cell/brush palette and TOOLS).\nExample: BusBuddiesMoreOptionsPanel — leave empty for none.")]
+        [SerializeField] private MonoScript _leftPanelScript;
+
         [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
         [SerializeField] private EditorPanelAsset _orderPanel;
 
@@ -134,6 +137,17 @@ namespace Hoppa.LevelEditor.Core.Editor
             var type = _rightPanelScript.GetClass();
             if (type == null || !typeof(ProfileRightPanel).IsAssignableFrom(type)) return null;
             try   { return (ProfileRightPanel)Activator.CreateInstance(type); }
+            catch { return null; }
+        }
+
+        // Instantiate the profile's optional left-column panel (a ProfileLeftPanel
+        // subclass). Returns null when no valid script is assigned.
+        public ProfileLeftPanel CreateLeftPanel()
+        {
+            if (_leftPanelScript == null) return null;
+            var type = _leftPanelScript.GetClass();
+            if (type == null || !typeof(ProfileLeftPanel).IsAssignableFrom(type)) return null;
+            try   { return (ProfileLeftPanel)Activator.CreateInstance(type); }
             catch { return null; }
         }
 

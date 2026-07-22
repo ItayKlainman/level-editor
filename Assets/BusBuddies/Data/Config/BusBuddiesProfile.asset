@@ -22,6 +22,7 @@ MonoBehaviour:
   _rules:
   - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
   - {fileID: 11400000, guid: 9c3dd1cfabc034f4d9520e29a76b0e81, type: 2}
+  - {fileID: 11400000, guid: a5854c8d58ce478d8c1174bebb4755d5, type: 2}
   _exporters:
   - {fileID: 11400000, guid: 5135de60c30188240834df10c93155d2, type: 2}
   _importers:
@@ -29,6 +30,7 @@ MonoBehaviour:
   _topSectionScript: {fileID: 11500000, guid: a4ff2e5558743a94fab623c310999a36, type: 3}
   _bottomSectionScript: {fileID: 0}
   _rightPanelScript: {fileID: 11500000, guid: cb5d429153f0e6442b68bf6bf6088563, type: 3}
+  _leftPanelScript: {fileID: 11500000, guid: b7e4d2c9a6f34e1580c2d3e4f5a6b708, type: 3}
   _orderPanel: {fileID: 0}
   _levelGenerator: {fileID: 11400000, guid: 3ad232c761d7a614ea67d47c2d0ed6bd, type: 2}
   _generatorConfig: {fileID: 11400000, guid: d2e0ce35b9629b448a887def8ea99cc0, type: 2}

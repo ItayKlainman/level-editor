@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-22
+
+### Added
+- `ProfileLeftPanel` (abstract): the left-column analog of `ProfileRightPanel`. A generic Layer-1 hook
+  letting a `GameProfile` inject a game-specific section into the level editor's LEFT column, between the
+  cell/brush palette and the TOOLS section. `GameProfile._leftPanelScript` slot + `CreateLeftPanel()`
+  factory (null-safe, type-checked); `PalettePanel.OnGUI` gained an overload that reserves the panel's
+  `PreferredHeight` between the cell list and TOOLS (shrinking the cell list) and `LevelEditorWindow`
+  renders it when present. Profiles without one (Yarn Kingdom, Yarn Twist, YAK) are byte-identical to
+  before — the cell list fills the space above TOOLS/BRUSH exactly as it did. First consumer: the Bus
+  Buddies "More options" road-block panel (Layer 2).
+
 ## [0.8.0] - 2026-07-09
 
 ### Added

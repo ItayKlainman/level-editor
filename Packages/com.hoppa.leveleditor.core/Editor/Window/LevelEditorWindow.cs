@@ -27,6 +27,11 @@ namespace Hoppa.LevelEditor.Core.Editor
         private ProfileRightPanel _rightPanel;
         private GameProfile       _rightPanelProfile;
 
+        // Optional game-specific left-column section (between palette and TOOLS),
+        // provided by the profile. Cached and rebuilt when the active profile changes.
+        private ProfileLeftPanel  _leftPanel;
+        private GameProfile       _leftPanelProfile;
+
         private LevelEditorSession _session;
         [SerializeField] private GameProfile _profile;
         private bool               _inOrderMode;
@@ -192,8 +197,14 @@ namespace Hoppa.LevelEditor.Core.Editor
             EditorGUI.DrawRect(new Rect(PaletteW,   bodyY, 1f, innerH), Divider);
             EditorGUI.DrawRect(new Rect(w - RightW, bodyY, 1f, innerH), Divider);
 
-            // ── Left: palette ─────────────────────────────────────────
-            _palette.OnGUI(new Rect(0f, bodyY, PaletteW, innerH), _session);
+            // ── Left: palette (+ optional profile left panel) ─────────
+            // Lazily instantiate and cache the profile's left-column panel.
+            if (!ReferenceEquals(_leftPanelProfile, _profile))
+            {
+                _leftPanel = _profile != null ? _profile.CreateLeftPanel() : null;
+                _leftPanelProfile = _profile;
+            }
+            _palette.OnGUI(new Rect(0f, bodyY, PaletteW, innerH), _session, _leftPanel, _profile);
 
             // ── Centre: top section + canvas + bottom section ────────
             float centerX = PaletteW + 1f;

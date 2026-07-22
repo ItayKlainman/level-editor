@@ -141,6 +141,12 @@ namespace Hoppa.BusBuddies.Editor
                 ["HiddenPixels"] = BuildHiddenPixels(grid),
             };
 
+            // Sparse Road-Block slots — TOP-LEVEL SlotConfigs[], one entry per blocked
+            // slot. Omit the key entirely when nothing is blocked (default level).
+            var slotConfigs = BuildSlotConfigs(document.GameData);
+            if (slotConfigs.Count > 0)
+                config["SlotConfigs"] = slotConfigs;
+
             Directory.CreateDirectory(dir);
             string outPath = Path.Combine(dir, "level_" + levelNum + ".json");
             File.WriteAllText(outPath, config.ToString(Formatting.Indented));
@@ -149,6 +155,33 @@ namespace Hoppa.BusBuddies.Editor
 
         // Test hook — exercises the real column builder without duplicating it.
         public static JArray BuildBusColumnConfigsForTest(JObject topSection) => BuildBusColumnConfigs(topSection);
+
+        // Test hook for the Road-Block builder.
+        public static JArray BuildSlotConfigsForTest(JObject gameData) => BuildSlotConfigs(gameData);
+
+        // GameData["slotConfigs"] (sparse, 0-based internal) → game SlotConfigs[] of
+        // { SlotIndex, SlotType, RoadBlockAmount }. SlotIndex is offset by IndexBase so
+        // the exported base is a one-line flip. SlotType is emitted as the human-readable
+        // string "RoadBlock" (the game's plain JsonConvert reads string OR int). Returns an
+        // empty array when nothing is blocked — the caller omits the key entirely then.
+        public static JArray BuildSlotConfigs(JObject gameData)
+        {
+            var result = new JArray();
+            if (gameData?["slotConfigs"] is not JArray arr) return result;
+            foreach (var t in arr)
+            {
+                if (t is not JObject o) continue;
+                int slotIndex = o["slotIndex"]?.Value<int>() ?? 0;
+                int amount    = o["amount"]?.Value<int>() ?? 1;
+                result.Add(new JObject
+                {
+                    ["SlotIndex"] = slotIndex + BusBuddiesSlotConfigs.IndexBase,
+                    ["SlotType"] = "RoadBlock",   // BUBSlotType.RoadBlock (== 1)
+                    ["RoadBlockAmount"] = amount,
+                });
+            }
+            return result;
+        }
 
         // BusQueueData connected-id groups → ConnectedBuses[] of {BusA,BusB} coordinate
         // pairs. Only complete pairs (exactly two members) are emitted; incomplete groups
