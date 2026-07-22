@@ -53,6 +53,33 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void PlateReq_DefaultsToAllZero_WhenOmitted()
+        {
+            var m = BusLevelModel.FromArrays(
+                grid: new[] { 0, 0, 0 }, w: 3, h: 1,
+                busColors: new[] { new[] { 0 } }, busCaps: new[] { new[] { 3 } },
+                activeSlots: 1, numColors: 1, colorNames: new[] { "A" });
+            Assert.AreEqual(3, m.PlateReq.Length);
+            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, m.PlateReq);
+        }
+
+        [Test]
+        public void Build_CarriesPlateReq_ForCoveredCells()
+        {
+            var grid = new GridData<ICellData>(3, 1);
+            grid.Set(0, 0, new BBPixelCell { ColorId = "A" });
+            grid.Set(1, 0, new BBPixelCell { ColorId = "A" });
+            grid.Set(2, 0, new BBPixelCell { ColorId = "A" });
+            var q = new BusQueueData();
+            var c0 = new BusColumn(); c0.Buses.Add(new BusEntry { ColorId = "A", Capacity = 3 });
+            q.Columns.Add(c0);
+
+            var m = BusLevelModel.Build(grid, q, activeSlots: 1, plateReq: new[] { 0, 4, 0 });
+            Assert.AreEqual(4, m.PlateReq[1], "covered cell carries its plate amount");
+            Assert.AreEqual(0, m.PlateReq[0], "uncovered cell has zero requirement");
+        }
+
+        [Test]
         public void IsColorBalanced_RejectsMismatch()
         {
             // 3 A blocks but only 2 capacity of A -> unbalanced

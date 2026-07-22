@@ -48,7 +48,27 @@ namespace Hoppa.BusBuddies.Editor
                 // treats all `slots` as usable from the start.
 
                 var queue = doc.TopSection?.ToObject<BusQueueData>();
-                var model = BusLevelModel.Build(doc.Grid, queue, slots);
+
+                // Plate covers: map each covered cell to its plate's PixelAmount so the
+                // sim keeps it unpickable until that many pixels are picked globally
+                // (then the plate opens). 0 = uncovered. Coords are the SAME bottom-left
+                // grid space the model indexes with (y*W+x), so no conversion.
+                int[] plateReq = null;
+                var plates = BusBuddiesPlateConfigs.All(doc);
+                if (plates.Count > 0)
+                {
+                    int gw = doc.Grid.Width;
+                    plateReq = new int[gw * doc.Grid.Height];
+                    foreach (var p in plates)
+                    {
+                        int amt = System.Math.Max(1, p.Amount);
+                        foreach (var c in BusBuddiesPlateConfigs.CoveredCells(p))
+                            if (doc.Grid.InBounds(c.X, c.Y))
+                                plateReq[c.Y * gw + c.X] = amt;
+                    }
+                }
+
+                var model = BusLevelModel.Build(doc.Grid, queue, slots, plateReq);
 
                 // No buses authored yet -> can't answer solvability. Honest Unknown.
                 if (model.TotalBuses == 0)

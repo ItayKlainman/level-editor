@@ -21,6 +21,7 @@ namespace Hoppa.BusBuddies.Sim
         public readonly int[] ActiveColor; // per active slot: colour, -1 = empty slot
         public readonly int[] ActiveRem;   // per active slot: remaining passengers
         public int BlocksLeft;
+        public int Picked;                 // total blocks picked so far (plate countdown)
 
         private readonly bool[] _accessible; // [y*W+x] true iff a block here is accessible
         private bool[] _floodScratch;        // reused empty-flood buffer
@@ -34,6 +35,7 @@ namespace Hoppa.BusBuddies.Sim
             ActiveRem = new int[m.ActiveSlots];
             for (int s = 0; s < ActiveColor.Length; s++) { ActiveColor[s] = -1; ActiveRem[s] = 0; }
             BlocksLeft = m.TotalBlocks;
+            Picked = 0;
             _accessible = new bool[m.W * m.H];
             RecomputeAccess();
         }
@@ -46,6 +48,7 @@ namespace Hoppa.BusBuddies.Sim
             ActiveColor = (int[])src.ActiveColor.Clone();
             ActiveRem = (int[])src.ActiveRem.Clone();
             BlocksLeft = src.BlocksLeft;
+            Picked = src.Picked;
             _accessible = (bool[])src._accessible.Clone();
             _floodScratch = null;
         }
@@ -125,6 +128,11 @@ namespace Hoppa.BusBuddies.Sim
             for (int i = 0; i < Cell.Length; i++)
             {
                 if (!_accessible[i] || Cell[i] != color) continue;
+                // Plate cover: a covered block is unpickable until the global picked-count
+                // reaches the plate's requirement, at which point the plate opens. Picked
+                // is monotonic + a pure function of occupancy (== TotalBlocks - BlocksLeft),
+                // so this gate keeps the solver's memoisation correct.
+                if (M.PlateReq[i] > 0 && Picked < M.PlateReq[i]) continue;
                 int x = i % M.W, y = i / M.W;
                 double dx = x - hx, dy = y - hy;
                 double dist = dx * dx + dy * dy;
@@ -187,6 +195,7 @@ namespace Hoppa.BusBuddies.Sim
                     if (cell < 0) continue;
                     Cell[cell] = -1;
                     BlocksLeft--;
+                    Picked++;
                     removed++;
                     ActiveRem[s]--;
                     if (ActiveRem[s] == 0) ActiveColor[s] = -1; // bus empty -> leaves, frees slot

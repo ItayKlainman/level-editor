@@ -17,6 +17,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private bool     _isDragging;
         private CellRef? _hoverCell;
         private CellRef? _moveSource;
+        private CellRef? _regionAnchor;   // press cell for a region drag (GridEditTool.Region)
         private bool     _flagStrokeValue;
         private float    _gridOffsetX;
         private float    _gridOffsetY;
@@ -34,6 +35,7 @@ namespace Hoppa.LevelEditor.Core.Editor
         private static readonly Color MoveSourceColor  = new Color(0.30f, 1.00f, 0.40f, 0.90f);
         private static readonly Color MoveTargetColor  = new Color(0.30f, 1.00f, 0.40f, 0.30f);
         private static readonly Color CopiedOutline    = new Color(1.00f, 0.85f, 0.20f, 0.85f);
+        private static readonly Color RegionPreview     = new Color(0.25f, 0.70f, 0.95f, 0.30f);
 
         public void OnGUI(Rect rect, LevelEditorSession session)
         {
@@ -82,6 +84,21 @@ namespace Hoppa.LevelEditor.Core.Editor
             session.Profile?.CanvasOverlay?.DrawOverlay(
                 session,
                 r => CellRect(r.X, r.Y, grid.Height, _gridOffsetX, _gridOffsetY, _cellSize, _cellStep));
+
+            // Region-drag preview: a highlighted rectangle from the press cell to the
+            // hovered cell while a region drag is in progress.
+            if (Event.current.type == EventType.Repaint
+                && session.ActiveTool == GridEditTool.Region
+                && _regionAnchor.HasValue && _hoverCell.HasValue)
+            {
+                var (rx, ry, rw, rh) = RegionRect(_regionAnchor.Value, _hoverCell.Value);
+                for (int yy = ry; yy < ry + rh; yy++)
+                for (int xx = rx; xx < rx + rw; xx++)
+                    if (grid.InBounds(xx, yy))
+                        EditorGUI.DrawRect(
+                            CellRect(xx, yy, grid.Height, _gridOffsetX, _gridOffsetY, _cellSize, _cellStep),
+                            RegionPreview);
+            }
 
             HandleEvents(rect, grid, session);
 
@@ -246,6 +263,15 @@ namespace Hoppa.LevelEditor.Core.Editor
                                     session.MarkDirty();
                                 }
                                 break;
+                            case GridEditTool.Region:
+                                // Region drag: only record the anchor here; the rectangle is
+                                // handed to the tool on mouse-up (see the MouseUp case).
+                                if (session.Profile?.RegionTool != null && _hoverCell.HasValue)
+                                {
+                                    _isDragging = true;
+                                    _regionAnchor = _hoverCell;
+                                }
+                                break;
                         }
                     }
                     GUI.changed = true;
@@ -278,6 +304,15 @@ namespace Hoppa.LevelEditor.Core.Editor
 
                 case EventType.MouseUp:
                     _isDragging = false;
+                    // Region drag complete: hand the swept CELL rectangle to the tool.
+                    if (session.ActiveTool == GridEditTool.Region
+                        && session.Profile?.RegionTool != null
+                        && _regionAnchor.HasValue && _hoverCell.HasValue)
+                    {
+                        var (rx, ry, rw, rh) = RegionRect(_regionAnchor.Value, _hoverCell.Value);
+                        session.Profile.RegionTool.OnRegionSelected(rx, ry, rw, rh, session);
+                    }
+                    _regionAnchor = null;
                     session.RunValidation();
                     e.Use();
                     break;
@@ -381,6 +416,18 @@ namespace Hoppa.LevelEditor.Core.Editor
             int displayRow = Mathf.FloorToInt(localY / cellStep);
             int y          = grid.Height - 1 - displayRow;
             return grid.InBounds(x, y) ? new CellRef(x, y) : (CellRef?)null;
+        }
+
+        // The inclusive cell rectangle spanned by two corner cells, as
+        // (minX, minY, width, height) with width/height >= 1. Pure integer math —
+        // exposed for unit testing the region-drag geometry.
+        public static (int minX, int minY, int width, int height) RegionRect(CellRef a, CellRef b)
+        {
+            int minX = System.Math.Min(a.X, b.X);
+            int minY = System.Math.Min(a.Y, b.Y);
+            int w = System.Math.Abs(a.X - b.X) + 1;
+            int h = System.Math.Abs(a.Y - b.Y) + 1;
+            return (minX, minY, w, h);
         }
 
         private static Rect CellRect(int x, int y, int gridHeight, float offsetX, float offsetY,

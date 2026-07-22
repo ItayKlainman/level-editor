@@ -93,6 +93,32 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void Import_ReadsPlateConfigs_IntoGameData()
+        {
+            const string json = @"{
+                ""SlotsAmount"": 5, ""Width"": 20, ""Height"": 20,
+                ""BusColumnConfigs"": [],
+                ""PixelColors"": [],
+                ""PlateConfigs"": [ { ""Position"": {""x"":5,""y"":7}, ""Size"": {""x"":10,""y"":5}, ""PixelAmount"": 80 } ]
+            }";
+            var imported = BusBuddiesGameLevelImporter.Import(json, "level_1");
+            var plates = BusBuddiesPlateConfigs.All(imported.Document);
+            Assert.AreEqual(1, plates.Count);
+            Assert.AreEqual(5, plates[0].X);
+            Assert.AreEqual(7, plates[0].Y);
+            Assert.AreEqual(10, plates[0].W);
+            Assert.AreEqual(5, plates[0].H);
+            Assert.AreEqual(80, plates[0].Amount);
+        }
+
+        [Test]
+        public void Import_NoPlateConfigs_NoPlates()
+        {
+            var imported = BusBuddiesGameLevelImporter.Import(Sample2x2, "level_1");
+            Assert.IsEmpty(BusBuddiesPlateConfigs.All(imported.Document));
+        }
+
+        [Test]
         public void Import_UnmappedNonzeroOrdinal_FallsBackToEmpty()
         {
             const string json = @"{ ""SlotsAmount"": 5, ""Width"": 1, ""Height"": 1,

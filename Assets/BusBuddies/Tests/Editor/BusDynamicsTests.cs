@@ -174,6 +174,52 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void Plate_CoveredBlock_ExcludedEarly_EvenWhenNearestToHole()
+        {
+            // 1x3 strip [A,A,A]. A plate covers the CENTRE cell (index 1) — which is the
+            // hole-nearest block — requiring 1 pick before it opens. One bus A cap1.
+            // The first pull must NOT take the covered centre (it's excluded until the
+            // plate opens); it takes an uncovered edge A instead.
+            var m = BusLevelModel.FromArrays(new[] { 0, 0, 0 }, 3, 1,
+                busColors: new[] { new[] { 0 } }, busCaps: new[] { new[] { 1 } },
+                activeSlots: 1, numColors: 1, colorNames: new[] { "A" },
+                plateReq: new[] { 0, 1, 0 });
+            var s = new BusSimState(m);
+
+            s.ApplyMove(0);
+
+            Assert.AreEqual(0, s.Cell[1], "covered centre A must NOT be picked first (plate not yet open)");
+            Assert.AreEqual(1, s.Picked, "exactly one (uncovered) block picked");
+            Assert.AreEqual(2, s.BlocksLeft);
+        }
+
+        [Test]
+        public void Plate_Solvable_OnlyWhenThresholdReachable()
+        {
+            // 1x2 strip [A,A]; a plate covers the TOP cell (index 1). One bus A cap2.
+            // Reachable threshold (1): pick the bottom A (Picked→1), plate opens, pick
+            // the top A → win. Unreachable threshold (5): only 2 blocks exist so Picked
+            // maxes at 1 < 5, the covered A never opens → provably unsolvable.
+            int[] grid = { 0, 0 };
+
+            var solvable = BusLevelModel.FromArrays(grid, 1, 2,
+                busColors: new[] { new[] { 0 } }, busCaps: new[] { new[] { 2 } },
+                activeSlots: 1, numColors: 1, colorNames: new[] { "A" },
+                plateReq: new[] { 0, 1 });
+            var rOk = new BusSolver(500_000, 10_000).Solve(solvable);
+            Assert.AreEqual(BusSolver.Outcome.Solvable, rOk.Outcome,
+                "plate opens after 1 pick → solvable");
+
+            var stuck = BusLevelModel.FromArrays(grid, 1, 2,
+                busColors: new[] { new[] { 0 } }, busCaps: new[] { new[] { 2 } },
+                activeSlots: 1, numColors: 1, colorNames: new[] { "A" },
+                plateReq: new[] { 0, 5 });
+            var rBad = new BusSolver(500_000, 10_000).Solve(stuck);
+            Assert.AreEqual(BusSolver.Outcome.Unsolvable, rBad.Outcome,
+                "plate threshold (5) exceeds total pickable pixels → the covered A never opens");
+        }
+
+        [Test]
         public void Key_DeterministicForEqualStates()
         {
             var m = BusLevelModel.FromArrays(new[] { 0, 1 }, 2, 1,

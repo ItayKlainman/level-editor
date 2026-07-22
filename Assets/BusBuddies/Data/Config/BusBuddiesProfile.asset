@@ -23,6 +23,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 608250f91c5ea924ebec415dd67ac484, type: 2}
   - {fileID: 11400000, guid: 9c3dd1cfabc034f4d9520e29a76b0e81, type: 2}
   - {fileID: 11400000, guid: a5854c8d58ce478d8c1174bebb4755d5, type: 2}
+  - {fileID: 11400000, guid: 63737c927b614680ab84c9ec5dbce701, type: 2}
   _exporters:
   - {fileID: 11400000, guid: 5135de60c30188240834df10c93155d2, type: 2}
   _importers:
@@ -36,8 +37,9 @@ MonoBehaviour:
   _generatorConfig: {fileID: 11400000, guid: d2e0ce35b9629b448a887def8ea99cc0, type: 2}
   _levelAnalyzer: {fileID: 11400000, guid: 04a93b9aa5b91a544b8e10e19110a5ef, type: 2}
   _levelCompleter: {fileID: 11400000, guid: 60392c87b22d400459462b42267ffd39, type: 2}
-  _canvasOverlay: {fileID: 0}
+  _canvasOverlay: {fileID: 11400000, guid: 3b0fd56785f4498da0317002b5cb76fa, type: 2}
   _flagPainter: {fileID: 11400000, guid: e477fc3df8055f44a8bc86209300db1e, type: 2}
+  _regionTool: {fileID: 11400000, guid: 4e39478c27a24ea18ed24d4a3b43675d, type: 2}
   _imageToGrid: {fileID: 11400000, guid: 250392ff5a342474fb32796fe0f7a56c, type: 2}
   _extensions: []
   _spoolsBelowGrid: 1

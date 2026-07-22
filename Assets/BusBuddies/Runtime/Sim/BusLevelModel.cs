@@ -22,6 +22,11 @@ namespace Hoppa.BusBuddies.Sim
         public readonly int[] Grid;          // [y*W+x] -> colour index, -1 = empty
         public readonly int   TotalBlocks;   // count of non-empty cells
 
+        // Per-cell plate requirement: [y*W+x] -> pixels that must be picked (globally)
+        // before the plate over this cell opens; 0 = not under a plate. A covered cell is
+        // unpickable until the global picked-count reaches this value, then it uncovers.
+        public readonly int[] PlateReq;
+
         public readonly int      Columns;        // number of queue columns
         public readonly int[][]  BusColor;       // [col] -> colour index, head->back
         public readonly int[][]  BusCap;         // [col] -> capacity,     head->back
@@ -34,18 +39,24 @@ namespace Hoppa.BusBuddies.Sim
             int w, int h, int activeSlots, int numColors, string[] colorNames,
             int[] grid, int totalBlocks,
             int columns, int[][] busColor, int[][] busCap, bool[][] busHidden, int[][] busConnected,
-            int totalPassengers, int totalBuses)
+            int totalPassengers, int totalBuses, int[] plateReq)
         {
             W = w; H = h; ActiveSlots = activeSlots; NumColors = numColors; ColorNames = colorNames;
             Grid = grid; TotalBlocks = totalBlocks;
             Columns = columns; BusColor = busColor; BusCap = busCap; BusHidden = busHidden; BusConnected = busConnected;
             TotalPassengers = totalPassengers; TotalBuses = totalBuses;
+            PlateReq = (plateReq != null && plateReq.Length == grid.Length) ? plateReq : new int[grid.Length];
         }
 
         // Build from the editor's working grid + parsed queue data. Cells are read
         // through IColoredCell (not a hardcoded BBPixelCell); anything that is not an
         // IColoredCell with a non-empty ColorId (e.g. BBEmptyCell) is "no block" (-1).
         public static BusLevelModel Build(GridData<ICellData> grid, BusQueueData queue, int activeSlots)
+            => Build(grid, queue, activeSlots, null);
+
+        // Overload accepting a per-cell plate requirement map ([y*W+x] -> pixels to pick
+        // before opening; 0 = uncovered). Null = no plates.
+        public static BusLevelModel Build(GridData<ICellData> grid, BusQueueData queue, int activeSlots, int[] plateReq)
         {
             var map = new Dictionary<string, int>(StringComparer.Ordinal);
             int Intern(string c)
@@ -107,13 +118,14 @@ namespace Hoppa.BusBuddies.Sim
                 w, h, activeSlots, map.Count, names,
                 gridArr, totalBlocks,
                 columns, busColor, busCap, busHidden, busConnected,
-                totalPassengers, totalBuses);
+                totalPassengers, totalBuses, plateReq);
         }
 
         // Test/utility factory: build directly from a flat grid + per-column bus
         // arrays. Hidden defaults all-false, connected all -1.
         public static BusLevelModel FromArrays(int[] grid, int w, int h,
-            int[][] busColors, int[][] busCaps, int activeSlots, int numColors, string[] colorNames)
+            int[][] busColors, int[][] busCaps, int activeSlots, int numColors, string[] colorNames,
+            int[] plateReq = null)
         {
             grid ??= Array.Empty<int>();
             busColors ??= Array.Empty<int[]>();
@@ -143,7 +155,7 @@ namespace Hoppa.BusBuddies.Sim
                 w, h, activeSlots, numColors, colorNames,
                 grid, totalBlocks,
                 columns, busColors, busCaps, busHidden, busConnected,
-                totalPassengers, totalBuses);
+                totalPassengers, totalBuses, plateReq);
         }
 
         // Balance precheck: a level is solvable ONLY IF every colour's block count

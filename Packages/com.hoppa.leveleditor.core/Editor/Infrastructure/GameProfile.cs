@@ -66,6 +66,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional per-profile 'flag paint' tool (null = profile has no flag mechanic).\nWhen set, the TOOLS palette shows a toggle and GridEditTool.Hide is enabled.\nExample: BusBuddiesHiddenPixelPainter")]
         [SerializeField] private CellFlagPainterAsset _flagPainter;
 
+        [Tooltip("Optional per-profile 'region drag' tool (null = profile has no region mechanic).\nWhen set, the TOOLS palette shows a toggle and GridEditTool.Region is enabled; press-drag-release on the grid hands the swept cell rectangle to the tool.\nExample: BusBuddiesPlateRegionTool")]
+        [SerializeField] private RegionToolAsset _regionTool;
+
         [Tooltip("Optional: assign an ImageToGridAsset subclass to enable the 🖼 Image toolbar mode — convert a source image into a level grid quantized to this profile's palette.\nExample: YAKImageToGrid")]
         [SerializeField] private ImageToGridAsset _imageToGrid;
 
@@ -94,6 +97,10 @@ namespace Hoppa.LevelEditor.Core.Editor
         // Optional per-profile "flag paint" tool (null = profile has no flag mechanic).
         // When set, the TOOLS palette shows a toggle and GridEditTool.Hide is enabled.
         public CellFlagPainterAsset FlagPainter => _flagPainter;
+
+        // Optional per-profile "region drag" tool (null = profile has no region mechanic).
+        // When set, the TOOLS palette shows a toggle and GridEditTool.Region is enabled.
+        public RegionToolAsset RegionTool => _regionTool;
 
         // Layout flag: render the top-section panel below the grid (grid top-anchored)
         // instead of the classic above-the-grid layout. Default false.

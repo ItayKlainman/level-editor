@@ -23,8 +23,12 @@ namespace Hoppa.BusBuddies.Editor
         private static readonly Color RBHeaderBg = new Color(0.20f, 0.16f, 0.10f);
         private static readonly Color RBAccent   = new Color(0.95f, 0.65f, 0.25f);
 
-        // Header (More options) + Road Blocks title + 3 grid rows + padding.
-        public override float PreferredHeight => 104f;
+        private const float PlateRowH = 18f;
+        private static readonly Color PlateAccent = new Color(0.25f, 0.70f, 0.95f);
+
+        // Header (More options) + Road Blocks (title + 3 grid rows) + Plates (title +
+        // column header + up to ~4 rows + Add button) + padding.
+        public override float PreferredHeight => 104f + 16f + PlateRowH * 6f + 8f;
 
         public override void OnGUI(Rect rect, LevelEditorSession session, GameProfile profile)
         {
@@ -94,6 +98,98 @@ namespace Hoppa.BusBuddies.Editor
                     }
                 }
             }
+
+            // ── Plates ────────────────────────────────────────────────────────
+            float py = y + RBRowH * 3f + 8f;
+            DrawPlates(new Rect(rect.x, py, rect.width, rect.yMax - py), session, doc);
+        }
+
+        // Numeric fine-tune list for rectangular plates: one row per plate with
+        // X / Y / W / H / Amount IntFields + a Remove button, plus an Add button.
+        // All edits flow through BusBuddiesPlateConfigs with undo/dirty bookkeeping.
+        // (The drag tool is the primary authoring path; this is for precise tweaks.)
+        private void DrawPlates(Rect rect, LevelEditorSession session, LevelDocument doc)
+        {
+            float x0 = rect.x + 6f;
+            float y  = rect.y;
+
+            var titleStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = PlateAccent } };
+            GUI.Label(new Rect(x0, y, rect.width - 12f, 14f), "Plates", titleStyle);
+            y += 16f;
+
+            var plates = BusBuddiesPlateConfigs.All(doc);
+
+            // Column header.
+            const float NumW = 20f, FieldW = 26f, RemW = 18f, Gap = 2f;
+            float fx = x0 + NumW;
+            void Head(string s, float w, ref float cx)
+            {
+                GUI.Label(new Rect(cx, y, w, PlateRowH), s, EditorStyles.centeredGreyMiniLabel);
+                cx += w + Gap;
+            }
+            if (plates.Count > 0)
+            {
+                float cx = fx;
+                Head("X", FieldW, ref cx); Head("Y", FieldW, ref cx);
+                Head("W", FieldW, ref cx); Head("H", FieldW, ref cx);
+                Head("Amt", FieldW, ref cx);
+                y += PlateRowH;
+            }
+
+            for (int i = 0; i < plates.Count; i++)
+            {
+                var p = plates[i];
+                GUI.Label(new Rect(x0, y, NumW, PlateRowH), (i + 1).ToString(), EditorStyles.miniLabel);
+
+                float cx = fx;
+                int nx = IntField(ref cx, y, FieldW, p.X);
+                int ny = IntField(ref cx, y, FieldW, p.Y);
+                int nw = IntField(ref cx, y, FieldW, p.W);
+                int nh = IntField(ref cx, y, FieldW, p.H);
+                int na = IntField(ref cx, y, FieldW, p.Amount);
+
+                if (nx != p.X || ny != p.Y || nw != p.W || nh != p.H)
+                {
+                    session.PushUndoSnapshot();
+                    BusBuddiesPlateConfigs.SetRect(doc, i, nx, ny, nw, nh);
+                    session.MarkDirty();
+                }
+                if (na != p.Amount)
+                {
+                    session.PushUndoSnapshot();
+                    BusBuddiesPlateConfigs.SetAmount(doc, i, na);
+                    session.MarkDirty();
+                }
+
+                if (GUI.Button(new Rect(cx, y, RemW, PlateRowH - 1f), "x", EditorStyles.miniButton))
+                {
+                    session.PushUndoSnapshot();
+                    BusBuddiesPlateConfigs.Remove(doc, i);
+                    session.MarkDirty();
+                    GUI.changed = true;
+                    break; // list mutated — stop iterating this frame
+                }
+
+                y += PlateRowH;
+            }
+
+            // Add button: a small default plate at the origin (clamped to the grid).
+            if (GUI.Button(new Rect(x0, y, 90f, PlateRowH), "+ Add plate", EditorStyles.miniButton))
+            {
+                int w = Mathf.Min(3, doc.Grid?.Width ?? 3);
+                int h = Mathf.Min(3, doc.Grid?.Height ?? 3);
+                session.PushUndoSnapshot();
+                BusBuddiesPlateConfigs.Add(doc, 0, 0, w, h, BusBuddiesPlateConfigs.DefaultAmount);
+                session.MarkDirty();
+                GUI.changed = true;
+            }
+        }
+
+        private static int IntField(ref float cx, float y, float w, int value)
+        {
+            int v = EditorGUI.IntField(new Rect(cx, y, w, PlateRowH - 2f), value, EditorStyles.miniTextField);
+            cx += w + 2f;
+            return v;
         }
     }
 }

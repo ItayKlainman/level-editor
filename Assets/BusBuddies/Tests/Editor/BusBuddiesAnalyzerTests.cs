@@ -115,6 +115,46 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void Plate_UnreachableThreshold_MakesLevelUnsolvable()
+        {
+            // 1x2 strip [A,A], one bus A cap2, 1 slot — solvable on its own. Add a plate
+            // over the top cell (0,1) requiring 5 picks: only 2 blocks exist, so the
+            // covered A never opens and the analyzer (modelling plates) proves Unsolvable.
+            var grid = new GridData<ICellData>(1, 2);
+            grid.Set(0, 0, new BBPixelCell { ColorId = "A" });
+            grid.Set(0, 1, new BBPixelCell { ColorId = "A" });
+            var q = new BusQueueData();
+            var c0 = new BusColumn(); c0.Buses.Add(new BusEntry { ColorId = "A", Capacity = 2 });
+            q.Columns.Add(c0);
+
+            var doc = Doc(grid, q, 1);
+            BusBuddiesPlateConfigs.Add(doc, 0, 1, 1, 1, 5); // covers (0,1) with amount 5
+
+            var r = MakeAnalyzer().Analyze(doc, null, new AnalysisRequest { Seed = 99 });
+            Assert.AreEqual(AnalysisStatus.Unsolvable, r.Status);
+            Assert.IsFalse(r.Solvable);
+        }
+
+        [Test]
+        public void Plate_ReachableThreshold_StaysSolvable()
+        {
+            // Same strip + bus, but the plate over (0,1) opens after 1 pick — still solvable.
+            var grid = new GridData<ICellData>(1, 2);
+            grid.Set(0, 0, new BBPixelCell { ColorId = "A" });
+            grid.Set(0, 1, new BBPixelCell { ColorId = "A" });
+            var q = new BusQueueData();
+            var c0 = new BusColumn(); c0.Buses.Add(new BusEntry { ColorId = "A", Capacity = 2 });
+            q.Columns.Add(c0);
+
+            var doc = Doc(grid, q, 1);
+            BusBuddiesPlateConfigs.Add(doc, 0, 1, 1, 1, 1);
+
+            var r = MakeAnalyzer().Analyze(doc, null, new AnalysisRequest { Seed = 99 });
+            Assert.AreEqual(AnalysisStatus.Solvable, r.Status);
+            Assert.IsTrue(r.Solvable);
+        }
+
+        [Test]
         public void BudgetCut_NeverFalseUnsolvable()
         {
             // NodeBudget=1 forces BudgetExceeded (TimedOut) on a solvable small grid.

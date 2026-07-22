@@ -138,8 +138,16 @@ namespace Hoppa.BusBuddies.Editor
                 ["BusColumnConfigs"] = BuildBusColumnConfigs(document.TopSection),
                 ["ConnectedBuses"] = BuildConnectedBuses(document.TopSection),
                 ["PixelColors"] = BuildPixelColors(grid),
-                ["HiddenPixels"] = BuildHiddenPixels(grid),
             };
+
+            // Rectangular plate covers — TOP-LEVEL PlateConfigs[], sitting BETWEEN
+            // PixelColors and HiddenPixels (matching the real level_1.json). Omit the
+            // key entirely when the level has no plates.
+            var plateConfigs = BuildPlateConfigs(document.GameData);
+            if (plateConfigs.Count > 0)
+                config["PlateConfigs"] = plateConfigs;
+
+            config["HiddenPixels"] = BuildHiddenPixels(grid);
 
             // Sparse Road-Block slots — TOP-LEVEL SlotConfigs[], one entry per blocked
             // slot. Omit the key entirely when nothing is blocked (default level).
@@ -158,6 +166,42 @@ namespace Hoppa.BusBuddies.Editor
 
         // Test hook for the Road-Block builder.
         public static JArray BuildSlotConfigsForTest(JObject gameData) => BuildSlotConfigs(gameData);
+
+        // Test hook for the Plate builder.
+        public static JArray BuildPlateConfigsForTest(JObject gameData) => BuildPlateConfigs(gameData);
+
+        // GameData["plateConfigs"] (editor rects {x,y,w,h,amount}) → game PlateConfigs[]
+        // of { Position:{x,y}, Size:{x,y}, PixelAmount }. Position is the MIN (bottom-left)
+        // corner; Size is (w=x, h=y). Vector2Int serialises with lowercase x/y to match
+        // the game's Newtonsoft output. Returns an empty array when there are no plates —
+        // the caller omits the key entirely then.
+        //
+        // Y-ORIGIN: editor plate coords are stored in the SAME bottom-left grid space as
+        // PixelColors (index = y*Width + x, y=0 = bottom row), so Position passes straight
+        // through with NO conversion. This is the ONE place to change if an in-game eyeball
+        // shows the game anchors plate Position at the TOP-LEFT instead — flip here
+        // (y' = Height - y - h, which needs the grid height) and nowhere else.
+        public static JArray BuildPlateConfigs(JObject gameData)
+        {
+            var result = new JArray();
+            if (gameData?["plateConfigs"] is not JArray arr) return result;
+            foreach (var t in arr)
+            {
+                if (t is not JObject o) continue;
+                int x = o["x"]?.Value<int>() ?? 0;
+                int y = o["y"]?.Value<int>() ?? 0;
+                int w = System.Math.Max(1, o["w"]?.Value<int>() ?? 1);
+                int h = System.Math.Max(1, o["h"]?.Value<int>() ?? 1);
+                int amount = System.Math.Max(1, o["amount"]?.Value<int>() ?? 1);
+                result.Add(new JObject
+                {
+                    ["Position"] = new JObject { ["x"] = x, ["y"] = y },
+                    ["Size"] = new JObject { ["x"] = w, ["y"] = h },
+                    ["PixelAmount"] = amount,
+                });
+            }
+            return result;
+        }
 
         // GameData["slotConfigs"] (sparse, 0-based internal) → game SlotConfigs[] of
         // { SlotIndex, SlotType, RoadBlockAmount }. SlotIndex is offset by IndexBase so

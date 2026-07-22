@@ -89,6 +89,26 @@ namespace Hoppa.BusBuddies.Editor
                 }
             }
 
+            // Rectangular plates: TOP-LEVEL PlateConfigs[] → GameData["plateConfigs"]
+            // via the helper. Position is the MIN (bottom-left) corner; Size is (w=x,
+            // h=y). Y passes straight through — same bottom-left grid space as
+            // PixelColors (see the exporter's Y-ORIGIN note).
+            if (root["PlateConfigs"] is JArray plateConfigs)
+            {
+                foreach (var tok in plateConfigs)
+                {
+                    if (tok is not JObject o) continue;
+                    var pos = o["Position"];
+                    var size = o["Size"];
+                    int x = pos?["x"]?.Value<int>() ?? 0;
+                    int y = pos?["y"]?.Value<int>() ?? 0;
+                    int w = size?["x"]?.Value<int>() ?? 1;
+                    int h = size?["y"]?.Value<int>() ?? 1;
+                    int amount = o.Value<int?>("PixelAmount") ?? 1;
+                    BusBuddiesPlateConfigs.Add(doc, x, y, w, h, amount);
+                }
+            }
+
             // Rebuild the editable bus queue (per-column) AND record the flattened
             // original buses (for the re-tweak report). Same BusEntry instances feed both.
             var queue = new BusQueueData();

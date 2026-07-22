@@ -54,5 +54,16 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.IsInstanceOf<BusBuddiesMoreOptionsPanel>(panel,
                 "The left-column panel must be the More Options (road-block) panel.");
         }
+
+        [Test]
+        public void PlateOverlay_IsWiredIntoCanvasOverlay()
+        {
+            // The Plate feature draws its rectangular covers via the generic canvas-overlay
+            // hook. Pin the wiring so an asset edit can't silently drop it.
+            var overlay = LoadProfile().CanvasOverlay;
+            Assert.IsNotNull(overlay, "BusBuddiesProfile must assign a _canvasOverlay.");
+            Assert.IsInstanceOf<BusBuddiesPlateOverlay>(overlay,
+                "The canvas overlay must be the Plate overlay.");
+        }
     }
 }

@@ -7,7 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.11.0] - 2026-07-22
+## [0.12.0] - 2026-07-22
+
+### Added
+- `IRegionTool` + `RegionToolAsset` (abstract `ScriptableObject`): a generic Layer-1 hook for a
+  "region drag" grid tool. `GameProfile._regionTool` slot + `RegionTool` property (mirrors the
+  `_flagPainter` opt-in). New `GridEditTool.Region` enum value. When a profile assigns a region tool,
+  `PalettePanel` shows a TOOLS button for it and `GridCanvasPanel` handles press-drag-release to sweep
+  a CELL rectangle, drawing a live preview and — on mouse-up — calling
+  `RegionTool.OnRegionSelected(minX, minY, width, height, session)` with the in-bounds rectangle
+  (`GridCanvasPanel.RegionRect` exposes the pure geometry for testing). Fully opt-in: profiles without a
+  region tool (Yarn Kingdom, Yarn Twist, YAK, Color Wool Sort) are byte-identical to before — no new
+  tool button, no changed grid interaction. First consumer: the Bus Buddies Plate cover (Layer 2).
 
 ### Added
 - `ProfileLeftPanel` (abstract): the left-column analog of `ProfileRightPanel`. A generic Layer-1 hook

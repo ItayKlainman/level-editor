@@ -175,6 +175,9 @@ namespace Hoppa.LevelEditor.Core.Editor
             };
             if (painter != null)
                 tools.Add((new GUIContent(painter.ToolLabel, painter.ToolTooltip), GridEditTool.Hide));
+            var region = session.Profile?.RegionTool;
+            if (region != null)
+                tools.Add((new GUIContent(region.ToolLabel, region.ToolTooltip), GridEditTool.Region));
             var toolDefs = tools.ToArray();
 
             float btnW = Mathf.Floor(totalW / Mathf.Max(3, toolDefs.Length));

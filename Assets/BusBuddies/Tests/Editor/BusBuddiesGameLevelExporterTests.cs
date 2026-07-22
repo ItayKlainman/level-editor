@@ -152,6 +152,50 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void Export_Plate_EmitsExactPlateConfigsJson()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)), w: 20, h: 20);
+            doc.GameData = new JObject { ["conveyorCount"] = 5 };
+            BusBuddiesPlateConfigs.Add(doc, 5, 7, 10, 5, 80);
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+
+            var plates = (JArray)ReadLevel(1)["PlateConfigs"];
+            Assert.AreEqual(1, plates.Count);
+            // Position = MIN corner, lowercase x/y (Vector2Int).
+            Assert.AreEqual(5,  (int)plates[0]["Position"]["x"]);
+            Assert.AreEqual(7,  (int)plates[0]["Position"]["y"]);
+            Assert.AreEqual(10, (int)plates[0]["Size"]["x"]);
+            Assert.AreEqual(5,  (int)plates[0]["Size"]["y"]);
+            Assert.AreEqual(80, (int)plates[0]["PixelAmount"]);
+        }
+
+        [Test]
+        public void Export_Plate_SitsBetweenPixelColorsAndHiddenPixels()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)), w: 20, h: 20);
+            doc.GameData = new JObject { ["conveyorCount"] = 5 };
+            BusBuddiesPlateConfigs.Add(doc, 0, 0, 2, 2, 3);
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+
+            var keys = new System.Collections.Generic.List<string>();
+            foreach (var p in ReadLevel(1).Properties()) keys.Add(p.Name);
+            int pixIdx  = keys.IndexOf("PixelColors");
+            int plateIdx = keys.IndexOf("PlateConfigs");
+            int hidIdx  = keys.IndexOf("HiddenPixels");
+            Assert.Greater(plateIdx, pixIdx, "PlateConfigs comes after PixelColors");
+            Assert.Greater(hidIdx, plateIdx, "PlateConfigs comes before HiddenPixels");
+        }
+
+        [Test]
+        public void Export_NoPlates_OmitsPlateConfigsKey()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            doc.GameData = new JObject { ["conveyorCount"] = 5 };
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+            Assert.IsNull(ReadLevel(1)["PlateConfigs"], "no plates → no PlateConfigs key");
+        }
+
+        [Test]
         public void Export_UnmappedOrEmpty_MapsToZero()
         {
             var cells = new ICellData[] { new BBEmptyCell(), Pixel("notacolor"), Pixel("red") };

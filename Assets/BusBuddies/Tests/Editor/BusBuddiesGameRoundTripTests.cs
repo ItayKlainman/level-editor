@@ -73,6 +73,39 @@ namespace Hoppa.BusBuddies.Editor.Tests
         }
 
         [Test]
+        public void RoundTrip_Plates_SurviveExportThenImport()
+        {
+            // Start from an imported level, add a plate, export, then re-import and
+            // confirm the plate rect + amount survive the trip byte-for-byte.
+            var doc = BusBuddiesGameLevelImporter.Import(Sample2x2, "level_1").Document;
+            BusBuddiesPlateConfigs.Add(doc, 0, 1, 2, 1, 3);
+
+            var exporter = ScriptableObject.CreateInstance<BusBuddiesGameLevelExporter>();
+            string dir = Path.Combine(Path.GetTempPath(), "bb_plate_rt_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                exporter.SetTestDependencies(dir, 5);
+                Assert.IsTrue(exporter.Export(doc, null, "level_1.json"));
+
+                string outJson = File.ReadAllText(Path.Combine(dir, "level_1.json"));
+                var reimported = BusBuddiesGameLevelImporter.Import(outJson, "level_1").Document;
+
+                var plates = BusBuddiesPlateConfigs.All(reimported);
+                Assert.AreEqual(1, plates.Count);
+                Assert.AreEqual(0, plates[0].X);
+                Assert.AreEqual(1, plates[0].Y);
+                Assert.AreEqual(2, plates[0].W);
+                Assert.AreEqual(1, plates[0].H);
+                Assert.AreEqual(3, plates[0].Amount);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(exporter);
+                try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { }
+            }
+        }
+
+        [Test]
         public void RoundTrip_OpenThenSave_ReproducesGameFile()
         {
             var doc = BusBuddiesGameLevelImporter.Import(Sample2x2, "level_1").Document;
