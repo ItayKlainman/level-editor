@@ -29,6 +29,8 @@ namespace Hoppa.YAK.Editor
         [Header("OpenAI")]
         [Tooltip("Image model id. gpt-image-1 deprecates 2026-10-23 — change here when migrating.")]
         public string Model = "gpt-image-1";
+        [Tooltip("Text model for the Idea Generator (chat completions).")]
+        public string TextModel = "gpt-4o-mini"; // model for the Idea Generator (chat completions)
         public string ImageSize = "1024x1024";
         [Tooltip("Quality tier: low | medium | high. 'high' avoids the soft glow/bloom and gradient backgrounds gpt-image-1 produces at medium (which the converter reads as blur/aura).")]
         public string Quality = "high";

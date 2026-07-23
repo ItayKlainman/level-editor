@@ -104,5 +104,19 @@ namespace Hoppa.YAK.Editor.Tests
             var raw = "# @style: collectible\n# @batch: 1\na cat\n# @batch: 2\na dog\n";
             Assert.AreEqual(3, IdeaGeneratorCore.NextBatchNumber(raw));
         }
+
+        [Test]
+        public void BuildChatRequestJson_HasModelAndBothMessages()
+        {
+            var json = YAKOpenAIChatClient.BuildChatRequestJson("SYS", "USER", "gpt-4o-mini");
+            var o = Newtonsoft.Json.Linq.JObject.Parse(json);
+            Assert.AreEqual("gpt-4o-mini", (string)o["model"]);
+            var msgs = (Newtonsoft.Json.Linq.JArray)o["messages"];
+            Assert.AreEqual(2, msgs.Count);
+            Assert.AreEqual("system", (string)msgs[0]["role"]);
+            Assert.AreEqual("SYS", (string)msgs[0]["content"]);
+            Assert.AreEqual("user", (string)msgs[1]["role"]);
+            Assert.AreEqual("USER", (string)msgs[1]["content"]);
+        }
     }
 }
