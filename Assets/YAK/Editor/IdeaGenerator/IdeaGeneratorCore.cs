@@ -35,5 +35,39 @@ namespace Hoppa.YAK.Editor
             sb.AppendLine("OUTPUT FORMAT: group by subject library. For each library used, emit a line '## <Library>' then one idea per line (lowercase, no trailing period, no numbering).");
             return sb.ToString();
         }
+
+        public sealed class IdeaGroup { public string Subject; public List<string> Ideas = new List<string>(); }
+
+        public static List<IdeaGroup> ParseResponse(string modelText)
+        {
+            var groups = new List<IdeaGroup>();
+            IdeaGroup current = null;
+            foreach (var rawLine in (modelText ?? string.Empty).Split('\n'))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0) continue;
+                if (line.StartsWith("##"))
+                {
+                    current = new IdeaGroup { Subject = line.TrimStart('#', ' ').Trim() };
+                    groups.Add(current);
+                    continue;
+                }
+                if (current == null) continue; // ignore preamble before first header
+                var idea = StripLeadingMarker(line);
+                if (idea.Length > 0) current.Ideas.Add(idea);
+            }
+            return groups;
+        }
+
+        private static string StripLeadingMarker(string s)
+        {
+            s = s.TrimStart();
+            // strip "- ", "* ", "1. ", "12) "
+            int i = 0;
+            if (i < s.Length && (s[i] == '-' || s[i] == '*')) { i++; while (i < s.Length && s[i] == ' ') i++; return s.Substring(i).Trim(); }
+            int d = i; while (d < s.Length && char.IsDigit(s[d])) d++;
+            if (d > i && d < s.Length && (s[d] == '.' || s[d] == ')')) { d++; while (d < s.Length && s[d] == ' ') d++; return s.Substring(d).Trim(); }
+            return s.Trim();
+        }
     }
 }
