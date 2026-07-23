@@ -1,0 +1,51 @@
+{
+  "subjects": [
+    { "name": "Animals", "entries": ["fox","wolf","bear","red panda","hedgehog","squirrel","beaver","otter","badger","lynx","deer","moose","rabbit","hare","mole","chipmunk","labrador","husky","corgi","pug","shiba inu","persian cat","maine coon","hamster","guinea pig","ferret","goldfish","budgie","cow","highland cow","pig","sheep","goat","horse","pony","donkey","chicken","rooster","duck","goose","turkey","alpaca","llama","whale","orca","dolphin","shark","hammerhead","seal","walrus","sea lion","jellyfish","octopus","squid","crab","lobster","seahorse","starfish","pufferfish","clownfish","owl","eagle","falcon","crow","raven","penguin","puffin","flamingo","peacock","toucan","parrot","kiwi","swan","hummingbird","tiger","lion","leopard","jaguar","gorilla","orangutan","chimpanzee","elephant","rhino","hippo","sloth","tapir","pangolin","camel","fennec fox","meerkat","jerboa","scorpion","horned lizard","polar bear","arctic fox","beluga","narwhal","snowy owl","crocodile","alligator","gecko","chameleon","iguana","turtle","snake","bee","butterfly","dragonfly","firefly","ladybug","beetle","mantis"] },
+    { "name": "Food & Drinks", "entries": ["apple","strawberry","watermelon","lemon","avocado","mushroom","carrot","cake","cupcake","donut","cookie","ice cream","popsicle","waffle","pancake","bread","croissant","pretzel","bagel","pie","burger","pizza","fries","hot dog","taco","burrito","sushi","ramen","dumpling","onigiri","mochi","bubble tea","coffee","tea","cocoa","juice","smoothie","soda","milkshake"] },
+    { "name": "Nature", "entries": ["flower","tree","leaf","acorn","pinecone","cactus","succulent","bamboo","vine","moss","coral","seashell","rock","crystal","mountain","cloud","rainbow","sun","moon","star","aurora","volcano","waterfall"] },
+    { "name": "Fantasy", "entries": ["dragon","baby dragon","phoenix","griffin","unicorn","pegasus","kitsune","slime","ghost","spirit","fairy","wizard","witch","golem","mimic","gargoyle","potion","spell book","magic crystal","rune","floating island"] },
+    { "name": "Vehicles", "entries": ["car","sports car","vintage car","race car","truck","monster truck","bus","school bus","fire truck","police car","ambulance","train","steam train","bullet train","tram","bike","scooter","motorcycle","boat","pirate ship","submarine","helicopter","airplane","rocket","ufo"] },
+    { "name": "Sports", "entries": ["football","basketball","baseball","tennis","golf","bowling","volleyball","rugby","hockey","surfing","skateboarding","snowboarding","skiing","running","swimming","boxing","karate","judo","gymnastics","weightlifting","archery","fencing","climbing","chess","esports"] },
+    { "name": "Sports Equipment", "entries": ["ball","bat","racket","helmet","glove","trophy","medal","whistle","dumbbell","yoga mat","surfboard","snowboard","skis","running shoe","gym bag","stopwatch"] },
+    { "name": "Tools", "entries": ["hammer","screwdriver","wrench","pliers","saw","axe","drill","ladder","toolbox","paint brush","paint roller","tape measure","shovel","rake","watering can","wheelbarrow","chainsaw"] },
+    { "name": "Technology", "entries": ["laptop","desktop","keyboard","mouse","monitor","smartphone","tablet","smartwatch","camera","drone","robot","vr headset","game controller","microphone","speaker"] },
+    { "name": "Household", "entries": ["chair","sofa","bed","pillow","blanket","lamp","clock","mirror","fridge","oven","toaster","blender","pan","kettle","cup","plate","spoon","fork","vacuum","washing machine"] },
+    { "name": "Professions", "entries": ["chef","doctor","nurse","firefighter","police officer","scientist","teacher","farmer","carpenter","blacksmith","pirate","knight","wizard","astronaut","musician","photographer"] },
+    { "name": "Hobbies", "entries": ["painting","gardening","camping","fishing","reading","knitting","photography","pottery","cooking","gaming","puzzle solving"] },
+    { "name": "Music", "entries": ["piano","guitar","violin","drums","trumpet","saxophone","flute","harp","ukulele","accordion","microphone","headphones"] },
+    { "name": "Architecture", "entries": ["castle","cabin","lighthouse","windmill","barn","treehouse","temple","pagoda","bridge","igloo","greenhouse"] },
+    { "name": "Seasonal & Holidays", "entries": ["christmas tree","jack-o-lantern","easter egg","valentine heart","birthday cake","carnival mask","dreidel","chinese lantern","beach ball","autumn leaf","snowman","spring blossom"] },
+    { "name": "Clothing", "entries": ["hat","crown","helmet","glasses","scarf","boot","sneaker","glove","cape","backpack","umbrella","watch","bow tie"] },
+    { "name": "Toys & Games", "entries": ["teddy bear","toy train","toy robot","doll","kite","yo-yo","rubik's cube","dice","chess piece","playing card","puzzle piece"] }
+  ],
+  "modifiers": [
+    { "name": "Expression", "guidance": "a facial expression or mood; use sparingly, not on every concept" },
+    { "name": "Accessory", "guidance": "one worn or held item (hat, glasses, scarf)" },
+    { "name": "Theme", "guidance": "a stylistic overlay (space, pirate, rockstar, winter)" },
+    { "name": "Action", "guidance": "a single self-contained pose or motion" },
+    { "name": "Companion", "guidance": "one small integral secondary element; risks despeckle, use rarely" },
+    { "name": "Environment Piece", "guidance": "one grounding object; keep it minimal, never a full scene" }
+  ],
+  "compositionTypes": ["subject only","subject with expression","subject performing an action","subject wearing or holding an accessory","subject interacting with another object","subject emerging from another object","hybrid subject","mini storytelling scene"],
+  "complexityDistribution": [
+    { "name": "Very Simple", "percent": 10 },
+    { "name": "Simple", "percent": 25 },
+    { "name": "Medium", "percent": 30 },
+    { "name": "Complex", "percent": 20 },
+    { "name": "Hybrid", "percent": 10 },
+    { "name": "Mini Scene", "percent": 5 }
+  ],
+  "designRules": [
+    "Do not always add a face.",
+    "Do not always add emotions.",
+    "Do not always add accessories.",
+    "Prefer variety over consistency.",
+    "Mix minimalist and rich concepts.",
+    "Keep silhouettes clear.",
+    "Encourage surprising niche ideas.",
+    "Avoid repetitive combinations.",
+    "One concrete subject only; no text, logos, or numbers.",
+    "No detached particles, no two-subject or full-scene phrasing.",
+    "Lowercase, no trailing period, phrased to slug cleanly."
+  ]
+}
