@@ -206,5 +206,37 @@ namespace Hoppa.BusBuddies.Editor.Tests
             Assert.AreEqual(0, (int)px[1]); // unmapped
             Assert.AreEqual(9, (int)px[2]); // red
         }
+
+        [Test]
+        public void Export_LevelType_None_OmitsKey()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+            Assert.IsNull(ReadLevel(1)["LevelType"], "None → no LevelType key (existing None-levels stay byte-identical)");
+        }
+
+        [Test]
+        public void Export_LevelType_Hard_WritesStringName()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            BusBuddiesLevelType.Set(doc, BusLevelType.Hard);
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+
+            var token = ReadLevel(1)["LevelType"];
+            Assert.AreEqual(JTokenType.String, token.Type, "wire form is the string name, not the int ordinal");
+            Assert.AreEqual("Hard", (string)token);
+        }
+
+        [Test]
+        public void Export_LevelType_SuperHard_WritesStringName()
+        {
+            var doc = Doc("level_1", new[] { Pixel("red") }, Queue(("blue", 40, false)));
+            BusBuddiesLevelType.Set(doc, BusLevelType.SuperHard);
+            _exporter.Export(doc, new CellTypeRegistry(), Path.Combine(Path.GetTempPath(), "level_1.json"));
+
+            var token = ReadLevel(1)["LevelType"];
+            Assert.AreEqual(JTokenType.String, token.Type, "wire form is the string name, not the int ordinal");
+            Assert.AreEqual("SuperHard", (string)token);
+        }
     }
 }
