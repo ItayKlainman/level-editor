@@ -108,6 +108,8 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnImageToggle    += HandleImageToggle;
             _generator.OnUseLevel     += HandleGeneratorUseLevel;
             _imagePanel.OnUseLevel    += HandleGeneratorUseLevel;
+            _generator.OnRequestRepaint -= Repaint;
+            _generator.OnRequestRepaint += Repaint;
         }
 
         private void OnDisable()
@@ -125,6 +127,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             _toolbar.OnImageToggle    -= HandleImageToggle;
             _generator.OnUseLevel     -= HandleGeneratorUseLevel;
             _imagePanel.OnUseLevel    -= HandleGeneratorUseLevel;
+            _generator.OnRequestRepaint -= Repaint;
             _session?.Dispose();
             _session       = null;
             _topSection    = new EmptyTopSectionPanel();
@@ -141,7 +144,7 @@ namespace Hoppa.LevelEditor.Core.Editor
             EditorGUI.DrawRect(new Rect(0f, ToolbarH - 1f, w, 1f), Divider);
             _toolbar.OrderMode    = _inOrderMode;
             _toolbar.GenerateMode = _inGeneratorMode;
-            _toolbar.ShowGenerate = _profile?.LevelGenerator != null;
+            _toolbar.ShowGenerate = _profile != null && (_profile.LevelGenerator != null || _profile.HasGeneratePanel);
             _toolbar.ImageMode    = _inImageMode;
             _toolbar.ShowImage    = _profile?.ImageToGrid != null;
             _toolbar.OnGUI(new Rect(0f, 0f, w, ToolbarH), _session);
@@ -539,7 +542,7 @@ namespace Hoppa.LevelEditor.Core.Editor
 
         private void HandleGenerateToggle()
         {
-            if (_profile?.LevelGenerator == null) return;
+            if (_profile == null || (_profile.LevelGenerator == null && !_profile.HasGeneratePanel)) return;
             _inGeneratorMode = !_inGeneratorMode;
             if (_inGeneratorMode)
             {
