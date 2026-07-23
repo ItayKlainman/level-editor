@@ -45,6 +45,9 @@ namespace Hoppa.LevelEditor.Core.Editor
         [Tooltip("Optional: assign a ProfileLeftPanel subclass script to render a game-specific section in the LEFT column (between the cell/brush palette and TOOLS).\nExample: BusBuddiesMoreOptionsPanel — leave empty for none.")]
         [SerializeField] private MonoScript _leftPanelScript;
 
+        [Tooltip("Optional: assign a ProfileGeneratePanel subclass script to add a second mode to the Generate tab (alongside the built-in level generator), selected via a top toggle.\nExample: YAKIdeaGeneratorPanel — leave empty for none.")]
+        [SerializeField] private MonoScript _generatePanelScript;
+
         [Tooltip("Optional: assign an EditorPanelAsset to enable the ⇅ Order tab in the toolbar.")]
         [SerializeField] private EditorPanelAsset _orderPanel;
 
@@ -155,6 +158,20 @@ namespace Hoppa.LevelEditor.Core.Editor
             var type = _leftPanelScript.GetClass();
             if (type == null || !typeof(ProfileLeftPanel).IsAssignableFrom(type)) return null;
             try   { return (ProfileLeftPanel)Activator.CreateInstance(type); }
+            catch { return null; }
+        }
+
+        public bool HasGeneratePanel => _generatePanelScript != null;
+
+        // Instantiate the profile's optional Generate-tab panel (a
+        // ProfileGeneratePanel subclass). Returns null when no valid script is
+        // assigned. Mirrors CreateLeftPanel exactly.
+        public ProfileGeneratePanel CreateGeneratePanel()
+        {
+            if (_generatePanelScript == null) return null;
+            var type = _generatePanelScript.GetClass();
+            if (type == null || !typeof(ProfileGeneratePanel).IsAssignableFrom(type)) return null;
+            try   { return (ProfileGeneratePanel)Activator.CreateInstance(type); }
             catch { return null; }
         }
 

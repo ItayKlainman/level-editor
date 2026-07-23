@@ -16,6 +16,16 @@ namespace Hoppa.LevelEditor.Core.Editor
     {
         public event Action<LevelDocument> OnUseLevel;
 
+        // Raised when the profile-supplied generate panel wants the host window
+        // to repaint (e.g. an async request finished). LevelEditorWindow wires
+        // this to EditorWindow.Repaint.
+        public event Action OnRequestRepaint;
+
+        private enum SubMode { Level, Profile }
+        private SubMode _subMode = SubMode.Level;
+        private ProfileGeneratePanel _profilePanel;
+        private GameProfile _profilePanelProfile;
+
         private const float ParamsW   = 280f;
         private const float HeaderH   = 22f;
         private const float RowH      = 20f;
@@ -57,7 +67,11 @@ namespace Hoppa.LevelEditor.Core.Editor
             _lastResult = null;
         }
 
-        public void OnExitMode() => DisposePreview();
+        public void OnExitMode()
+        {
+            DisposePreview();
+            _profilePanel?.OnExitMode();
+        }
 
         public void OnGUI(Rect rect, GameProfile profile)
         {
@@ -67,7 +81,27 @@ namespace Hoppa.LevelEditor.Core.Editor
                 GUI.Label(rect, "Select a Game Profile first.", EditorStyles.centeredGreyMiniLabel);
                 return;
             }
-            if (profile.LevelGenerator == null)
+
+            // (Re)build the profile-supplied generate panel when the active
+            // profile changes, and choose a sensible default sub-mode.
+            if (!ReferenceEquals(_profilePanelProfile, profile))
+            {
+                _profilePanel?.OnExitMode();
+                _profilePanel = profile.HasGeneratePanel ? profile.CreateGeneratePanel() : null;
+                if (_profilePanel != null)
+                {
+                    _profilePanel.RequestRepaint = () => OnRequestRepaint?.Invoke();
+                    _profilePanel.OnEnterMode();
+                }
+                _profilePanelProfile = profile;
+                bool hasLevel = profile.LevelGenerator != null;
+                _subMode = hasLevel ? SubMode.Level : SubMode.Profile;
+            }
+
+            bool hasLevelGen   = profile.LevelGenerator != null;
+            bool hasProfileGen = _profilePanel != null;
+
+            if (!hasLevelGen && !hasProfileGen)
             {
                 EditorGUI.DrawRect(rect, PreviewBg);
                 GUI.Label(rect, "This Game Profile has no Level Generator assigned.",
@@ -75,11 +109,35 @@ namespace Hoppa.LevelEditor.Core.Editor
                 return;
             }
 
-            // ── Left: params ──────────────────────────────────────────────
-            var paramsRect  = new Rect(rect.x, rect.y, ParamsW, rect.height);
-            var dividerRect = new Rect(rect.x + ParamsW, rect.y, 1f, rect.height);
-            var previewRect = new Rect(rect.x + ParamsW + 1f, rect.y,
-                rect.width - ParamsW - 1f, rect.height);
+            // Toggle row (only when both modes exist).
+            var contentRect = rect;
+            if (hasLevelGen && hasProfileGen)
+            {
+                var toggleRect = new Rect(rect.x, rect.y, rect.width, 22f);
+                EditorGUI.DrawRect(toggleRect, ParamsBg);
+                float halfW = rect.width * 0.5f;
+                if (GUI.Toggle(new Rect(rect.x, rect.y, halfW, 22f), _subMode == SubMode.Level,
+                        "Level Generator", EditorStyles.toolbarButton)) _subMode = SubMode.Level;
+                if (GUI.Toggle(new Rect(rect.x + halfW, rect.y, halfW, 22f), _subMode == SubMode.Profile,
+                        _profilePanel.Title, EditorStyles.toolbarButton)) _subMode = SubMode.Profile;
+                contentRect = new Rect(rect.x, rect.y + 22f, rect.width, rect.height - 22f);
+            }
+            else if (hasProfileGen && !hasLevelGen)
+            {
+                _subMode = SubMode.Profile;
+            }
+
+            if (_subMode == SubMode.Profile && _profilePanel != null)
+            {
+                _profilePanel.OnGUI(contentRect, profile);
+                return;
+            }
+
+            // ── Level generator: Left params + preview split ──────────────
+            var paramsRect  = new Rect(contentRect.x, contentRect.y, ParamsW, contentRect.height);
+            var dividerRect = new Rect(contentRect.x + ParamsW, contentRect.y, 1f, contentRect.height);
+            var previewRect = new Rect(contentRect.x + ParamsW + 1f, contentRect.y,
+                contentRect.width - ParamsW - 1f, contentRect.height);
 
             EditorGUI.DrawRect(paramsRect,  ParamsBg);
             EditorGUI.DrawRect(dividerRect, Divider);

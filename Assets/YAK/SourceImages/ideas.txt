@@ -162,6 +162,28 @@ a proud flamingo posing dramatically on one leg
 a cheerful beaver hugging a freshly carved log
 a baby rhinoceros with a tiny horn and an oversized smile
 
+# @batch: 3
+a tiny pangolin curled into a ball
+a fennec fox with enormous ears
+a cheerful quokka with a big smile
+a confused shoebill stork with raised eyebrows
+a bashful dumbo octopus hugging its tentacles
+an adorable puffed-up pufferfish
+a laughing baby tapir
+a proud chubby wombat
+a sugar glider stretching its little wings
+a guilty-looking slow loris on a branch
+a sleepy baby manatee with a blissful grin
+a round kiwi bird with a long beak
+a proud smiling gecko
+a musk ox with ridiculously fluffy bangs
+a red panda wrapped in its own striped tail
+a dik-dik antelope with oversized sparkling eyes
+a leafy sea dragon posing dramatically
+a confident naked mole rat with a big grin
+a proud baby cassowary with colorful feathers
+an excited jerboa with oversized ears
+
 # @style: objects
 # Everyday objects turned into living characters
 a smiling coffee mug with sleepy eyes and steam shaped like tiny hearts
@@ -206,6 +228,28 @@ a tiny notebook filled with smiling doodles
 a friendly spoon carrying a giant strawberry
 a happy hourglass waving while golden sand falls
 a smiling key wearing a tiny golden crown
+
+# @batch: 3
+a smiling origami crane with paper wings
+a cheerful golden pocket watch
+a happy fountain pen
+a cozy knitted scarf hugging itself
+a playful paper airplane
+a tiny ship inside a glass bottle
+a smiling wax seal wearing a royal cape
+a joyful open music box
+a sleepy snow globe
+a happy spinning compass rose
+a content melting candle
+a blushing tiny ink bottle
+a smiling thimble with colorful thread
+a proud glowing desk lamp
+a vintage keyhole blinking like an eye
+a cheerful magnifying glass
+a smiling ribbon bookmark
+a happy spool of yarn
+a joyful feather quill
+a ceramic vase holding a big daisy
 
 # @style: hybrids
 # Whimsical hybrids — two unrelated things, one design
@@ -252,6 +296,28 @@ a hedgehog covered in colorful flowers instead of spikes
 a crab with seashell claws shaped like hearts
 a hummingbird whose wings resemble autumn leaves
 
+# @batch: 3
+a hedgehog with paintbrush spines
+a moth with stained-glass wings
+a fox with a log cabin body
+a seahorse with lavender blossoms along its back
+a rabbit with moon phases on its tail
+a barn owl with fluffy popcorn feathers
+a hedgehog covered in colorful gemstones
+a jellyfish made of wisteria flowers
+a squirrel with a pinecone body
+a snail with a lighthouse shell
+a hummingbird with crystal wings
+a goat with cinnamon roll horns
+a crocodile with moss on its back
+a whale with a northern-lights tail
+a bat with autumn maple-leaf wings
+a penguin with an iceberg body
+a peacock with galaxy feathers
+a fox with a dandelion-seed tail
+a crab with glowing lantern claws
+a tortoise with a bonsai tree shell
+
 # @style: fantasy
 # Tiny fantasy creatures — cozy magical world
 a tiny forest dragon sleeping on a glowing mushroom
@@ -297,6 +363,28 @@ a cheerful flower fairy holding a blossom
 a little stone giant hugging a pebble
 a baby sea fairy riding a seashell
 
+# @batch: 3
+a tiny sleepy library sprite
+a baby eclipse dragon with golden and silver eyes
+a tiny dew fairy
+a mushroom knight wearing an acorn helmet
+a tiny constellation fox
+a candle spirit with a flickering face
+a pocket griffin sitting in a teacup
+a rainbow salamander
+a smiling pebble mimic
+a tiny marsh spirit with a reed crown
+a glowing moon jelly guardian
+a crystal hummingbird
+a forest imp carrying a lantern
+a baby thunder dragon in a storm cloud
+a tiny wish sprite
+a snow fox spirit
+a rune turtle with a glowing shell
+a flower gargoyle made of roses
+a tiny dream eater curled up
+a pocket phoenix hatching from an ember
+
 # @style: funny
 # Funny miniature characters — meme energy, silly costumes
 a pig dressed as a cowboy riding a tiny cactus
@@ -341,3 +429,25 @@ a panda taking a selfie with a bamboo stick
 a cow proudly riding a tiny scooter
 a shark wearing fluffy bunny slippers
 a corgi dressed as a pirate captain
+
+# @batch: 3
+a capybara wearing a bathrobe
+a dramatic goose striking a pose
+a pigeon wearing opera glasses
+a snail wearing racing goggles
+a flamingo wearing a hard hat
+a proud hedgehog in a cactus costume
+a penguin carrying a beach umbrella
+a raccoon dressed as a museum guide
+a llama wearing a tuxedo and fuzzy slippers
+a frog wearing a business suit
+a walrus wearing a party hat
+a sheep knitting a fluffy sweater
+a crocodile wearing a fancy tea-party hat
+a squirrel holding a giant acorn
+an octopus juggling colorful balls
+a sleepy owl wearing pajamas
+a proud mole wearing a hard hat
+a pelican carrying a giant grocery bag
+a glamorous yak striking a runway pose
+a beaver wearing an engineer hard hat

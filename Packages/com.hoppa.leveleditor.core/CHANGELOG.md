@@ -7,6 +7,9 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `ProfileGeneratePanel` hook: a profile can supply a second mode for the Generate tab, selected via a top toggle (Level Generator | <panel title>). Backward-compatible; profiles without the hook are unchanged.
+
 ## [0.12.0] - 2026-07-22
 
 ### Added

@@ -206,15 +206,31 @@ namespace Hoppa.YAK.Editor.Tests
             foreach (var key in expected)
             {
                 Assert.IsTrue(blocks.ContainsKey(key), $"prompts.txt is missing the [{key}] prompt");
-                int n = entries.FindAll(e => string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase)).Count;
-                Assert.AreEqual(40, n, $"the '{key}' section should hold 40 ideas (batch 1 + batch 2, 20 each)");
-                int b2 = entries.FindAll(e =>
-                    string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase) && e.Batch == "2").Count;
-                Assert.AreEqual(20, b2, $"the '{key}' section should hold 20 batch-2 ideas");
+                var section = entries.FindAll(e =>
+                    string.Equals(e.StyleKey, key, System.StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(section.Count > 0, $"the '{key}' section should hold ideas");
+
+                // Group the section by its "# @batch:" tag ("" == the implicit first
+                // batch). EVERY batch block in a boss-brief section must hold exactly
+                // 20 ideas — so appending batch-4 (another 20) later won't break this,
+                // while a section drifting off 20/batch still fails.
+                var byBatch = new Dictionary<string, int>();
+                foreach (var e in section)
+                {
+                    string b = string.IsNullOrEmpty(e.Batch) ? "1" : e.Batch;
+                    byBatch.TryGetValue(b, out int c);
+                    byBatch[b] = c + 1;
+                }
+                foreach (var kv in byBatch)
+                    Assert.AreEqual(20, kv.Value,
+                        $"the '{key}' section, batch {kv.Key} should hold exactly 20 ideas");
+                Assert.AreEqual(byBatch.Count * 20, section.Count,
+                    $"the '{key}' section total should be 20 x (batch count = {byBatch.Count})");
             }
 
             Assert.IsTrue(blocks.ContainsKey("rules"),   "prompts.txt must keep the shared [rules] block");
             Assert.IsTrue(blocks.ContainsKey("default"), "prompts.txt must keep a [default] prompt for untagged ideas");
+            Assert.IsTrue(blocks.ContainsKey("collectible"), "collectible style block must exist for the Idea Generator");
 
             // Every tag actually names a prompt.
             foreach (var e in entries)

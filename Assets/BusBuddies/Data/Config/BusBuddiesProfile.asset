@@ -32,6 +32,7 @@ MonoBehaviour:
   _bottomSectionScript: {fileID: 0}
   _rightPanelScript: {fileID: 11500000, guid: cb5d429153f0e6442b68bf6bf6088563, type: 3}
   _leftPanelScript: {fileID: 11500000, guid: b7e4d2c9a6f34e1580c2d3e4f5a6b708, type: 3}
+  _generatePanelScript: {fileID: 11500000, guid: 329bc990e8309564db2bca04bf7b1ef7, type: 3}
   _orderPanel: {fileID: 0}
   _levelGenerator: {fileID: 11400000, guid: 3ad232c761d7a614ea67d47c2d0ed6bd, type: 2}
   _generatorConfig: {fileID: 11400000, guid: d2e0ce35b9629b448a887def8ea99cc0, type: 2}
