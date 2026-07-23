@@ -99,10 +99,21 @@ namespace Hoppa.YAK.Editor.Tests
         }
 
         [Test]
-        public void NextBatchNumber_IsOneMoreThanMaxCollectibleBatch()
+        public void NextBatchNumber_IsOneMoreThanMaxBatch_ForThatStyleOnly()
         {
-            var raw = "# @style: collectible\n# @batch: 1\na cat\n# @batch: 2\na dog\n";
-            Assert.AreEqual(3, IdeaGeneratorCore.NextBatchNumber(raw));
+            var raw =
+                "# @style: animals\n# @batch: 5\na fox\n" +
+                "# @style: collectible\n# @batch: 1\na cat\n# @batch: 2\na dog\n" +
+                "# @style: objects\n# @batch: 9\na mug\n";
+            // ignores animals(5) and objects(9); collectible max is 2 -> next is 3
+            Assert.AreEqual(3, IdeaGeneratorCore.NextBatchNumber(raw, "collectible"));
+        }
+
+        [Test]
+        public void NextBatchNumber_NoSuchStyleSection_ReturnsOne()
+        {
+            var raw = "# @style: animals\n# @batch: 3\na fox\n";
+            Assert.AreEqual(1, IdeaGeneratorCore.NextBatchNumber(raw, "collectible"));
         }
 
         [Test]

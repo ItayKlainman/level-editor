@@ -114,14 +114,27 @@ namespace Hoppa.YAK.Editor
             return sb.ToString();
         }
 
-        public static int NextBatchNumber(string existingIdeasRaw)
+        // Next batch number for a SPECIFIC @style section: the max "# @batch: N"
+        // tag found while inside a "# @style: <styleKey>" section, plus one. Batch
+        // tags under other styles are ignored, so a brand-new (absent/empty) section
+        // starts at 1 even when other styles already have higher-numbered batches.
+        public static int NextBatchNumber(string existingIdeasRaw, string styleKey)
         {
+            const string styleTag = "# @style:";
+            const string batchTag = "# @batch:";
             int max = 0;
+            bool inSection = false;
             foreach (var raw in (existingIdeasRaw ?? string.Empty).Split('\n'))
             {
                 var line = raw.Trim();
-                const string tag = "# @batch:";
-                if (line.StartsWith(tag) && int.TryParse(line.Substring(tag.Length).Trim(), out var n))
+                if (line.StartsWith(styleTag))
+                {
+                    var name = line.Substring(styleTag.Length).Trim();
+                    inSection = string.Equals(name, styleKey, System.StringComparison.OrdinalIgnoreCase);
+                    continue;
+                }
+                if (inSection && line.StartsWith(batchTag) &&
+                    int.TryParse(line.Substring(batchTag.Length).Trim(), out var n))
                     max = System.Math.Max(max, n);
             }
             return max + 1;

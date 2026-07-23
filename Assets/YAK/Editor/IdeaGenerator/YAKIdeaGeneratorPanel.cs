@@ -21,6 +21,7 @@ namespace Hoppa.YAK.Editor
 
         private const string KbProjectPath = "Assets/YAK/Data/IdeaKnowledgeBase.json";
         private const string DefaultIdeasPath = "Assets/YAK/SourceImages/ideas.txt";
+        private const string StyleKey = "collectible"; // the ideas.txt @style section this panel writes to
         private static readonly int[] Amounts = { 5, 10, 20, 50, 100, 200 };
         private const string SystemPrompt =
             "You are a pixel-art collectible idea generator. Follow the user's rules exactly and output only the grouped idea lines.";
@@ -285,8 +286,8 @@ namespace Hoppa.YAK.Editor
             try { raw = File.Exists(_ideasPath) ? File.ReadAllText(_ideasPath) : string.Empty; }
             catch { raw = string.Empty; }
 
-            int batch = IdeaGeneratorCore.NextBatchNumber(raw);
-            string block = IdeaGeneratorCore.BuildAppendBlock(kept, batch);
+            int batch = IdeaGeneratorCore.NextBatchNumber(raw, StyleKey);
+            string block = IdeaGeneratorCore.BuildAppendBlock(kept, batch, StyleKey);
             try
             {
                 File.AppendAllText(_ideasPath, block);
