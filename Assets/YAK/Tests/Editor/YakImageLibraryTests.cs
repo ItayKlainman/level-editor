@@ -215,6 +215,7 @@ namespace Hoppa.YAK.Editor.Tests
 
             Assert.IsTrue(blocks.ContainsKey("rules"),   "prompts.txt must keep the shared [rules] block");
             Assert.IsTrue(blocks.ContainsKey("default"), "prompts.txt must keep a [default] prompt for untagged ideas");
+            Assert.IsTrue(blocks.ContainsKey("collectible"), "collectible style block must exist for the Idea Generator");
 
             // Every tag actually names a prompt.
             foreach (var e in entries)

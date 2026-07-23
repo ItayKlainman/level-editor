@@ -66,6 +66,9 @@ unexpected situation. Cute internet-meme energy, the kind of playful collectible
 makes people smile instantly, drawn as a pixel-art collectible icon: chunky blocky
 pixel shapes, crisp hard edges, big flat solid fill colors.
 
+[collectible]
+A single cute pixel-art collectible of {idea}, centered, bold clean silhouette, flat solid colors, thick readable shapes, no background clutter.
+
 [default]
 {idea}, drawn as a premium pixel-art collectible icon. Chunky blocky pixel shapes,
 crisp hard edges, big flat solid fill colors, bold instantly recognizable silhouette.
