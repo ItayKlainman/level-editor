@@ -126,5 +126,48 @@ namespace Hoppa.BusBuddies.Editor.Tests
             var imported = BusBuddiesGameLevelImporter.Import(json, "x");
             Assert.IsInstanceOf<BBEmptyCell>(imported.Document.Grid.Cells[0]);
         }
+
+        [Test]
+        public void Import_LevelType_AcceptsStringName_Hard()
+        {
+            const string json = @"{ ""SlotsAmount"": 5, ""Width"": 1, ""Height"": 1,
+                ""BusColumnConfigs"": [], ""PixelColors"": [ 0 ], ""LevelType"": ""Hard"" }";
+            var imported = BusBuddiesGameLevelImporter.Import(json, "x");
+            Assert.AreEqual(BusLevelType.Hard, BusBuddiesLevelType.Get(imported.Document));
+        }
+
+        [Test]
+        public void Import_LevelType_AcceptsIntOrdinal_One()
+        {
+            const string json = @"{ ""SlotsAmount"": 5, ""Width"": 1, ""Height"": 1,
+                ""BusColumnConfigs"": [], ""PixelColors"": [ 0 ], ""LevelType"": 1 }";
+            var imported = BusBuddiesGameLevelImporter.Import(json, "x");
+            Assert.AreEqual(BusLevelType.Hard, BusBuddiesLevelType.Get(imported.Document));
+        }
+
+        [Test]
+        public void Import_LevelType_AcceptsStringName_CaseInsensitive_SuperHard()
+        {
+            const string json = @"{ ""SlotsAmount"": 5, ""Width"": 1, ""Height"": 1,
+                ""BusColumnConfigs"": [], ""PixelColors"": [ 0 ], ""LevelType"": ""superhard"" }";
+            var imported = BusBuddiesGameLevelImporter.Import(json, "x");
+            Assert.AreEqual(BusLevelType.SuperHard, BusBuddiesLevelType.Get(imported.Document));
+        }
+
+        [Test]
+        public void Import_LevelType_AcceptsIntOrdinal_Two()
+        {
+            const string json = @"{ ""SlotsAmount"": 5, ""Width"": 1, ""Height"": 1,
+                ""BusColumnConfigs"": [], ""PixelColors"": [ 0 ], ""LevelType"": 2 }";
+            var imported = BusBuddiesGameLevelImporter.Import(json, "x");
+            Assert.AreEqual(BusLevelType.SuperHard, BusBuddiesLevelType.Get(imported.Document));
+        }
+
+        [Test]
+        public void Import_NoLevelType_DefaultsToNone()
+        {
+            var imported = BusBuddiesGameLevelImporter.Import(Sample2x2, "level_1");
+            Assert.AreEqual(BusLevelType.None, BusBuddiesLevelType.Get(imported.Document));
+        }
     }
 }

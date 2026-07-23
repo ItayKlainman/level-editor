@@ -155,6 +155,14 @@ namespace Hoppa.BusBuddies.Editor
             if (slotConfigs.Count > 0)
                 config["SlotConfigs"] = slotConfigs;
 
+            // Player-facing difficulty tag — the game's BUBLevelType enum (None/Hard/
+            // SuperHard). Written as the STRING enum name (the game's plain JsonConvert
+            // accepts string OR int) and OMITTED entirely for None, so existing
+            // None-tagged levels stay byte-identical.
+            var levelType = BusBuddiesLevelType.Get(document);
+            if (levelType != BusLevelType.None)
+                config["LevelType"] = levelType.ToString();
+
             Directory.CreateDirectory(dir);
             string outPath = Path.Combine(dir, "level_" + levelNum + ".json");
             File.WriteAllText(outPath, config.ToString(Formatting.Indented));

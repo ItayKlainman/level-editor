@@ -74,6 +74,10 @@ namespace Hoppa.BusBuddies.Editor
                 GameData = new JObject { ["conveyorCount"] = slots },
             };
 
+            // Player-facing difficulty tag: accepts EITHER the string enum name
+            // (case-insensitive) or the int ordinal. Missing key → None (default).
+            BusBuddiesLevelType.Set(doc, ParseLevelType(root["LevelType"]));
+
             // Road-Block slots: TOP-LEVEL sparse SlotConfigs[] → GameData["slotConfigs"]
             // via the helper (reversing IndexBase back to a 0-based internal index).
             // SlotType is accepted as the string "RoadBlock" OR the int ordinal 1.
@@ -178,6 +182,25 @@ namespace Hoppa.BusBuddies.Editor
             if (slotType.Type == JTokenType.Integer) return slotType.Value<int>() == 1;
             return string.Equals(slotType.Value<string>(), "RoadBlock",
                 System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        // LevelType accepts EITHER the string enum name (case-insensitive) or the int
+        // ordinal — mirroring the game's plain JsonConvert, which reads both forms.
+        // Missing / unrecognized → None.
+        private static BusLevelType ParseLevelType(JToken token)
+        {
+            if (token == null) return BusLevelType.None;
+            if (token.Type == JTokenType.Integer)
+            {
+                int ordinal = token.Value<int>();
+                return System.Enum.IsDefined(typeof(BusLevelType), ordinal)
+                    ? (BusLevelType)ordinal
+                    : BusLevelType.None;
+            }
+            string name = token.Value<string>();
+            return System.Enum.TryParse<BusLevelType>(name, true, out var result)
+                ? result
+                : BusLevelType.None;
         }
 
         private static BusEntry BusAt(BusQueueData queue, int? col, int? index)

@@ -26,9 +26,11 @@ namespace Hoppa.BusBuddies.Editor
         private const float PlateRowH = 18f;
         private static readonly Color PlateAccent = new Color(0.25f, 0.70f, 0.95f);
 
-        // Header (More options) + Road Blocks (title + 3 grid rows) + Plates (title +
-        // column header + up to ~4 rows + Add button) + padding.
-        public override float PreferredHeight => 104f + 16f + PlateRowH * 6f + 8f;
+        private const float LevelTypeRowH = 18f;
+
+        // Header (More options) + Level Type (1 row) + Road Blocks (title + 3 grid rows)
+        // + Plates (title + column header + up to ~4 rows + Add button) + padding.
+        public override float PreferredHeight => 104f + 16f + PlateRowH * 6f + 8f + LevelTypeRowH + 4f;
 
         public override void OnGUI(Rect rect, LevelEditorSession session, GameProfile profile)
         {
@@ -49,6 +51,22 @@ namespace Hoppa.BusBuddies.Editor
                     "No level open.", EditorStyles.centeredGreyMiniLabel);
                 return;
             }
+
+            // ── Level Type ────────────────────────────────────────────────────
+            const float LevelTypeLabelW = 66f;
+            GUI.Label(new Rect(x0, y, LevelTypeLabelW, LevelTypeRowH), "Level Type", EditorStyles.miniLabel);
+            var currentLevelType = BusBuddiesLevelType.Get(doc);
+            EditorGUI.BeginChangeCheck();
+            var newLevelType = (BusLevelType)EditorGUI.EnumPopup(
+                new Rect(x0 + LevelTypeLabelW, y, rect.width - 12f - LevelTypeLabelW, LevelTypeRowH),
+                currentLevelType);
+            if (EditorGUI.EndChangeCheck() && newLevelType != currentLevelType)
+            {
+                session.PushUndoSnapshot();
+                BusBuddiesLevelType.Set(doc, newLevelType);
+                session.MarkDirty();
+            }
+            y += LevelTypeRowH + 4f;
 
             var titleStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = RBAccent } };
             GUI.Label(new Rect(x0, y, rect.width - 12f, 14f), "Road Blocks", titleStyle);
