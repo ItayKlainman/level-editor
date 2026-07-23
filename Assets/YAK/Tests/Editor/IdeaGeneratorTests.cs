@@ -62,5 +62,24 @@ namespace Hoppa.YAK.Editor.Tests
             Assert.AreEqual(1, groups.Count);
             CollectionAssert.DoesNotContain(groups[0].Ideas, "intro line");
         }
+
+        [Test]
+        public void Normalize_IgnoresArticleCasePunctuation()
+        {
+            Assert.AreEqual(IdeaGeneratorCore.NormalizeIdea("A Red Fox."),
+                            IdeaGeneratorCore.NormalizeIdea("red fox"));
+        }
+
+        [Test]
+        public void MarkAndFilterDuplicates_RemovesAgainstExistingAndWithinBatch()
+        {
+            var groups = new System.Collections.Generic.List<IdeaGeneratorCore.IdeaGroup> {
+                new IdeaGeneratorCore.IdeaGroup { Subject="Animals",
+                    Ideas = new System.Collections.Generic.List<string>{ "a red fox", "an owl", "a RED fox" } }
+            };
+            var kept = IdeaGeneratorCore.MarkAndFilterDuplicates(groups, new[]{"the owl"}, out var dupes);
+            CollectionAssert.AreEqual(new[]{"a red fox"}, kept[0].Ideas); // owl dropped (existing), 2nd fox dropped (within-batch)
+            Assert.AreEqual(2, dupes);
+        }
     }
 }

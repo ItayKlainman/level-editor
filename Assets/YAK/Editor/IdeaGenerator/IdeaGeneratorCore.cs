@@ -69,5 +69,34 @@ namespace Hoppa.YAK.Editor
             if (d > i && d < s.Length && (s[d] == '.' || s[d] == ')')) { d++; while (d < s.Length && s[d] == ' ') d++; return s.Substring(d).Trim(); }
             return s.Trim();
         }
+
+        public static string NormalizeIdea(string idea)
+        {
+            var s = (idea ?? string.Empty).Trim().ToLowerInvariant().TrimEnd('.', '!', '?', ' ');
+            foreach (var art in new[]{"a ","an ","the "})
+                if (s.StartsWith(art)) { s = s.Substring(art.Length); break; }
+            return s.Trim();
+        }
+
+        public static List<IdeaGroup> MarkAndFilterDuplicates(
+            List<IdeaGroup> groups, IEnumerable<string> existing, out int dupeCount)
+        {
+            var seen = new HashSet<string>();
+            foreach (var e in existing) seen.Add(NormalizeIdea(e));
+            dupeCount = 0;
+            foreach (var g in groups)
+            {
+                var kept = new List<string>();
+                foreach (var idea in g.Ideas)
+                {
+                    var key = NormalizeIdea(idea);
+                    if (key.Length == 0 || seen.Contains(key)) { dupeCount++; continue; }
+                    seen.Add(key);
+                    kept.Add(idea);
+                }
+                g.Ideas = kept;
+            }
+            return groups;
+        }
     }
 }
