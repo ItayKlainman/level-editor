@@ -98,5 +98,33 @@ namespace Hoppa.YAK.Editor
             }
             return groups;
         }
+
+        public static string BuildAppendBlock(List<IdeaGroup> groups, int batchNumber, string styleKey = "collectible")
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine($"# @style: {styleKey}");
+            sb.AppendLine($"# @batch: {batchNumber}");
+            foreach (var g in groups)
+            {
+                if (g.Ideas.Count == 0) continue;
+                sb.AppendLine($"# {g.Subject}");
+                foreach (var idea in g.Ideas) sb.AppendLine(idea);
+            }
+            return sb.ToString();
+        }
+
+        public static int NextBatchNumber(string existingIdeasRaw)
+        {
+            int max = 0;
+            foreach (var raw in (existingIdeasRaw ?? string.Empty).Split('\n'))
+            {
+                var line = raw.Trim();
+                const string tag = "# @batch:";
+                if (line.StartsWith(tag) && int.TryParse(line.Substring(tag.Length).Trim(), out var n))
+                    max = System.Math.Max(max, n);
+            }
+            return max + 1;
+        }
     }
 }

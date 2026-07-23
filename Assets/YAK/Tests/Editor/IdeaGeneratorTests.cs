@@ -81,5 +81,28 @@ namespace Hoppa.YAK.Editor.Tests
             CollectionAssert.AreEqual(new[]{"a red fox"}, kept[0].Ideas); // owl dropped (existing), 2nd fox dropped (within-batch)
             Assert.AreEqual(2, dupes);
         }
+
+        [Test]
+        public void BuildAppendBlock_EmitsStyleBatchAndPerSubjectHeaders()
+        {
+            var groups = new System.Collections.Generic.List<IdeaGeneratorCore.IdeaGroup> {
+                new IdeaGeneratorCore.IdeaGroup { Subject="Animals", Ideas=new System.Collections.Generic.List<string>{"a red fox"} },
+                new IdeaGeneratorCore.IdeaGroup { Subject="Music",   Ideas=new System.Collections.Generic.List<string>{"a smiling guitar"} },
+            };
+            var block = IdeaGeneratorCore.BuildAppendBlock(groups, 3);
+            StringAssert.Contains("# @style: collectible", block);
+            StringAssert.Contains("# @batch: 3", block);
+            StringAssert.Contains("# Animals", block);
+            StringAssert.Contains("a red fox", block);
+            StringAssert.Contains("# Music", block);
+            StringAssert.Contains("a smiling guitar", block);
+        }
+
+        [Test]
+        public void NextBatchNumber_IsOneMoreThanMaxCollectibleBatch()
+        {
+            var raw = "# @style: collectible\n# @batch: 1\na cat\n# @batch: 2\na dog\n";
+            Assert.AreEqual(3, IdeaGeneratorCore.NextBatchNumber(raw));
+        }
     }
 }
