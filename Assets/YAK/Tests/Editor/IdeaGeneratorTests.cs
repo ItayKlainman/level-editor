@@ -25,5 +25,21 @@ namespace Hoppa.YAK.Editor.Tests
             Assert.AreEqual(30, kb.ComplexityDistribution[1].Percent);
             Assert.AreEqual(1, kb.DesignRules.Count);
         }
+
+        [Test]
+        public void BuildPrompt_IncludesSubjectsModifiersAmountRulesAndExisting()
+        {
+            var kb = IdeaKnowledgeBase.Parse(MiniJson);
+            var p = IdeaGeneratorCore.BuildPrompt(kb,
+                new[]{"Animals","Music"}, new[]{"Accessory"}, 20,
+                new[]{"a red fox"});
+            StringAssert.Contains("Animals", p);
+            StringAssert.Contains("Music", p);
+            StringAssert.Contains("Accessory", p);
+            StringAssert.Contains("20", p);
+            StringAssert.Contains("Keep silhouettes clear.", p);   // a design rule
+            StringAssert.Contains("a red fox", p);                  // existing-idea uniqueness context
+            StringAssert.Contains("Simple", p);                     // complexity distribution
+        }
     }
 }
